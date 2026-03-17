@@ -1,0 +1,8 @@
+{
+  "name": "cpython-review-toolkit",
+  "version": "0.1.0",
+  "description": "CPython C code exploration and analysis agents: refcount auditing, error path analysis, GIL discipline checking, C complexity measurement, include graph mapping, PEP 7 style checking, NULL safety scanning, API deprecation tracking, macro hygiene review, and memory pattern analysis",
+  "author": {
+    "name": "Danzin"
+  }
+}
