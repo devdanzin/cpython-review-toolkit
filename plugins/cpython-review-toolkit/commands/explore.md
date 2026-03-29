@@ -31,6 +31,7 @@ Parse arguments into three categories:
 - `deprecation` → api-deprecation-tracker
 - `macros` → macro-hygiene-reviewer
 - `memory` → memory-pattern-analyzer
+- `history` → git-history-analyzer
 - `all` → all agents (default)
 
 **Options**:
@@ -82,7 +83,10 @@ Based on the requested aspects (default: all), launch the appropriate agents. Ea
 8. macro-hygiene-reviewer
 9. memory-pattern-analyzer
 
-If `parallel` is specified, run agents within each group concurrently. Run at most `--max-parallel` agents concurrently within each group (default: 2). Groups still execute sequentially because later groups may benefit from earlier findings.
+**Group E — Temporal analysis (runs last)**:
+10. git-history-analyzer
+
+If `parallel` is specified, run agents within each group concurrently. Group E runs last because it cross-references all other agents' output. Run at most `--max-parallel` agents concurrently within each group (default: 2). Groups still execute sequentially because later groups may benefit from earlier findings.
 
 ### Phase 3: Synthesis
 
