@@ -203,6 +203,79 @@ class TestInitReinitSafety(unittest.TestCase):
             ]
             self.assertEqual(len(reinit), 0)
 
+    def test_detects_clinic_impl_suffix(self):
+        c_code = (
+            "static int\n"
+            "MyObj_init_impl(MyObj *self, int x)\n"
+            "{\n"
+            "    self->data = PyList_New(0);\n"
+            "    return 0;\n"
+            "}\n"
+        )
+        with TempProject({"Objects/test.c": c_code}) as root:
+            result = mod.analyze(str(root))
+            reinit = [
+                f for f in result["findings"]
+                if f["type"] == "init_not_reinit_safe"
+            ]
+            self.assertEqual(len(reinit), 1)
+
+    def test_detects_initobj_impl_suffix(self):
+        c_code = (
+            "static int\n"
+            "MyObj_initobj_impl(MyObj *self, int x)\n"
+            "{\n"
+            "    self->data = PyDict_New();\n"
+            "    return 0;\n"
+            "}\n"
+        )
+        with TempProject({"Objects/test.c": c_code}) as root:
+            result = mod.analyze(str(root))
+            reinit = [
+                f for f in result["findings"]
+                if f["type"] == "init_not_reinit_safe"
+            ]
+            self.assertEqual(len(reinit), 1)
+
+    def test_detects_init_prefix_helper(self):
+        c_code = (
+            "static int\n"
+            "init_sockobject(socket_state *state, PySocketSockObject *s,\n"
+            "                int family, int type, int proto)\n"
+            "{\n"
+            "    s->data = PyList_New(0);\n"
+            "    s->sock_family = family;\n"
+            "    return 0;\n"
+            "}\n"
+        )
+        with TempProject({"Objects/test.c": c_code}) as root:
+            result = mod.analyze(str(root))
+            reinit = [
+                f for f in result["findings"]
+                if f["type"] == "init_not_reinit_safe"
+            ]
+            self.assertEqual(len(reinit), 1)
+            self.assertIn("init_sockobject", reinit[0]["detail"])
+
+    def test_detects_non_self_param(self):
+        c_code = (
+            "static int\n"
+            "MyObj_init(MyObj *op, PyObject *args)\n"
+            "{\n"
+            "    op->data = PyList_New(0);\n"
+            "    op->buffer = PyMem_Malloc(1024);\n"
+            "    return 0;\n"
+            "}\n"
+        )
+        with TempProject({"Objects/test.c": c_code}) as root:
+            result = mod.analyze(str(root))
+            reinit = [
+                f for f in result["findings"]
+                if f["type"] == "init_not_reinit_safe"
+            ]
+            self.assertEqual(len(reinit), 1)
+            self.assertIn("op->", reinit[0]["detail"])
+
     def test_non_init_function_ignored(self):
         c_code = (
             "static int\n"
@@ -313,6 +386,40 @@ class TestNewWithoutInit(unittest.TestCase):
                 if f["type"] == "new_missing_member_init"
             ]
             self.assertEqual(len(uninit), 0)
+
+
+class TestFindFunctions(unittest.TestCase):
+    """Test C function detection including multi-line signatures."""
+
+    def test_multiline_signature(self):
+        c_code = (
+            "static int\n"
+            "init_sockobject(socket_state *state, PySocketSockObject *s,\n"
+            "                int family, int type, int proto)\n"
+            "{\n"
+            "    s->sock_family = family;\n"
+            "    return 0;\n"
+            "}\n"
+        )
+        funcs = mod.find_functions(c_code)
+        names = [f["name"] for f in funcs]
+        self.assertIn("init_sockobject", names)
+
+    def test_clinic_comment_before_brace(self):
+        c_code = (
+            "static int\n"
+            "sock_initobj_impl(PySocketSockObject *self, int family)\n"
+            "/*[clinic end generated code: output=abc123 input=def456]*/\n"
+            "{\n"
+            "    self->sock_family = family;\n"
+            "    return 0;\n"
+            "}\n"
+        )
+        funcs = mod.find_functions(c_code)
+        names = [f["name"] for f in funcs]
+        self.assertIn("sock_initobj_impl", names)
+        func = [f for f in funcs if f["name"] == "sock_initobj_impl"][0]
+        self.assertIn("sock_family", func["body"])
 
 
 class TestAnalyze(unittest.TestCase):

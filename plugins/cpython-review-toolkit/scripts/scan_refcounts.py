@@ -160,8 +160,20 @@ DECREF_APIS = frozenset({
 # Function detection (simplified from measure_c_complexity.py)
 # ---------------------------------------------------------------------------
 
+_SKIP_NAMES = frozenset({
+    'if', 'for', 'while', 'switch', 'do', 'else',
+    'sizeof', 'return', 'typedef', 'struct', 'union',
+    'enum', 'defined',
+})
+
+
 def find_functions(source: str) -> list[dict]:
-    """Find C function definitions and extract their bodies."""
+    """Find C function definitions and extract their bodies.
+
+    Handles both single-line and multi-line signatures, including
+    Argument Clinic ``_impl`` functions with ``/*[clinic ...]*/``
+    comments between ``)`` and ``{``.
+    """
     lines = source.split('\n')
     functions: list[dict] = []
 
@@ -170,18 +182,45 @@ def find_functions(source: str) -> list[dict]:
             continue
         if i < 1:
             continue
-        prev = lines[i - 1].strip()
-        m = re.match(r'^(\w+)\s*\(([^)]*)\)\s*$', prev)
-        if not m:
-            m = re.match(r'^(?:\w[\w\s\*]*?)\s+(\w+)\s*\(([^)]*)\)\s*$', prev)
-        if not m:
-            continue
-        func_name = m.group(1)
-        if func_name in ('if', 'for', 'while', 'switch', 'do', 'else',
-                         'sizeof', 'return', 'typedef', 'struct', 'union',
-                         'enum', 'defined'):
+
+        # Look backwards up to 10 lines to assemble the full signature.
+        # Skip comment lines (e.g. Argument Clinic markers).
+        sig_lines: list[str] = []
+        func_name = None
+        sig_start = i - 1
+        for k in range(i - 1, max(i - 11, -1), -1):
+            stripped = lines[k].strip()
+            # Skip blank lines and comment-only lines.
+            if not stripped or stripped.startswith('/*') or stripped.startswith('*'):
+                continue
+            sig_lines.insert(0, stripped)
+            # Check if this line contains `name(` at column 0 or after
+            # a return type — that's the start of the signature.
+            if '(' in stripped:
+                sig_start = k
+                break
+
+        if not sig_lines:
             continue
 
+        # Join the signature lines and try to extract name(params).
+        sig = ' '.join(sig_lines)
+        # Remove Argument Clinic end markers.
+        sig = re.sub(r'/\*\[clinic.*?\]\*/', '', sig).strip()
+
+        # Try to match: [return_type] name(params)
+        m = re.match(r'(?:[\w\s\*]+?)\s+(\w+)\s*\(([^)]*)\)\s*$', sig)
+        if not m:
+            # Try: name(params) alone
+            m = re.match(r'^(\w+)\s*\(([^)]*)\)\s*$', sig)
+        if not m:
+            continue
+
+        func_name = m.group(1)
+        if func_name in _SKIP_NAMES:
+            continue
+
+        # Find the matching closing brace.
         depth = 1
         body_start = i + 1
         body_end = body_start
@@ -198,16 +237,18 @@ def find_functions(source: str) -> list[dict]:
                 break
 
         body = '\n'.join(lines[body_start:body_end])
-        sig_start = i - 1
-        if sig_start > 0 and re.match(
-            r'^[\w\s\*]+$', lines[sig_start - 1].strip()
+
+        # Detect return type line (may be 1-2 lines above sig_start).
+        actual_start = sig_start
+        if actual_start > 0 and re.match(
+            r'^[\w\s\*]+$', lines[actual_start - 1].strip()
         ):
-            sig_start -= 1
+            actual_start -= 1
 
         functions.append({
             "name": func_name,
             "body": body,
-            "start_line": sig_start + 1,
+            "start_line": actual_start + 1,
             "end_line": body_end + 1,
             "raw_lines": lines[body_start:body_end],
         })
@@ -279,24 +320,39 @@ _INIT_ALLOC_RE = re.compile(
     ) + r')\s*\('
 )
 
-# Assignment to self->member pattern.
-_SELF_MEMBER_ASSIGN_RE = re.compile(
-    r'\bself\s*->\s*(\w+)\s*='
-)
-
-# Re-init guard patterns (any of these → safe).
-_REINIT_GUARD_PATTERNS = [
+# Re-init guard patterns (any of these → safe).  Built dynamically per
+# function using _build_reinit_guards(param_name).
+_REINIT_GUARD_STATIC = [
     re.compile(r'"already.?init', re.IGNORECASE),
     re.compile(r'"cannot.?reinit', re.IGNORECASE),
     re.compile(r'\bPREVENT_INIT', re.IGNORECASE),
     re.compile(r'\binit_was_called\b'),
-    re.compile(r'\bself\s*->\s*initialized\b'),
-    # Cleanup-before-assign: if (self->member != NULL) { Py_CLEAR/free/DECREF }
-    re.compile(
-        r'if\s*\(\s*self\s*->\s*\w+\s*!=\s*NULL\s*\)'
-        r'[^}]*(?:Py_CLEAR|Py_XDECREF|Py_DECREF|PyMem_Free|free)\s*\('
-    ),
 ]
+
+
+def _build_member_assign_re(param: str) -> re.Pattern:
+    """Build regex matching assignment to param->member."""
+    return re.compile(rf'\b{re.escape(param)}\s*->\s*(\w+)\s*=')
+
+
+def _build_reinit_guards(param: str) -> list[re.Pattern]:
+    """Build re-init guard patterns for a given parameter name."""
+    return _REINIT_GUARD_STATIC + [
+        re.compile(rf'\b{re.escape(param)}\s*->\s*initialized\b'),
+        # Cleanup-before-assign: if (param->member != NULL) { Py_CLEAR/... }
+        re.compile(
+            rf'if\s*\(\s*{re.escape(param)}\s*->\s*\w+\s*!=\s*NULL\s*\)'
+            r'[^}]*(?:Py_CLEAR|Py_XDECREF|Py_DECREF|PyMem_Free|free)\s*\('
+        ),
+    ]
+
+
+def _build_member_null_init_re(param: str) -> re.Pattern:
+    """Build regex matching param->member = NULL/0 initialization."""
+    return re.compile(
+        rf'\b{re.escape(param)}\s*->\s*\w+\s*=\s*(?:NULL|0)\s*;'
+    )
+
 
 # Non-zeroing allocators for tp_new.
 _NON_ZEROING_ALLOC_RE = re.compile(
@@ -304,29 +360,66 @@ _NON_ZEROING_ALLOC_RE = re.compile(
 )
 
 # Zeroing allocators for tp_new.
-_ZEROING_ALLOC_RE = re.compile(
-    r'\b(tp_alloc|PyType_GenericAlloc|calloc)\s*\(|'
-    r'\bmemset\s*\(\s*self\s*,\s*0'
+_ZEROING_ALLOC_PATTERN = (
+    r'\b(tp_alloc|PyType_GenericAlloc|calloc)\s*\('
 )
 
-# Member init to NULL/0 in tp_new.
-_MEMBER_NULL_INIT_RE = re.compile(
-    r'\bself\s*->\s*\w+\s*=\s*(?:NULL|0)\s*;'
-)
+
+def _build_zeroing_alloc_re(param: str) -> re.Pattern:
+    """Build regex matching zeroing allocators including memset(param, 0)."""
+    return re.compile(
+        _ZEROING_ALLOC_PATTERN + r'|'
+        + rf'\bmemset\s*\(\s*{re.escape(param)}\s*,\s*0'
+    )
+
+
+# Match the first pointer parameter: Type *name
+_FIRST_PTR_PARAM_RE = re.compile(r'(\w+)\s*\*\s*(\w+)')
+
+
+def _extract_self_param(func: dict) -> str | None:
+    """Extract the first pointer parameter name from a function.
+
+    In CPython, tp_init/tp_new first pointer param is the instance:
+    self, s, op, etc.
+    """
+    # Look at the line before the opening brace for the signature.
+    body = func.get("body", "")
+    name = func["name"]
+    # We need the raw source lines above the body.  The function dict
+    # includes start_line/end_line and raw_lines for the body, but not
+    # the signature.  Use the name line from find_functions context.
+    # Fall back: scan body for the most common instance pointer patterns.
+    # Check for param->member dereferences.
+    deref_re = re.compile(r'\b(\w+)\s*->\s*\w+')
+    candidates: dict[str, int] = {}
+    for m in deref_re.finditer(body):
+        p = m.group(1)
+        if p not in ('NULL', 'type', 'PyExc', 'Py_TYPE', 'ob_type'):
+            candidates[p] = candidates.get(p, 0) + 1
+    if candidates:
+        # Return the most frequently dereferenced pointer.
+        return max(candidates, key=lambda k: candidates[k])
+    return None
 
 
 def _is_tp_init(func: dict) -> bool:
     """Check if a function looks like a tp_init implementation.
 
-    tp_init signature: int SomeType_init(SomeType *self, PyObject *args, ...)
+    Matches:
+    - Suffix: *_init, *_Init, *_init_impl, *initobj_impl
+      (Argument Clinic generates *_impl suffixes)
+    - Prefix: init_*object (CPython helper pattern, e.g. init_sockobject)
     """
     name = func["name"]
-    body = func["body"]
-    # Name typically ends with _init or _Init.
-    if not re.search(r'_[Ii]nit$', name):
+    # Suffix match: _init, _init_impl, _initobj, _initobj_impl, _Init.
+    if not (
+        re.search(r'_[Ii]nit(?:obj)?(?:_impl)?$', name)
+        or re.search(r'^init_\w+obj', name)
+    ):
         return False
-    # Body should reference self-> (operates on instance).
-    if 'self->' not in body:
+    # Must have a pointer dereference (operates on instance).
+    if '->' not in func["body"]:
         return False
     return True
 
@@ -334,14 +427,13 @@ def _is_tp_init(func: dict) -> bool:
 def _is_tp_new(func: dict) -> bool:
     """Check if a function looks like a tp_new implementation.
 
-    tp_new signature: PyObject *SomeType_new(PyTypeObject *type, ...)
+    Matches: *_new, *_New, *_new_impl
     """
     name = func["name"]
-    body = func["body"]
-    if not re.search(r'_[Nn]ew$', name):
+    if not re.search(r'_[Nn]ew(?:_impl)?$', name):
         return False
-    # Should contain an allocator call and return a PyObject*.
-    if 'self' not in body:
+    # Should contain a pointer dereference.
+    if '->' not in func["body"] and 'self' not in func["body"]:
         return False
     return True
 
@@ -350,42 +442,49 @@ def check_init_reinit_safety(func: dict) -> list[dict]:
     """Check a tp_init function for re-init safety issues.
 
     Flags tp_init functions that allocate resources and assign to
-    self->member without a re-init guard.
+    instance->member without a re-init guard.
     """
     if not _is_tp_init(func):
         return []
 
     body = func["body"]
     clean = strip_comments_and_strings(body)
-    findings: list[dict] = []
+
+    # Detect the instance parameter name (self, s, op, etc.).
+    param = _extract_self_param(func)
+    if param is None:
+        return []
 
     # Check for allocations.
     alloc_calls = _INIT_ALLOC_RE.findall(clean)
     if not alloc_calls:
         return []
 
-    # Check for self->member assignments.
-    member_assigns = _SELF_MEMBER_ASSIGN_RE.findall(clean)
+    # Check for param->member assignments.
+    member_re = _build_member_assign_re(param)
+    member_assigns = member_re.findall(clean)
     if not member_assigns:
         return []
 
     # Check for re-init guard patterns.
-    for pattern in _REINIT_GUARD_PATTERNS:
+    for pattern in _build_reinit_guards(param):
         if pattern.search(clean):
             return []
 
     # No guard found — flag it.
-    findings.append({
+    return [{
         "type": "init_not_reinit_safe",
         "line_offset": 0,
         "detail": (
-            f"tp_init '{func['name']}' allocates ({', '.join(sorted(set(alloc_calls)))}) "
-            f"and assigns to self->{', self->'.join(sorted(set(member_assigns)))} "
-            f"without a re-init guard — second __init__() call will leak resources"
+            f"tp_init '{func['name']}' allocates "
+            f"({', '.join(sorted(set(alloc_calls)))}) "
+            f"and assigns to {param}->"
+            f"{f', {param}->'.join(sorted(set(member_assigns)))} "
+            f"without a re-init guard — second __init__() call "
+            f"will leak resources"
         ),
         "confidence": "high",
-    })
-    return findings
+    }]
 
 
 def check_new_member_init(func: dict) -> list[dict]:
@@ -399,10 +498,13 @@ def check_new_member_init(func: dict) -> list[dict]:
 
     body = func["body"]
     clean = strip_comments_and_strings(body)
-    findings: list[dict] = []
+
+    # Detect the instance parameter name.
+    param = _extract_self_param(func) or "self"
 
     # Check if a zeroing allocator is used — if so, safe.
-    if _ZEROING_ALLOC_RE.search(clean):
+    zeroing_re = _build_zeroing_alloc_re(param)
+    if zeroing_re.search(clean):
         return []
 
     # Check if a non-zeroing allocator is used.
@@ -413,20 +515,21 @@ def check_new_member_init(func: dict) -> list[dict]:
     allocator = non_zero_m.group(1)
 
     # Check if pointer members are explicitly initialized.
-    if _MEMBER_NULL_INIT_RE.search(clean):
+    null_init_re = _build_member_null_init_re(param)
+    if null_init_re.search(clean):
         return []
 
-    findings.append({
+    return [{
         "type": "new_missing_member_init",
         "line_offset": clean[:non_zero_m.start()].count('\n') + 1,
         "detail": (
-            f"tp_new '{func['name']}' uses non-zeroing allocator {allocator}() "
-            f"without initializing pointer members to NULL — "
-            f"object.__new__() without __init__() will leave garbage pointers"
+            f"tp_new '{func['name']}' uses non-zeroing allocator "
+            f"{allocator}() without initializing pointer members to "
+            f"NULL — object.__new__() without __init__() will leave "
+            f"garbage pointers"
         ),
         "confidence": "medium",
-    })
-    return findings
+    }]
 
 
 def analyze_function_refcounts(func: dict) -> list[dict]:
