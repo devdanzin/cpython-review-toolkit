@@ -45,7 +45,36 @@ The script produces structured output with:
 
 Focus on `recent_fixes` first (highest value), then `file_churn` and `function_churn`.
 
-### Phase 2: Similar Bug Detection (Highest Value — 70% effort)
+### Phase 2: Fix Completeness Review
+
+Before searching for similar bugs elsewhere, check whether each fix is itself complete. For each recent fix commit (cap at 15):
+
+1. **Read the fix diff and commit message**: Understand what was reported broken and what the fix changes.
+
+2. **Check all code paths in the fixed function**:
+   - Does the fix cover error paths? (Many CPython functions have multiple `goto error` / `goto done` branches — a fix might patch one but miss another.)
+   - Does the fix cover `#ifdef` platform variants? (A fix to the Unix code path may leave the `#ifdef MS_WINDOWS` path unfixed, or vice versa.)
+   - Does the fix cover all variables? (A refcount leak fix for `var_a` may leave `var_b` with the same leak pattern in the same function.)
+
+3. **Check root cause vs. symptom**: Did the fix address the root cause, or did it patch the symptom? For example, adding a NULL check after an API call that shouldn't have returned NULL in the first place — was the real bug in the caller or the callee?
+
+4. **Check for regression risk**: Did the fix change a condition or code path that other callers depend on? Could the fix break something else?
+
+5. **Classify each fix**:
+   - **FIX** if the fix is demonstrably incomplete (missed code path, missed platform variant, missed variable)
+   - **CONSIDER** if the fix might be incomplete but requires deeper analysis to confirm
+   - **ACCEPTABLE** if the fix appears complete and correct
+
+Output format for incomplete fixes:
+
+```
+#### [FIX] Incomplete fix in commit [SHA] — [title]
+**What was fixed**: [description]
+**What was missed**: [specific missed code path, variable, or platform variant]
+**Evidence**: [line numbers, code snippet showing the unfixed path]
+```
+
+### Phase 3: Similar Bug Detection (Highest Value — 60% effort)
 
 For each recent fix commit:
 
@@ -78,7 +107,7 @@ For each recent fix commit:
 
 5. **Cap at 10 similar-bug findings**: Prioritize by confidence and severity.
 
-### Phase 3: Churn-Risk Matrix
+### Phase 4: Churn-Risk Matrix
 
 Combine churn data with quality signals:
 
@@ -93,7 +122,7 @@ Combine churn data with quality signals:
 
 Cross-reference with other agents' findings if available. Cap at 10 entries.
 
-### Phase 4: CPython-Specific Analyses
+### Phase 5: CPython-Specific Analyses
 
 #### Module Family Fix Propagation
 
@@ -180,6 +209,7 @@ Final summary:
 ## History Analysis Summary
 
 - **Fix Commits Analyzed**: [count]
+- **Incomplete Fixes Found**: [count]
 - **Similar Bug Patterns Found**: [count]
 - **Module Family Gaps**: [count]
 - **High-Risk Files**: [count]
@@ -195,7 +225,7 @@ Final summary:
 
 ## Important Guidelines
 
-1. **Similar bug detection is the primary value.** Invest 70% of effort here. The churn matrix and CPython-specific analyses are secondary.
+1. **Similar bug detection is the primary value.** Invest 60% of effort here, 15% on fix completeness, and 25% on churn matrix + CPython-specific analyses.
 
 2. **Module families are the highest-probability search.** When a bug is fixed in one hash module, the other hash modules almost certainly have the same issue. Check family siblings before doing a broad search.
 
