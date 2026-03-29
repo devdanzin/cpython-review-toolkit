@@ -33,6 +33,8 @@ Run all agents in summary mode to produce a quick health dashboard. Each agent r
 | Macro Hygiene      | 🟢/🟡/🔴  | X/10  | N   | [1-line summary]               |
 | Memory Patterns    | 🟢/🟡/🔴  | X/10  | N   | [1-line summary]               |
 | Include Graph      | 🟢/🟡/🔴  | X/10  | N   | [1-line summary]               |
+| Change Velocity    | 🟢/🟡/🔴  | X/10  | N   | [1-line summary]               |
+| Fix Quality        | 🟢/🟡/🔴  | X/10  | N   | [1-line summary]               |
 
 ## Overall Health: X/10
 
