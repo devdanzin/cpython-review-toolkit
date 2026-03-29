@@ -256,6 +256,179 @@ _GOTO_ERROR_RE = re.compile(r'\bgoto\s+(\w+)\s*;')
 _ERROR_LABEL_RE = re.compile(r'^(\w+)\s*:', re.MULTILINE)
 
 
+# ---------------------------------------------------------------------------
+# tp_init / tp_new detection
+# ---------------------------------------------------------------------------
+
+# Allocation APIs that create resources (superset of NEW_REF_APIS for init
+# safety — includes raw memory and file handles).
+_INIT_ALLOC_APIS = frozenset({
+    "PyMem_Malloc", "PyMem_Calloc", "PyMem_Realloc",
+    "malloc", "calloc", "realloc",
+    "PyObject_New", "PyObject_GC_New",
+    "PyList_New", "PyDict_New", "PyTuple_New", "PySet_New",
+    "PyUnicode_FromString", "PyBytes_FromString",
+    "Py_BuildValue", "PyObject_Call", "PyObject_CallFunction",
+    "PyObject_CallMethod",
+    "fopen", "open",
+})
+
+_INIT_ALLOC_RE = re.compile(
+    r'\b(' + '|'.join(
+        re.escape(api) for api in sorted(_INIT_ALLOC_APIS, key=len, reverse=True)
+    ) + r')\s*\('
+)
+
+# Assignment to self->member pattern.
+_SELF_MEMBER_ASSIGN_RE = re.compile(
+    r'\bself\s*->\s*(\w+)\s*='
+)
+
+# Re-init guard patterns (any of these → safe).
+_REINIT_GUARD_PATTERNS = [
+    re.compile(r'"already.?init', re.IGNORECASE),
+    re.compile(r'"cannot.?reinit', re.IGNORECASE),
+    re.compile(r'\bPREVENT_INIT', re.IGNORECASE),
+    re.compile(r'\binit_was_called\b'),
+    re.compile(r'\bself\s*->\s*initialized\b'),
+    # Cleanup-before-assign: if (self->member != NULL) { Py_CLEAR/free/DECREF }
+    re.compile(
+        r'if\s*\(\s*self\s*->\s*\w+\s*!=\s*NULL\s*\)'
+        r'[^}]*(?:Py_CLEAR|Py_XDECREF|Py_DECREF|PyMem_Free|free)\s*\('
+    ),
+]
+
+# Non-zeroing allocators for tp_new.
+_NON_ZEROING_ALLOC_RE = re.compile(
+    r'\b(PyObject_New|PyObject_GC_New|malloc)\s*\('
+)
+
+# Zeroing allocators for tp_new.
+_ZEROING_ALLOC_RE = re.compile(
+    r'\b(tp_alloc|PyType_GenericAlloc|calloc)\s*\(|'
+    r'\bmemset\s*\(\s*self\s*,\s*0'
+)
+
+# Member init to NULL/0 in tp_new.
+_MEMBER_NULL_INIT_RE = re.compile(
+    r'\bself\s*->\s*\w+\s*=\s*(?:NULL|0)\s*;'
+)
+
+
+def _is_tp_init(func: dict) -> bool:
+    """Check if a function looks like a tp_init implementation.
+
+    tp_init signature: int SomeType_init(SomeType *self, PyObject *args, ...)
+    """
+    name = func["name"]
+    body = func["body"]
+    # Name typically ends with _init or _Init.
+    if not re.search(r'_[Ii]nit$', name):
+        return False
+    # Body should reference self-> (operates on instance).
+    if 'self->' not in body:
+        return False
+    return True
+
+
+def _is_tp_new(func: dict) -> bool:
+    """Check if a function looks like a tp_new implementation.
+
+    tp_new signature: PyObject *SomeType_new(PyTypeObject *type, ...)
+    """
+    name = func["name"]
+    body = func["body"]
+    if not re.search(r'_[Nn]ew$', name):
+        return False
+    # Should contain an allocator call and return a PyObject*.
+    if 'self' not in body:
+        return False
+    return True
+
+
+def check_init_reinit_safety(func: dict) -> list[dict]:
+    """Check a tp_init function for re-init safety issues.
+
+    Flags tp_init functions that allocate resources and assign to
+    self->member without a re-init guard.
+    """
+    if not _is_tp_init(func):
+        return []
+
+    body = func["body"]
+    clean = strip_comments_and_strings(body)
+    findings: list[dict] = []
+
+    # Check for allocations.
+    alloc_calls = _INIT_ALLOC_RE.findall(clean)
+    if not alloc_calls:
+        return []
+
+    # Check for self->member assignments.
+    member_assigns = _SELF_MEMBER_ASSIGN_RE.findall(clean)
+    if not member_assigns:
+        return []
+
+    # Check for re-init guard patterns.
+    for pattern in _REINIT_GUARD_PATTERNS:
+        if pattern.search(clean):
+            return []
+
+    # No guard found — flag it.
+    findings.append({
+        "type": "init_not_reinit_safe",
+        "line_offset": 0,
+        "detail": (
+            f"tp_init '{func['name']}' allocates ({', '.join(sorted(set(alloc_calls)))}) "
+            f"and assigns to self->{', self->'.join(sorted(set(member_assigns)))} "
+            f"without a re-init guard — second __init__() call will leak resources"
+        ),
+        "confidence": "high",
+    })
+    return findings
+
+
+def check_new_member_init(func: dict) -> list[dict]:
+    """Check a tp_new function for uninitialized member safety.
+
+    Flags tp_new functions using non-zeroing allocators without
+    initializing pointer members to NULL.
+    """
+    if not _is_tp_new(func):
+        return []
+
+    body = func["body"]
+    clean = strip_comments_and_strings(body)
+    findings: list[dict] = []
+
+    # Check if a zeroing allocator is used — if so, safe.
+    if _ZEROING_ALLOC_RE.search(clean):
+        return []
+
+    # Check if a non-zeroing allocator is used.
+    non_zero_m = _NON_ZEROING_ALLOC_RE.search(clean)
+    if not non_zero_m:
+        return []
+
+    allocator = non_zero_m.group(1)
+
+    # Check if pointer members are explicitly initialized.
+    if _MEMBER_NULL_INIT_RE.search(clean):
+        return []
+
+    findings.append({
+        "type": "new_missing_member_init",
+        "line_offset": clean[:non_zero_m.start()].count('\n') + 1,
+        "detail": (
+            f"tp_new '{func['name']}' uses non-zeroing allocator {allocator}() "
+            f"without initializing pointer members to NULL — "
+            f"object.__new__() without __init__() will leave garbage pointers"
+        ),
+        "confidence": "medium",
+    })
+    return findings
+
+
 def analyze_function_refcounts(func: dict) -> list[dict]:
     """Analyze refcount balance for a single function.
 
@@ -413,7 +586,12 @@ def analyze(target: str, *, max_files: int = 0) -> dict:
         functions = find_functions(source)
         for func in functions:
             functions_analyzed += 1
+            # Standard refcount analysis.
             func_findings = analyze_function_refcounts(func)
+            # tp_init re-init safety.
+            func_findings.extend(check_init_reinit_safety(func))
+            # tp_new uninitialized member safety.
+            func_findings.extend(check_new_member_init(func))
             for finding in func_findings:
                 finding["file"] = rel
                 finding["function"] = func["name"]
@@ -423,6 +601,8 @@ def analyze(target: str, *, max_files: int = 0) -> dict:
     # Categorize findings.
     leaks = [f for f in all_findings if "leak" in f["type"]]
     double_frees = [f for f in all_findings if "double_free" in f["type"]]
+    reinit = [f for f in all_findings if f["type"] == "init_not_reinit_safe"]
+    new_uninit = [f for f in all_findings if f["type"] == "new_missing_member_init"]
 
     return {
         "project_root": str(project_root),
@@ -433,6 +613,8 @@ def analyze(target: str, *, max_files: int = 0) -> dict:
         "summary": {
             "potential_leaks": len(leaks),
             "potential_double_frees": len(double_frees),
+            "init_not_reinit_safe": len(reinit),
+            "new_missing_member_init": len(new_uninit),
             "total_findings": len(all_findings),
             "high_confidence": len(
                 [f for f in all_findings if f.get("confidence") == "high"]

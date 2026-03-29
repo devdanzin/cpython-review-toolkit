@@ -56,7 +56,25 @@ For each candidate finding from the script:
    - Likely bug but uncertain due to complex flow → CONSIDER
    - False positive → skip (don't report)
 
-### Phase 3: Pattern-Based Review
+### Phase 3: tp_init / tp_new Safety Review
+
+The script also checks for two underappreciated bug classes:
+
+**`init_not_reinit_safe`**: A `tp_init` function that allocates resources and assigns to `self->member` without a re-init guard. Python allows `obj.__init__()` to be called multiple times — if `tp_init` doesn't check for prior initialization or clean up existing state first, the second call leaks the first call's resources.
+
+For each finding:
+1. Read the `tp_init` function and check whether re-init is actually possible (some types are immutable or reject re-init at the Python level)
+2. Check for guards the script may have missed: flag-based (`self->initialized`), error-based (`"already initialized"`), or cleanup-based (`if (self->field != NULL) { Py_CLEAR(self->field); }`)
+3. Classify: **FIX** if allocation + member assignment with no guard, **ACCEPTABLE** if any guard is present or re-init is prevented at a higher level
+
+**`new_missing_member_init`**: A `tp_new` function that uses a non-zeroing allocator (`PyObject_New`, `PyObject_GC_New`, `malloc`) without initializing pointer members to NULL. If `object.__new__(MyType)` is called without `__init__()`, methods may dereference uninitialized garbage.
+
+For each finding:
+1. Check which allocator is used — `tp_alloc`/`PyType_GenericAlloc`/`calloc` zero memory and are safe
+2. If a non-zeroing allocator is used, check if all pointer members are explicitly set to NULL/0
+3. Classify: **CONSIDER** if non-zeroing without member init, **ACCEPTABLE** if zeroing allocator or explicit init
+
+### Phase 4: Pattern-Based Review
 
 Beyond script findings, look for these patterns in the code:
 
@@ -80,6 +98,16 @@ Beyond script findings, look for these patterns in the code:
 **What**: New reference from `API_NAME` assigned to `var` is not DECREF'd on error path (line N returns NULL).
 **Why it matters**: This leaks memory on every error in this code path.
 **Fix**: Add `Py_XDECREF(var)` to the error cleanup label, or use `Py_CLEAR(var)` if `var` is reachable from a GC-traversable object.
+
+#### [FIX] tp_init not re-init safe in `MyObj_init` (file.c:line)
+**What**: `MyObj_init` allocates via `PyList_New` and assigns to `self->data` without checking for prior initialization.
+**Why it matters**: If `__init__()` is called twice, the first call's `self->data` is leaked.
+**Fix**: Either reject re-init (`if (self->initialized) { PyErr_SetString(...); return -1; }`) or clean up first (`Py_CLEAR(self->data)` before reassigning).
+
+#### [CONSIDER] tp_new leaves members uninitialized in `MyObj_new` (file.c:line)
+**What**: `MyObj_new` uses `PyObject_New` (non-zeroing) without setting `self->data` and `self->buffer` to NULL.
+**Why it matters**: `object.__new__(MyObj)` without `__init__()` leaves garbage pointers that methods will dereference.
+**Fix**: Either use `type->tp_alloc(type, 0)` (zeroing), or explicitly set all pointer members to NULL after allocation.
 
 #### [CONSIDER] Borrowed reference use-after-possible-free in `function_name` (file.c:line)
 **What**: Borrowed reference from `PyList_GetItem` at line N is used after calling `PyObject_CallMethod` at line M, which could trigger GC and invalidate the borrowed reference.
