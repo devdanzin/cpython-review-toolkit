@@ -103,6 +103,218 @@ class TestRefcountDetection(unittest.TestCase):
             self.assertEqual(len(leaks), 0)
 
 
+class TestInitReinitSafety(unittest.TestCase):
+    """Test tp_init re-init safety detection."""
+
+    def test_detects_unsafe_reinit(self):
+        c_code = (
+            "static int\n"
+            "MyObj_init(MyObj *self, PyObject *args, PyObject *kwds)\n"
+            "{\n"
+            "    self->data = PyList_New(0);\n"
+            "    self->buffer = PyMem_Malloc(1024);\n"
+            "    return 0;\n"
+            "}\n"
+        )
+        with TempProject({"Objects/test.c": c_code}) as root:
+            result = mod.analyze(str(root))
+            reinit = [
+                f for f in result["findings"]
+                if f["type"] == "init_not_reinit_safe"
+            ]
+            self.assertEqual(len(reinit), 1)
+            self.assertIn("MyObj_init", reinit[0]["detail"])
+            self.assertEqual(reinit[0]["confidence"], "high")
+
+    def test_safe_reinit_flag_guard(self):
+        c_code = (
+            "static int\n"
+            "MyObj_init(MyObj *self, PyObject *args, PyObject *kwds)\n"
+            "{\n"
+            "    if (self->initialized) {\n"
+            '        PyErr_SetString(PyExc_RuntimeError, "already initialized");\n'
+            "        return -1;\n"
+            "    }\n"
+            "    self->data = PyList_New(0);\n"
+            "    self->initialized = 1;\n"
+            "    return 0;\n"
+            "}\n"
+        )
+        with TempProject({"Objects/test.c": c_code}) as root:
+            result = mod.analyze(str(root))
+            reinit = [
+                f for f in result["findings"]
+                if f["type"] == "init_not_reinit_safe"
+            ]
+            self.assertEqual(len(reinit), 0)
+
+    def test_safe_reinit_cleanup_guard(self):
+        c_code = (
+            "static int\n"
+            "MyObj_init(MyObj *self, PyObject *args, PyObject *kwds)\n"
+            "{\n"
+            "    if (self->data != NULL) {\n"
+            "        Py_CLEAR(self->data);\n"
+            "    }\n"
+            "    self->data = PyList_New(0);\n"
+            "    return 0;\n"
+            "}\n"
+        )
+        with TempProject({"Objects/test.c": c_code}) as root:
+            result = mod.analyze(str(root))
+            reinit = [
+                f for f in result["findings"]
+                if f["type"] == "init_not_reinit_safe"
+            ]
+            self.assertEqual(len(reinit), 0)
+
+    def test_safe_reinit_prevent_macro(self):
+        c_code = (
+            "static int\n"
+            "MyObj_init(MyObj *self, PyObject *args, PyObject *kwds)\n"
+            "{\n"
+            "    PREVENT_INIT_MULTIPLE_CALLS;\n"
+            "    self->data = PyList_New(0);\n"
+            "    return 0;\n"
+            "}\n"
+        )
+        with TempProject({"Objects/test.c": c_code}) as root:
+            result = mod.analyze(str(root))
+            reinit = [
+                f for f in result["findings"]
+                if f["type"] == "init_not_reinit_safe"
+            ]
+            self.assertEqual(len(reinit), 0)
+
+    def test_no_alloc_no_finding(self):
+        c_code = (
+            "static int\n"
+            "MyObj_init(MyObj *self, PyObject *args, PyObject *kwds)\n"
+            "{\n"
+            "    self->count = 0;\n"
+            "    return 0;\n"
+            "}\n"
+        )
+        with TempProject({"Objects/test.c": c_code}) as root:
+            result = mod.analyze(str(root))
+            reinit = [
+                f for f in result["findings"]
+                if f["type"] == "init_not_reinit_safe"
+            ]
+            self.assertEqual(len(reinit), 0)
+
+    def test_non_init_function_ignored(self):
+        c_code = (
+            "static int\n"
+            "MyObj_setup(MyObj *self, PyObject *args)\n"
+            "{\n"
+            "    self->data = PyList_New(0);\n"
+            "    return 0;\n"
+            "}\n"
+        )
+        with TempProject({"Objects/test.c": c_code}) as root:
+            result = mod.analyze(str(root))
+            reinit = [
+                f for f in result["findings"]
+                if f["type"] == "init_not_reinit_safe"
+            ]
+            self.assertEqual(len(reinit), 0)
+
+
+class TestNewWithoutInit(unittest.TestCase):
+    """Test tp_new uninitialized member detection."""
+
+    def test_detects_non_zeroing_no_init(self):
+        c_code = (
+            "static PyObject *\n"
+            "MyObj_new(PyTypeObject *type, PyObject *args, PyObject *kwds)\n"
+            "{\n"
+            "    MyObj *self = (MyObj *)PyObject_New(MyObj, type);\n"
+            "    return (PyObject *)self;\n"
+            "}\n"
+        )
+        with TempProject({"Objects/test.c": c_code}) as root:
+            result = mod.analyze(str(root))
+            uninit = [
+                f for f in result["findings"]
+                if f["type"] == "new_missing_member_init"
+            ]
+            self.assertEqual(len(uninit), 1)
+            self.assertIn("PyObject_New", uninit[0]["detail"])
+
+    def test_safe_zeroing_allocator(self):
+        c_code = (
+            "static PyObject *\n"
+            "MyObj_new(PyTypeObject *type, PyObject *args, PyObject *kwds)\n"
+            "{\n"
+            "    MyObj *self = (MyObj *)type->tp_alloc(type, 0);\n"
+            "    return (PyObject *)self;\n"
+            "}\n"
+        )
+        with TempProject({"Objects/test.c": c_code}) as root:
+            result = mod.analyze(str(root))
+            uninit = [
+                f for f in result["findings"]
+                if f["type"] == "new_missing_member_init"
+            ]
+            self.assertEqual(len(uninit), 0)
+
+    def test_safe_explicit_null_init(self):
+        c_code = (
+            "static PyObject *\n"
+            "MyObj_new(PyTypeObject *type, PyObject *args, PyObject *kwds)\n"
+            "{\n"
+            "    MyObj *self = (MyObj *)PyObject_New(MyObj, type);\n"
+            "    if (self != NULL) {\n"
+            "        self->data = NULL;\n"
+            "        self->buffer = NULL;\n"
+            "    }\n"
+            "    return (PyObject *)self;\n"
+            "}\n"
+        )
+        with TempProject({"Objects/test.c": c_code}) as root:
+            result = mod.analyze(str(root))
+            uninit = [
+                f for f in result["findings"]
+                if f["type"] == "new_missing_member_init"
+            ]
+            self.assertEqual(len(uninit), 0)
+
+    def test_safe_generic_alloc(self):
+        c_code = (
+            "static PyObject *\n"
+            "MyObj_new(PyTypeObject *type, PyObject *args, PyObject *kwds)\n"
+            "{\n"
+            "    MyObj *self = (MyObj *)PyType_GenericAlloc(type, 0);\n"
+            "    return (PyObject *)self;\n"
+            "}\n"
+        )
+        with TempProject({"Objects/test.c": c_code}) as root:
+            result = mod.analyze(str(root))
+            uninit = [
+                f for f in result["findings"]
+                if f["type"] == "new_missing_member_init"
+            ]
+            self.assertEqual(len(uninit), 0)
+
+    def test_non_new_function_ignored(self):
+        c_code = (
+            "static PyObject *\n"
+            "MyObj_create(PyTypeObject *type, PyObject *args)\n"
+            "{\n"
+            "    MyObj *self = (MyObj *)PyObject_New(MyObj, type);\n"
+            "    return (PyObject *)self;\n"
+            "}\n"
+        )
+        with TempProject({"Objects/test.c": c_code}) as root:
+            result = mod.analyze(str(root))
+            uninit = [
+                f for f in result["findings"]
+                if f["type"] == "new_missing_member_init"
+            ]
+            self.assertEqual(len(uninit), 0)
+
+
 class TestAnalyze(unittest.TestCase):
     """Test full refcount analysis."""
 
@@ -120,6 +332,8 @@ class TestAnalyze(unittest.TestCase):
             self.assertIn("summary", result)
             self.assertIn("potential_leaks", result["summary"])
             self.assertIn("potential_double_frees", result["summary"])
+            self.assertIn("init_not_reinit_safe", result["summary"])
+            self.assertIn("new_missing_member_init", result["summary"])
             self.assertIn("total_findings", result["summary"])
 
     def test_empty_project(self):
