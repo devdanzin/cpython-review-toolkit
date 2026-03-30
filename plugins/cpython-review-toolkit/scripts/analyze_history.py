@@ -793,7 +793,14 @@ def analyze(argv: list[str] | None = None) -> dict:
             proc.stdout, max_commits, project_root,
         )
     finally:
-        proc.wait()
+        # Terminate git if it's still writing (parse_git_log may have
+        # stopped reading before git finished, causing a pipe deadlock).
+        proc.terminate()
+        try:
+            proc.wait(timeout=5)
+        except subprocess.TimeoutExpired:
+            proc.kill()
+            proc.wait()
 
     commit_cap_applied = len(commits) >= max_commits
     if last_n is not None and commits:
