@@ -236,6 +236,7 @@ class TestParseArgs(unittest.TestCase):
         args = mod.parse_args([])
         self.assertEqual(args["days"], 90)
         self.assertEqual(args["max_commits"], 2000)
+        self.assertEqual(args["workers"], 8)
         self.assertFalse(args["no_function"])
 
     def test_days(self):
@@ -254,14 +255,19 @@ class TestParseArgs(unittest.TestCase):
         args = mod.parse_args(["Modules/"])
         self.assertEqual(args["path"], "Modules/")
 
+    def test_workers(self):
+        args = mod.parse_args(["--workers", "4"])
+        self.assertEqual(args["workers"], 4)
+
     def test_combined(self):
         args = mod.parse_args([
             "Modules/", "--days", "180", "--max-commits", "5000",
-            "--no-function",
+            "--workers", "16", "--no-function",
         ])
         self.assertEqual(args["path"], "Modules/")
         self.assertEqual(args["days"], 180)
         self.assertEqual(args["max_commits"], 5000)
+        self.assertEqual(args["workers"], 16)
         self.assertTrue(args["no_function"])
 
 

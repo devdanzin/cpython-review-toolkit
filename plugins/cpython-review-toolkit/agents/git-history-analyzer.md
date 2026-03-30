@@ -31,6 +31,13 @@ For longer history:
 python <plugin_root>/scripts/analyze_history.py <target_directory> --days 365 --max-commits 5000
 ```
 
+**Important operational notes:**
+
+- **Use a long Bash timeout**: The script fetches diffs for hundreds of commits in parallel. Pass `timeout=300000` (5 minutes) on the Bash tool call. The default 120-second timeout WILL kill the script on large repos.
+- **Use unique temp filenames**: If saving output to a file, include a unique identifier (e.g., `$$` PID or the date range) to avoid collisions with other agents running in parallel: `/tmp/cpython_history_${date_range}_$$.json`
+- **If the script times out**: Do NOT retry. Fall back immediately to manual `git log --oneline --grep=fix` + `git show` commands to fetch the data you need.
+- **Workers**: The script defaults to 8 parallel workers for git subprocess calls. You can adjust with `--workers N`.
+
 The script produces structured output with:
 
 | Field | Description |
