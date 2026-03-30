@@ -22,21 +22,21 @@ Git history analysis for CPython provides unique insights:
 
 Run the analysis script:
 
+**CRITICAL — multiple agents may run this script concurrently. You MUST:**
+1. **Never write output to a shared filename.** Always include a unique suffix derived from your date range or scope, e.g., `/tmp/cpython_history_2025-03_2025-09_$$.json`. Never use bare `/tmp/cpython_analysis.json`.
+2. **Set a long Bash timeout** (`timeout: 300000`, i.e., 5 minutes). The default 120s WILL kill the script on large repos.
+3. **If the script times out, do NOT retry.** Fall back immediately to manual `git log` + `git show` commands.
+
 ```bash
+# Short analysis (last 100 commits) — pipe directly, no temp file needed:
 python <plugin_root>/scripts/analyze_history.py <target_directory> --last 100
+
+# Longer analysis — save to a UNIQUE temp file:
+python <plugin_root>/scripts/analyze_history.py <target_directory> \
+    --days 365 --max-commits 5000 > /tmp/cpython_history_MYRANGE_$$.json
 ```
 
-For longer history:
-```bash
-python <plugin_root>/scripts/analyze_history.py <target_directory> --days 365 --max-commits 5000
-```
-
-**Important operational notes:**
-
-- **Use a long Bash timeout**: The script fetches diffs for hundreds of commits in parallel. Pass `timeout=300000` (5 minutes) on the Bash tool call. The default 120-second timeout WILL kill the script on large repos.
-- **Use unique temp filenames**: If saving output to a file, include a unique identifier (e.g., `$$` PID or the date range) to avoid collisions with other agents running in parallel: `/tmp/cpython_history_${date_range}_$$.json`
-- **If the script times out**: Do NOT retry. Fall back immediately to manual `git log --oneline --grep=fix` + `git show` commands to fetch the data you need.
-- **Workers**: The script defaults to 8 parallel workers for git subprocess calls. You can adjust with `--workers N`.
+The script defaults to 8 parallel workers for git subprocess calls. Adjust with `--workers N`.
 
 The script produces structured output with:
 
