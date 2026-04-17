@@ -132,3 +132,27 @@ Beyond script findings, look for these patterns in the code:
 - **Context matters**: A refcount leak in a rarely-called initialization function is less critical than one in a hot loop in ceval.c.
 - **CPython's own patterns**: CPython code sometimes intentionally leaks references to immortal objects (None, True, False) or module-level objects that live for the process lifetime. Don't flag these.
 - **Be precise**: Include exact line numbers, variable names, and API calls in every finding. Vague findings are not actionable.
+
+## Safety Annotations
+
+`scan_refcounts.py` looks at C comments within +/- 5 lines of each candidate
+finding. If any comment contains one of the following keywords (case-insensitive
+substring match), the finding is downgraded to `confidence: low` and marked
+`suppressed_by_annotation: true`. Reviewers should still eyeball these — the
+annotation is a hint, not a proof.
+
+Suppressing keywords (add to the comment nearest the flagged line):
+
+- `safety:` / `checked:` — reviewer vouches for the call site
+- `safe because` / `correct because` / `this is safe` — justification follows
+- `intentional` / `by design` / `deliberately` / `expected` — pattern is chosen
+- `not a bug` — known-false-positive marker
+- `borrowed ok` — borrowed reference provably lives long enough
+- `refcount safe` — refcount is accounted for elsewhere
+- `nolint` — general lint-suppression convention
+
+Example:
+```c
+/* safety: PyList_GetItem returns a borrowed ref; list owned by caller. */
+PyObject *item = PyList_GetItem(list, 0);
+```
