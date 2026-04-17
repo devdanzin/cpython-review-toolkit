@@ -7,9 +7,10 @@ Outputs a JSON structure with per-function metrics:
 - weighted score (1-10)
 
 Usage:
-    python measure_c_complexity.py [path]
+    python measure_c_complexity.py [path] [--max-files N]
 
     path: directory, file, or omitted for current directory
+    --max-files N: cap the number of .c/.h files scanned (0 = unlimited)
 """
 
 import json
