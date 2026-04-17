@@ -8,9 +8,10 @@ Outputs a JSON structure with per-file style violations:
 - trailing whitespace, missing braces
 
 Usage:
-    python check_pep7.py [path]
+    python check_pep7.py [path] [--max-files N]
 
     path: directory, file, or omitted for current directory
+    --max-files N: cap the number of .c/.h files scanned (0 = unlimited)
 """
 
 import json
