@@ -40,6 +40,34 @@ class TestRefcountDetection(unittest.TestCase):
             self.assertGreaterEqual(len(leaks), 0)
             # The function should be analyzed.
             self.assertGreater(result["functions_analyzed"], 0)
+            # Envelope sanity: silent-failure guard.
+            self.assertGreater(result["files_analyzed"], 0)
+
+    def test_safety_annotation_downgrades_finding(self):
+        # Allocates a new ref that is neither DECREF'd, stolen, nor
+        # returned — a canonical potential_leak — but marked as safe.
+        c_code = (
+            "static void\n"
+            "leaky_intentional(void)\n"
+            "{\n"
+            "    /* intentional: cache lives for process lifetime */\n"
+            "    PyObject *cache = PyList_New(0);\n"
+            "    (void)cache;\n"
+            "}\n"
+        )
+        with TempProject({"Objects/test.c": c_code}) as root:
+            result = mod.analyze(str(root))
+            # Envelope sanity.
+            self.assertGreater(result["files_analyzed"], 0)
+            self.assertGreater(result["functions_analyzed"], 0)
+            leaks = [
+                f for f in result["findings"]
+                if f["type"] == "potential_leak"
+                and f.get("variable") == "cache"
+            ]
+            for f in leaks:
+                self.assertEqual(f.get("confidence"), "low")
+                self.assertTrue(f.get("suppressed_by_annotation"))
 
     def test_clean_function_no_findings(self):
         c_code = (

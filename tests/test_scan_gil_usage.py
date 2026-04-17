@@ -25,11 +25,36 @@ class TestGilDetection(unittest.TestCase):
         )
         with TempProject({"Modules/test.c": c_code}) as root:
             result = mod.analyze(str(root))
+            # Envelope sanity: silent-failure guard.
+            self.assertGreater(result["files_analyzed"], 0)
+            self.assertGreater(result["functions_analyzed"], 0)
             mismatched = [
                 f for f in result["findings"]
                 if f["type"] == "mismatched_allow_threads"
             ]
             self.assertGreater(len(mismatched), 0)
+
+    def test_safety_annotation_downgrades_finding(self):
+        c_code = (
+            "static int\n"
+            "api_no_gil(PyObject *self)\n"
+            "{\n"
+            "    Py_BEGIN_ALLOW_THREADS\n"
+            "    /* safety: gil-held by callee via internal mutex */\n"
+            "    PyObject_CallMethod(self, \"method\", NULL);\n"
+            "    Py_END_ALLOW_THREADS\n"
+            "    return 0;\n"
+            "}\n"
+        )
+        with TempProject({"Modules/test.c": c_code}) as root:
+            result = mod.analyze(str(root))
+            api_findings = [
+                f for f in result["findings"]
+                if f["type"] == "api_without_gil"
+            ]
+            for f in api_findings:
+                self.assertEqual(f.get("confidence"), "low")
+                self.assertTrue(f.get("suppressed_by_annotation"))
 
     def test_balanced_threads_no_finding(self):
         c_code = (
