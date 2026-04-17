@@ -106,3 +106,10 @@ From the script's `include_graph` and metrics:
 - **Internal headers are for internal use**: Code outside Include/internal/ using internal headers is a potential API stability issue.
 - **Include guards vs. pragma once**: CPython uses traditional include guards. Both are fine — don't flag this as an issue.
 - **Count accurately**: Report exact numbers from the script, not estimates.
+
+## Running the script
+
+- Call the script with a Bash timeout of **300000 ms** (5 min). The default 120s kills on large repos.
+- Use a **unique temp filename** for the JSON output, e.g. `/tmp/include-graph-mapper_<scope>_$$.json` — the `$$` PID suffix prevents collisions when multiple agents run concurrently.
+- Forward `--max-files N` and (where supported) `--workers N` from the caller.
+- If the script **times out or errors, do NOT retry it.** Fall back to Grep/Read for the same question. Long-running runs should use `run_in_background`.

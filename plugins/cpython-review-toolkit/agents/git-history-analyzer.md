@@ -247,3 +247,11 @@ Final summary:
 7. **Cap similar-bug findings at 10.** Cap risk matrix at 10 entries. Note totals if more exist.
 
 8. **Function-level churn uses regex for C files.** The script uses regex-based function boundary detection (consistent with other cpython-review-toolkit scripts). This handles most CPython functions including multi-line signatures and Argument Clinic `_impl` functions, but may miss functions with `#ifdef` brace imbalance.
+
+## Confidence
+
+- **HIGH** — structurally identical to a known-bad pattern, or exact signature match; ≥90% likelihood of being a true positive.
+- **MEDIUM** — similar with differences that require human verification; 70–89%.
+- **LOW** — superficially similar; requires code-context reading; 50–69%.
+
+Findings below LOW are not reported.
