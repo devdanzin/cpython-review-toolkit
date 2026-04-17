@@ -88,3 +88,24 @@ Beyond script findings, look for:
 - **SystemError is a real bug**: Functions that return NULL without setting an exception cause confusing errors for Python users.
 - **The canonical pattern is well-established**: CPython functions should use `goto error / goto done` with cleanup labels. Deviations aren't bugs but increase risk.
 - **Some APIs always succeed**: A few C API functions cannot fail (e.g., Py_INCREF on a known non-NULL pointer). Don't flag missing checks for these.
+
+## Safety Annotations
+
+`scan_error_paths.py` looks at C comments within +/- 5 lines of each candidate
+finding. If any comment contains one of the following keywords (case-insensitive
+substring match), the finding is downgraded to `confidence: low` and marked
+`suppressed_by_annotation: true`.
+
+Suppressing keywords:
+
+- `safety:` / `checked:` — reviewer vouches for the call site
+- `safe because` / `correct because` / `this is safe` — justification follows
+- `intentional` / `by design` / `deliberately` / `expected` — pattern is chosen
+- `not a bug` — known-false-positive marker
+- `nolint` — general lint-suppression convention
+
+Example:
+```c
+/* checked: PyArg_ParseTuple validated above; err is 0 on this path. */
+return result;
+```
