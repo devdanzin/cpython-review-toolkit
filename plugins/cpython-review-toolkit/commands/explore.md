@@ -137,31 +137,52 @@ After all agents complete, perform deduplication and conflict resolution, then p
 
 ## Findings by Priority
 
-### Must Fix (FIX)
-[Crash risks, memory corruption, undefined behavior]
+**Use global non-restarting numbering**: number ALL findings sequentially across all sections. FIX findings first (1-N), then CONSIDER (N+1-M), then POLICY (M+1-P). Use these same numbers in the action plan. This makes it easy to reference "Finding 37" in issue trackers and emails.
 
-### Should Consider (CONSIDER)
-[Improvement opportunities with trade-offs]
+### Must Fix (FIX) — N
+
+| # | Finding | File:Line | Agents |
+|---|---------|-----------|--------|
+| 1 | [Crash risk / memory corruption / UB — description] | [file:line] | [which agents found it] |
+
+### Should Consider (CONSIDER) — M
+
+| # | Finding | File:Line |
+|---|---------|-----------|
+| N+1 | [Improvement opportunity with trade-offs — description] | [file:line] |
 
 ### Tensions
 [Where agents disagree]
 
-### Policy Decisions (POLICY)
-[Team-level decisions needed]
+### Policy Decisions (POLICY) — P
+
+| # | Finding |
+|---|---------|
+| M+1 | [Team-level decision — description] |
+
+### Acceptable (ACCEPTABLE) — Q
+
+| # | Finding |
+|---|---------|
+| P+1 | [Informational / no action required — description] |
 
 ## Strengths
 [What the C code does well]
 
 ## Recommended Action Plan
 
-### Immediate
-1. [FIX items — safety-critical]
+Reference findings by their global number:
 
-### Short-term
-1. [CONSIDER items — quality improvements]
+### Immediate (FIX items)
+1. [Fix Finding 1 — description]
+2. [Fix Finding 2 — description]
 
-### Ongoing
-1. [POLICY decisions to make]
+### Short-term (CONSIDER items)
+1. [Finding N+1 — description]
+2. [Finding N+2 — description]
+
+### Longer-term (POLICY)
+1. [Finding M+1 — description]
 ```
 
 ## Usage Examples
