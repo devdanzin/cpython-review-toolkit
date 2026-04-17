@@ -72,3 +72,24 @@ Beyond script findings:
 - **Memory allocation can always fail**: Every malloc/PyMem_Malloc call must be checked, even if failure is unlikely.
 - **PyArg_ParseTuple failure leaves args uninitialized**: If the parse fails and the return isn't checked, extracted arguments are garbage.
 - **Some allocations are "infallible"**: PyMem_Malloc on small sizes almost never fails, but the check is still required per CPython coding standards.
+
+## Safety Annotations
+
+`scan_null_checks.py` looks at C comments within +/- 5 lines of each candidate
+finding. If any comment contains one of the following keywords (case-insensitive
+substring match), the finding is downgraded to `confidence: low` and marked
+`suppressed_by_annotation: true`.
+
+Suppressing keywords:
+
+- `safety:` / `checked:` — reviewer vouches for the call site
+- `safe because` / `correct because` / `this is safe` — justification follows
+- `intentional` / `by design` / `deliberately` / `expected` — pattern is chosen
+- `not a bug` — known-false-positive marker
+- `nolint` — general lint-suppression convention
+
+Example:
+```c
+/* safety: ptr guaranteed non-NULL by caller contract. */
+ptr->field = value;
+```

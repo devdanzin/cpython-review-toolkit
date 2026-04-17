@@ -84,3 +84,28 @@ For codebases targeting Python 3.13+:
 - **Blocking with GIL is a judgment call**: Short operations may not be worth the overhead of releasing/reacquiring the GIL. Flag but classify as CONSIDER.
 - **Free-threading is evolving**: For 3.13+ code, flag patterns that are unsafe under nogil but note that this is forward-looking guidance.
 - **Some modules are GIL-free by design**: Code in PC/ or Mac/ may use OS-level threading without the GIL. Understand context before flagging.
+
+## Safety Annotations
+
+`scan_gil_usage.py` looks at C comments within +/- 5 lines of each candidate
+finding. If any comment contains one of the following keywords (case-insensitive
+substring match), the finding is downgraded to `confidence: low` and marked
+`suppressed_by_annotation: true`.
+
+Suppressing keywords (GIL-specific terms included):
+
+- `gil held` / `gil-held` — the GIL is known-held on this path
+- `already locked` / `already protected` — mutex/GIL acquired by caller
+- `safety:` / `checked:` — reviewer vouches for the call site
+- `safe because` / `correct because` / `this is safe` — justification follows
+- `intentional` / `by design` / `deliberately` / `expected` — pattern is chosen
+- `not a bug` — known-false-positive marker
+- `nolint` — general lint-suppression convention
+
+Example:
+```c
+Py_BEGIN_ALLOW_THREADS
+/* safety: gil-held by the _internal helper; no Python API called here. */
+ret = os_level_work();
+Py_END_ALLOW_THREADS
+```
