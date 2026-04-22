@@ -72,3 +72,39 @@ Beyond script findings:
 - **Memory allocation can always fail**: Every malloc/PyMem_Malloc call must be checked, even if failure is unlikely.
 - **PyArg_ParseTuple failure leaves args uninitialized**: If the parse fails and the return isn't checked, extracted arguments are garbage.
 - **Some allocations are "infallible"**: PyMem_Malloc on small sizes almost never fails, but the check is still required per CPython coding standards.
+
+## Safety Annotations
+
+`scan_null_checks.py` looks at C comments within +/- 5 lines of each candidate
+finding. If any comment contains one of the following keywords (case-insensitive
+substring match), the finding is downgraded to `confidence: low` and marked
+`suppressed_by_annotation: true`.
+
+Suppressing keywords:
+
+- `safety:` / `checked:` — reviewer vouches for the call site
+- `safe because` / `correct because` / `this is safe` — justification follows
+- `intentional` / `by design` / `deliberately` / `expected` — pattern is chosen
+- `not a bug` — known-false-positive marker
+- `nolint` — general lint-suppression convention
+
+Example:
+```c
+/* safety: ptr guaranteed non-NULL by caller contract. */
+ptr->field = value;
+```
+
+## Running the script
+
+- Call the script with a Bash timeout of **300000 ms** (5 min). The default 120s kills on large repos.
+- Use a **unique temp filename** for the JSON output, e.g. `/tmp/null-safety-scanner_<scope>_$$.json` — the `$$` PID suffix prevents collisions when multiple agents run concurrently.
+- Forward `--max-files N` and (where supported) `--workers N` from the caller.
+- If the script **times out or errors, do NOT retry it.** Fall back to Grep/Read for the same question. Long-running runs should use `run_in_background`.
+
+## Confidence
+
+- **HIGH** — structurally identical to a known-bad pattern, or exact signature match; ≥90% likelihood of being a true positive.
+- **MEDIUM** — similar with differences that require human verification; 70–89%.
+- **LOW** — superficially similar; requires code-context reading; 50–69%.
+
+Findings below LOW are not reported.

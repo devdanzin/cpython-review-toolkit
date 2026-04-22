@@ -132,3 +132,42 @@ Beyond script findings, look for these patterns in the code:
 - **Context matters**: A refcount leak in a rarely-called initialization function is less critical than one in a hot loop in ceval.c.
 - **CPython's own patterns**: CPython code sometimes intentionally leaks references to immortal objects (None, True, False) or module-level objects that live for the process lifetime. Don't flag these.
 - **Be precise**: Include exact line numbers, variable names, and API calls in every finding. Vague findings are not actionable.
+
+## Safety Annotations
+
+`scan_refcounts.py` looks at C comments within +/- 5 lines of each candidate
+finding. If any comment contains one of the following keywords (case-insensitive
+substring match), the finding is downgraded to `confidence: low` and marked
+`suppressed_by_annotation: true`. Reviewers should still eyeball these — the
+annotation is a hint, not a proof.
+
+Suppressing keywords (add to the comment nearest the flagged line):
+
+- `safety:` / `checked:` — reviewer vouches for the call site
+- `safe because` / `correct because` / `this is safe` — justification follows
+- `intentional` / `by design` / `deliberately` / `expected` — pattern is chosen
+- `not a bug` — known-false-positive marker
+- `borrowed ok` — borrowed reference provably lives long enough
+- `refcount safe` — refcount is accounted for elsewhere
+- `nolint` — general lint-suppression convention
+
+Example:
+```c
+/* safety: PyList_GetItem returns a borrowed ref; list owned by caller. */
+PyObject *item = PyList_GetItem(list, 0);
+```
+
+## Running the script
+
+- Call the script with a Bash timeout of **300000 ms** (5 min). The default 120s kills on large repos.
+- Use a **unique temp filename** for the JSON output, e.g. `/tmp/refcount-auditor_<scope>_$$.json` — the `$$` PID suffix prevents collisions when multiple agents run concurrently.
+- Forward `--max-files N` and (where supported) `--workers N` from the caller.
+- If the script **times out or errors, do NOT retry it.** Fall back to Grep/Read for the same question. Long-running runs should use `run_in_background`.
+
+## Confidence
+
+- **HIGH** — structurally identical to a known-bad pattern, or exact signature match; ≥90% likelihood of being a true positive.
+- **MEDIUM** — similar with differences that require human verification; 70–89%.
+- **LOW** — superficially similar; requires code-context reading; 50–69%.
+
+Findings below LOW are not reported.

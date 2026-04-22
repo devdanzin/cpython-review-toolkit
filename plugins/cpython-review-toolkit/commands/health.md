@@ -39,9 +39,14 @@ Run all agents in summary mode to produce a quick health dashboard. Each agent r
 ## Overall Health: X/10
 
 ## Top 3 Priorities
-1. [Most impactful improvement]
-2. [Next]
-3. [Next]
+
+Reference findings by global non-restarting numbering (FIX 1..N, CONSIDER N+1..M,
+POLICY M+1..P, ACCEPTABLE P+1..Q). Use the same numbers in `/explore` output so
+issues tracked here carry over to the detailed report.
+
+1. [Finding # — most impactful improvement]
+2. [Finding # — next]
+3. [Finding # — next]
 
 For detailed analysis, run:
   /cpython-review-toolkit:explore . [aspect] deep

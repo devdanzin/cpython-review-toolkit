@@ -88,3 +88,39 @@ Beyond script findings, look for:
 - **SystemError is a real bug**: Functions that return NULL without setting an exception cause confusing errors for Python users.
 - **The canonical pattern is well-established**: CPython functions should use `goto error / goto done` with cleanup labels. Deviations aren't bugs but increase risk.
 - **Some APIs always succeed**: A few C API functions cannot fail (e.g., Py_INCREF on a known non-NULL pointer). Don't flag missing checks for these.
+
+## Safety Annotations
+
+`scan_error_paths.py` looks at C comments within +/- 5 lines of each candidate
+finding. If any comment contains one of the following keywords (case-insensitive
+substring match), the finding is downgraded to `confidence: low` and marked
+`suppressed_by_annotation: true`.
+
+Suppressing keywords:
+
+- `safety:` / `checked:` — reviewer vouches for the call site
+- `safe because` / `correct because` / `this is safe` — justification follows
+- `intentional` / `by design` / `deliberately` / `expected` — pattern is chosen
+- `not a bug` — known-false-positive marker
+- `nolint` — general lint-suppression convention
+
+Example:
+```c
+/* checked: PyArg_ParseTuple validated above; err is 0 on this path. */
+return result;
+```
+
+## Running the script
+
+- Call the script with a Bash timeout of **300000 ms** (5 min). The default 120s kills on large repos.
+- Use a **unique temp filename** for the JSON output, e.g. `/tmp/error-path-analyzer_<scope>_$$.json` — the `$$` PID suffix prevents collisions when multiple agents run concurrently.
+- Forward `--max-files N` and (where supported) `--workers N` from the caller.
+- If the script **times out or errors, do NOT retry it.** Fall back to Grep/Read for the same question. Long-running runs should use `run_in_background`.
+
+## Confidence
+
+- **HIGH** — structurally identical to a known-bad pattern, or exact signature match; ≥90% likelihood of being a true positive.
+- **MEDIUM** — similar with differences that require human verification; 70–89%.
+- **LOW** — superficially similar; requires code-context reading; 50–69%.
+
+Findings below LOW are not reported.

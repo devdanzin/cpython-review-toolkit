@@ -93,3 +93,10 @@ For each function with accidental complexity, provide:
 - **goto is idiomatic in C error handling**: High goto counts in CPython are normal and not a complexity concern unless the control flow is genuinely hard to follow.
 - **Context matters**: A complex function that is rarely modified and well-tested is lower priority than a complex function that is frequently changed.
 - **Suggest concrete refactorings**: Don't just say "this is complex" — show how to simplify it.
+
+## Running the script
+
+- Call the script with a Bash timeout of **300000 ms** (5 min). The default 120s kills on large repos.
+- Use a **unique temp filename** for the JSON output, e.g. `/tmp/c-complexity-analyzer_<scope>_$$.json` — the `$$` PID suffix prevents collisions when multiple agents run concurrently.
+- Forward `--max-files N` and (where supported) `--workers N` from the caller.
+- If the script **times out or errors, do NOT retry it.** Fall back to Grep/Read for the same question. Long-running runs should use `run_in_background`.

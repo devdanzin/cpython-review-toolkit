@@ -5,9 +5,10 @@ Detects missing NULL checks after API calls, return NULL without
 PyErr_Set*, error path cleanup issues, and inconsistent error returns.
 
 Usage:
-    python scan_error_paths.py [path]
+    python scan_error_paths.py [path] [--max-files N]
 
     path: directory, file, or omitted for current directory
+    --max-files N: cap the number of .c/.h files scanned (0 = unlimited)
 """
 
 import json
@@ -15,6 +16,10 @@ import re
 import sys
 from pathlib import Path
 from typing import Generator
+
+# Allow importing sibling scan_common.
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from scan_common import extract_nearby_comments, has_safety_annotation  # noqa: E402
 
 
 # ---------------------------------------------------------------------------
@@ -346,6 +351,12 @@ def analyze(target: str, *, max_files: int = 0) -> dict:
                 finding["file"] = rel
                 finding["function"] = func["name"]
                 finding["line"] = func["start_line"] + finding.pop("line_offset")
+                # Annotation-aware suppression: downgrade to low confidence
+                # when a nearby safety comment is present.
+                nearby = extract_nearby_comments(source, finding["line"])
+                if has_safety_annotation(nearby):
+                    finding["confidence"] = "low"
+                    finding["suppressed_by_annotation"] = True
                 all_findings.append(finding)
 
     # Categorize.

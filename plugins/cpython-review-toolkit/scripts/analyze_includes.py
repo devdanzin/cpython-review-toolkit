@@ -9,9 +9,10 @@ Outputs a JSON structure with:
 - api_tiers: classification of headers into public/cpython/internal
 
 Usage:
-    python analyze_includes.py [path]
+    python analyze_includes.py [path] [--max-files N]
 
     path: directory, file, or omitted for current directory
+    --max-files N: cap the number of .c/.h files scanned (0 = unlimited)
 """
 
 import json

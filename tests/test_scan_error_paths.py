@@ -25,12 +25,36 @@ class TestErrorPathDetection(unittest.TestCase):
         )
         with TempProject({"Objects/test.c": c_code}) as root:
             result = mod.analyze(str(root))
+            # Envelope sanity: silent-failure guard.
+            self.assertGreater(result["files_analyzed"], 0)
+            self.assertGreater(result["functions_analyzed"], 0)
             findings = result["findings"]
             unchecked = [
                 f for f in findings
                 if f["type"] in ("missing_null_check", "unchecked_return")
             ]
             self.assertGreater(len(unchecked), 0)
+
+    def test_safety_annotation_downgrades_finding(self):
+        c_code = (
+            "static PyObject *\n"
+            "no_check(PyObject *self, PyObject *args)\n"
+            "{\n"
+            "    /* safety: result is checked by Str() before deref */\n"
+            "    PyObject *result = PyObject_GetAttrString(self, \"name\");\n"
+            "    PyObject *str = PyObject_Str(result);\n"
+            "    return str;\n"
+            "}\n"
+        )
+        with TempProject({"Objects/test.c": c_code}) as root:
+            result = mod.analyze(str(root))
+            relevant = [
+                f for f in result["findings"]
+                if f["type"] in ("missing_null_check", "unchecked_return")
+            ]
+            for f in relevant:
+                self.assertEqual(f.get("confidence"), "low")
+                self.assertTrue(f.get("suppressed_by_annotation"))
 
     def test_clean_error_handling(self):
         c_code = (

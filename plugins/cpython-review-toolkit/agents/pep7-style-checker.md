@@ -85,3 +85,10 @@ Provide actionable guidance:
 - **Generated code gets a pass**: Files like `Python/opcode_targets.h` are generated — don't flag style issues in generated files.
 - **Third-party code gets a pass**: Code under `Modules/_decimal/` or similar vendored directories follows their upstream style.
 - **Consistency matters more than perfection**: A file that consistently uses one style is better than a file with mixed styles, even if the consistent style isn't PEP 7.
+
+## Running the script
+
+- Call the script with a Bash timeout of **300000 ms** (5 min). The default 120s kills on large repos.
+- Use a **unique temp filename** for the JSON output, e.g. `/tmp/pep7-style-checker_<scope>_$$.json` — the `$$` PID suffix prevents collisions when multiple agents run concurrently.
+- Forward `--max-files N` and (where supported) `--workers N` from the caller.
+- If the script **times out or errors, do NOT retry it.** Fall back to Grep/Read for the same question. Long-running runs should use `run_in_background`.

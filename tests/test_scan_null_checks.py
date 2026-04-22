@@ -26,11 +26,38 @@ class TestNullSafetyDetection(unittest.TestCase):
         )
         with TempProject({"Objects/test.c": c_code}) as root:
             result = mod.analyze(str(root))
+            # Envelope sanity: silent-failure guard.
+            self.assertGreater(result["files_analyzed"], 0)
+            self.assertGreater(result["functions_analyzed"], 0)
             findings = result["findings"]
             unchecked = [
                 f for f in findings if f["type"] == "unchecked_alloc"
             ]
             self.assertGreater(len(unchecked), 0)
+
+    def test_safety_annotation_downgrades_finding(self):
+        # Same flaw as test_detects_unchecked_malloc, but annotated.
+        c_code = (
+            "static int\n"
+            "bad_alloc(int n)\n"
+            "{\n"
+            "    /* safety: caller guarantees non-NULL buf via preallocation */\n"
+            "    char *buf = PyMem_Malloc(n);\n"
+            "    buf->data = 0;\n"
+            "    PyMem_Free(buf);\n"
+            "    return 0;\n"
+            "}\n"
+        )
+        with TempProject({"Objects/test.c": c_code}) as root:
+            result = mod.analyze(str(root))
+            unchecked = [
+                f for f in result["findings"]
+                if f["type"] == "unchecked_alloc"
+            ]
+            # Any finding that remains must be downgraded.
+            for f in unchecked:
+                self.assertEqual(f.get("confidence"), "low")
+                self.assertTrue(f.get("suppressed_by_annotation"))
 
     def test_checked_malloc_no_finding(self):
         c_code = (
