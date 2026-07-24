@@ -141,6 +141,25 @@ These target specific reachable-from-Python crash classes grounded in the fusil 
 | **pyerr-clear-auditor** | `PyErr_Clear()` in the destructor family (`tp_dealloc`/`tp_clear`/`tp_finalize`/`tp_traverse`) with no save/restore, swallowing an in-flight `MemoryError`/`KeyboardInterrupt` (gh-152083) | `scan_pyerr_clear.py` |
 | **uninitialized-dealloc-auditor** | Non-zeroing allocation freed on an error path before members are NULL-initialized → `tp_dealloc` reads garbage (gh-151815, gh-152851) | `scan_uninit_dealloc.py` |
 
+### Free-Threading / Data Races (tree-sitter based)
+
+These target CPython's own free-threaded (`Py_GIL_DISABLED`, PEP 703) code, grounded in the fusil `cpython-tsan-findings` catalog. The ft-review-toolkit that seeded them was calibrated against CPython's own runtime, so they are at home here.
+
+| Agent | What It Finds | Script |
+|-------|--------------|--------|
+| **ft-race-scanner** | T3 iterator-exhaustion double-DECREF (gh-154130/gh-144357/gh-153296), T2 lazy-init cache without a critical section (TSAN-0043), T1 atomic/plain access asymmetry (TSAN-0006). Suppresses the `*_lock_held` convention | `scan_ft_races.py` |
+| **stw-safety-checker** | Calls inside a `_PyEval_StopTheWorld` region that can invoke Python / GC / set an exception (intra-file call graph) | `scan_stw_safety.py` |
+| **lock-discipline-checker** | Critical-section acquire/release pairing — missing `Py_END_CRITICAL_SECTION`, early return/goto out of a section, nested different-object locks | `scan_lock_discipline.py` |
+
+### Dynamic (TSan) — on-demand
+
+Not part of the static explore pipeline; these consume/produce a ThreadSanitizer run on a `--disable-gil` build.
+
+| Agent | What It Does | Script |
+|-------|--------------|--------|
+| **tsan-report-analyzer** | Parses/dedups a TSan report; for CPython, races in CPython's own frames ARE the target (the extension-oriented filter is inverted) | `parse_tsan_report.py` |
+| **tsan-stress-generator** | Emits a concurrent stress script that hammers a shared stdlib object under `PYTHON_GIL=0` to trigger races | — (prompt) |
+
 ### Code Quality (script-backed)
 
 | Agent | What It Finds | Script |
@@ -248,6 +267,7 @@ The `explore` command runs agents in a structured pipeline:
 | **2A** | refcount-auditor, error-path-analyzer | Safety-critical (highest value) |
 | **2A2** | recursion-guard-auditor, pyerr-clear-auditor, uninitialized-dealloc-auditor | Crash-class detectors (tree-sitter) |
 | **2B** | null-safety-scanner, gil-discipline-checker | Memory safety |
+| **2B2** | ft-race-scanner, stw-safety-checker, lock-discipline-checker | Free-threading / data races (PEP 703) |
 | **2C** | c-complexity-analyzer, pep7-style-checker | Code quality |
 | **2D** | api-deprecation-tracker, macro-hygiene-reviewer, memory-pattern-analyzer | Maintenance |
 | **2E** | git-history-analyzer | Temporal fix-completeness (runs last) |
@@ -276,6 +296,11 @@ cpython-review-toolkit/
 │   ├── recursion-guard-auditor.md          # crash-class (tree-sitter)
 │   ├── pyerr-clear-auditor.md              # crash-class (tree-sitter)
 │   ├── uninitialized-dealloc-auditor.md    # crash-class (tree-sitter)
+│   ├── ft-race-scanner.md                  # free-threading (tree-sitter)
+│   ├── stw-safety-checker.md               # free-threading (tree-sitter)
+│   ├── lock-discipline-checker.md          # free-threading (tree-sitter)
+│   ├── tsan-report-analyzer.md             # dynamic TSan (on-demand)
+│   ├── tsan-stress-generator.md            # dynamic TSan (on-demand)
 │   ├── c-complexity-analyzer.md
 │   ├── pep7-style-checker.md
 │   ├── include-graph-mapper.md
@@ -295,7 +320,11 @@ cpython-review-toolkit/
 │   ├── cpython_known_bugs.tsv              # known-issues regression catalog
 │   ├── cpython_bug_shapes.json             # informed-explore bug shapes
 │   ├── cpython_reachability_sources.json   # T1/T2/T3 reachability tiers
-│   └── cpython_non_bugs.md                 # false-positive taxonomy
+│   ├── cpython_non_bugs.md                 # false-positive taxonomy
+│   ├── atomic_patterns.json                # free-threading (atomics)
+│   ├── stw_safe_apis.json                  # free-threading (STW safety)
+│   ├── lock_macros.json                    # free-threading (locks)
+│   └── critical_section_apis.json          # free-threading (critical sections)
 └── scripts/
     ├── tree_sitter_utils.py                # vendored C parsing chassis
     ├── scan_common.py                      # shared helpers
@@ -310,6 +339,10 @@ cpython-review-toolkit/
     ├── scan_recursion_guards.py            # tree-sitter detector
     ├── scan_pyerr_clear.py                 # tree-sitter detector
     ├── scan_uninit_dealloc.py              # tree-sitter detector
+    ├── scan_ft_races.py                    # free-threading detector
+    ├── scan_stw_safety.py                  # free-threading detector
+    ├── scan_lock_discipline.py             # free-threading detector
+    ├── parse_tsan_report.py                # dynamic TSan analyzer
     ├── check_known_issues.py               # known-issues command
     └── build_informed_briefing.py          # informed-explore briefing
 ```
@@ -323,8 +356,8 @@ cpython-review-toolkit/
 | **Root detection** | `pyproject.toml`, `.git` | `Include/Python.h`, `Objects/object.c` |
 | **Top bug class** | Logic errors, dead code | Refcount leaks, NULL deref, native-stack-overflow SIGSEGV, GIL violations |
 | **Style guide** | PEP 8 | PEP 7 |
-| **Agents** | 14 | 15 |
-| **Scripts** | 8 | 15 |
+| **Agents** | 14 | 20 |
+| **Scripts** | 8 | 19 |
 
 ## Author
 

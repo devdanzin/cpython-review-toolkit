@@ -1,0 +1,69 @@
+{
+  "critical_section_macros": {
+    "Py_BEGIN_CRITICAL_SECTION": {
+      "args": 1,
+      "description": "Acquire per-object lock. Argument is the PyObject* to lock.",
+      "min_version": "3.13",
+      "matching_end": "Py_END_CRITICAL_SECTION",
+      "note": "Uses the object's internal mutex. No-op when GIL is enabled."
+    },
+    "Py_BEGIN_CRITICAL_SECTION2": {
+      "args": 2,
+      "description": "Acquire per-object locks on two objects (in canonical order to avoid deadlock).",
+      "min_version": "3.13",
+      "matching_end": "Py_END_CRITICAL_SECTION2",
+      "note": "Automatically orders locks to prevent deadlock."
+    },
+    "Py_END_CRITICAL_SECTION": {
+      "args": 1,
+      "description": "Release per-object lock.",
+      "min_version": "3.13"
+    },
+    "Py_END_CRITICAL_SECTION2": {
+      "args": 2,
+      "description": "Release per-object locks on two objects.",
+      "min_version": "3.13"
+    }
+  },
+  "apis_using_critical_sections": [
+    "PyDict_GetItem",
+    "PyDict_SetItem",
+    "PyDict_DelItem",
+    "PyDict_Contains",
+    "PyDict_GetItemWithError",
+    "PyDict_GetItemString",
+    "PyDict_SetItemString",
+    "PyDict_DelItemString",
+    "PyDict_Size",
+    "PyDict_Keys",
+    "PyDict_Values",
+    "PyDict_Items",
+    "PyDict_Merge",
+    "PyDict_Update",
+    "PyList_Append",
+    "PyList_Insert",
+    "PyList_SetItem",
+    "PyList_GetItem",
+    "PyList_Size",
+    "PyList_Sort",
+    "PyList_Reverse",
+    "PyList_GetSlice",
+    "PyList_SetSlice",
+    "PySet_Add",
+    "PySet_Discard",
+    "PySet_Pop",
+    "PySet_Contains",
+    "PyObject_GetAttr",
+    "PyObject_SetAttr",
+    "PyObject_GetItem",
+    "PyObject_SetItem",
+    "PyObject_DelItem",
+    "PyType_GetDict"
+  ],
+  "when_to_use": {
+    "critical_section": "Per-object mutable state accessed by methods. Best for: type methods that read/write self->member.",
+    "critical_section2": "Operations involving two objects (e.g., dict update from another dict). Automatically avoids deadlock.",
+    "pymutex": "Global mutable state not tied to a specific object. Module-level caches, registries.",
+    "stop_the_world": "Operations requiring ALL threads to stop. GC traversal, interpreter state modification."
+  }
+}

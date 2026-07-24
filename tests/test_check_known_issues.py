@@ -151,11 +151,12 @@ class TestCheckKnownIssues(unittest.TestCase):
 
     # --- no_scanner passthrough --------------------------------------------
 
-    def test_no_scanner_categories_pass_through(self):
+    def test_no_scanner_category_passes_through(self):
+        # `init-bypass` has no scanner yet -> carried through as no_scanner.
+        # (`tsan` IS scanned now, by scan_ft_races.)
         report = self._run(
             {"Objects/present.c": _PRESENT_DEALLOC},
             [
-                ("TSAN-1", "Objects/present.c", 10, "tsan", "some_race", "data race"),
                 (
                     "INIT-1",
                     "Objects/present.c",
@@ -166,11 +167,10 @@ class TestCheckKnownIssues(unittest.TestCase):
                 ),
             ],
         )
-        self.assertEqual(self._result_for(report, "TSAN-1")["status"], "no_scanner")
         self.assertEqual(self._result_for(report, "INIT-1")["status"], "no_scanner")
-        self.assertEqual(report["bug_rollup"]["TSAN-1"], "no_scanner")
+        self.assertEqual(report["bug_rollup"]["INIT-1"], "no_scanner")
         # no_scanner entries are never scanned and never actionable findings.
-        self.assertFalse(any(f["bug_id"] == "TSAN-1" for f in report["findings"]))
+        self.assertFalse(any(f["bug_id"] == "INIT-1" for f in report["findings"]))
 
     # --- bug_rollup collapsing multi-site bugs -----------------------------
 

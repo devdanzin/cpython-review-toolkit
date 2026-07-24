@@ -38,6 +38,7 @@ from collections import defaultdict
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
+import scan_ft_races
 import scan_null_checks
 import scan_pyerr_clear
 import scan_recursion_guards
@@ -48,7 +49,7 @@ from scan_common import build_report, parse_common_args, resolve_roots
 _DATA_DIR = Path(__file__).resolve().parent.parent / "data"
 _DEFAULT_CATALOG = _DATA_DIR / "cpython_known_bugs.tsv"
 
-# Category -> scanner module. ``None`` means "no scanner exists in v0.5"; such
+# Category -> scanner module. ``None`` means "no scanner exists yet"; such
 # entries are carried through as ``no_scanner`` so the catalog stays complete.
 CATEGORY_SCANNERS: dict[str, object] = {
     "recursion": scan_recursion_guards,
@@ -56,7 +57,7 @@ CATEGORY_SCANNERS: dict[str, object] = {
     "uninit-dealloc": scan_uninit_dealloc,
     "null-deref": scan_null_checks,
     "refcount": scan_refcounts,
-    "tsan": None,
+    "tsan": scan_ft_races,
     "init-bypass": None,
 }
 
@@ -70,9 +71,11 @@ _ABSENCE_CAVEAT = (
     "`absent`. Always read the file before concluding a bug is fixed."
 )
 _NO_SCANNER_CAVEAT = (
-    "Categories `tsan` and `init-bypass` have no scanner in v0.5; their entries "
-    "are carried through as `no_scanner` (informational) so the catalog stays "
-    "complete, but they are not cross-referenced against a fresh scan."
+    "Category `init-bypass` has no scanner yet; its entries are carried through "
+    "as `no_scanner` (informational) so the catalog stays complete, but they are "
+    "not cross-referenced against a fresh scan. (`tsan` is now scanned by "
+    "scan_ft_races, but note the caveat above: a data race carries no scannable "
+    "token at many sites, so `absent` there still is not proof of a fix.)"
 )
 
 
