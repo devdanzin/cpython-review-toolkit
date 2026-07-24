@@ -39,6 +39,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import scan_ft_races
+import scan_init_bypass
 import scan_null_checks
 import scan_pyerr_clear
 import scan_recursion_guards
@@ -49,8 +50,9 @@ from scan_common import build_report, parse_common_args, resolve_roots
 _DATA_DIR = Path(__file__).resolve().parent.parent / "data"
 _DEFAULT_CATALOG = _DATA_DIR / "cpython_known_bugs.tsv"
 
-# Category -> scanner module. ``None`` means "no scanner exists yet"; such
-# entries are carried through as ``no_scanner`` so the catalog stays complete.
+# Category -> scanner module. A category present in the catalog but missing
+# here (or mapped to ``None``) is carried through as ``no_scanner`` so the
+# catalog stays complete. As of 0.7 every category has a scanner.
 CATEGORY_SCANNERS: dict[str, object] = {
     "recursion": scan_recursion_guards,
     "pyerr-clear": scan_pyerr_clear,
@@ -58,7 +60,7 @@ CATEGORY_SCANNERS: dict[str, object] = {
     "null-deref": scan_null_checks,
     "refcount": scan_refcounts,
     "tsan": scan_ft_races,
-    "init-bypass": None,
+    "init-bypass": scan_init_bypass,
 }
 
 # ± lines tolerated around a catalog line before a match is called "drifted".
@@ -71,11 +73,13 @@ _ABSENCE_CAVEAT = (
     "`absent`. Always read the file before concluding a bug is fixed."
 )
 _NO_SCANNER_CAVEAT = (
-    "Category `init-bypass` has no scanner yet; its entries are carried through "
-    "as `no_scanner` (informational) so the catalog stays complete, but they are "
-    "not cross-referenced against a fresh scan. (`tsan` is now scanned by "
-    "scan_ft_races, but note the caveat above: a data race carries no scannable "
-    "token at many sites, so `absent` there still is not proof of a fix.)"
+    "Every catalog category now has a scanner (as of 0.7). A category added to "
+    "the catalog without a matching entry in CATEGORY_SCANNERS is carried "
+    "through as `no_scanner` (informational) so the catalog stays complete, but "
+    "is not cross-referenced against a fresh scan. Note the caveat above still "
+    "applies to the scanned categories: a data race (tsan) or a native "
+    "stack overflow (recursion) carries no scannable token at many sites, so "
+    "`absent` there is not proof of a fix."
 )
 
 

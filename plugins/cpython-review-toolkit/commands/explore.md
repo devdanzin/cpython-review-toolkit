@@ -37,14 +37,18 @@ Parse arguments into three categories:
 - `ft-races` → ft-race-scanner
 - `stw-safety` → stw-safety-checker
 - `lock-discipline` → lock-discipline-checker
+- `init-bypass` → init-bypass-checker
+- `parity` → parity-checker
 - `history` → git-history-analyzer
 - `all` → all agents (default)
 
 Note: `recursion`, `pyerr-clear`, `uninit-dealloc`, `ft-races`, `stw-safety`, and
-`lock-discipline` are the tree-sitter-based detectors (require `pip install
-tree-sitter tree-sitter-c`). The `tsan-report-analyzer` and `tsan-stress-generator`
-agents are on-demand tools (they consume/produce a ThreadSanitizer run on a
-`--disable-gil` build), not part of the static explore pipeline.
+`lock-discipline`, and `init-bypass` are the tree-sitter-based detectors (require
+`pip install tree-sitter tree-sitter-c`). The `tsan-report-analyzer`,
+`tsan-stress-generator`, and `oom-reproducer` agents are on-demand **dynamic**
+tools (they need a built interpreter — a `--disable-gil`+TSan build, or a build
+providing `_testcapi.set_nomemory`), not part of the static explore pipeline; see
+the `reproduce` command.
 
 **Options**:
 - `deep` → full detail, no output truncation
@@ -87,6 +91,7 @@ Based on the requested aspects (default: all), launch the appropriate agents. Ea
 - recursion-guard-auditor — native-stack-overflow SIGSEGV in recursion-prone slots (gh-154318, gh-154275)
 - pyerr-clear-auditor — exception-clobber in the destructor family (gh-152083)
 - uninitialized-dealloc-auditor — half-built object freed on an error path (gh-151815, gh-152851)
+- init-bypass-checker — NULL field deref after `__new__` bypass or a deletable member (gh-152954, gh-152817)
 
 **Group B — Memory safety**:
 3. null-safety-scanner
@@ -104,7 +109,10 @@ Based on the requested aspects (default: all), launch the appropriate agents. Ea
 **Group D — Maintenance and hygiene**:
 7. api-deprecation-tracker
 8. macro-hygiene-reviewer
-9. memory-pattern-analyzer
+9. memory-pattern-analyzer — alloc-size overflow + GC-track invariant (script-backed as of 0.7)
+
+**Group D2 — Differential parity** (only where a scope has a C accelerator with a shipped pure-Python twin):
+- parity-checker — behavioral divergence between e.g. `_decimal`/`_pydecimal`, `_io`/`_pyio`; a C crash where the twin raises is a confirmed, localized bug
 
 **Group E — Temporal analysis (runs last)**:
 10. git-history-analyzer

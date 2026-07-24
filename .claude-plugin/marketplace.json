@@ -1,7 +1,7 @@
 {
   "$schema": "https://anthropic.com/claude-code/marketplace.schema.json",
   "name": "cpython-review-toolkit",
-  "version": "0.6.0",
+  "version": "0.7.0",
   "description": "CPython C code exploration and analysis toolkit: specialized agents for refcount auditing, error path analysis, GIL discipline, NULL safety, complexity, include-graph mapping, PEP 7 style, deprecation, macros, and memory patterns \u2014 plus tree-sitter-based crash-class detectors (recursion-guard, destructor exception-clobber, uninitialized-dealloc), an informed-explore loop, and a known-issues regression command.",
   "owner": {
     "name": "Danzin",
@@ -12,7 +12,7 @@
       "name": "cpython-review-toolkit",
       "description": "Specialized agents and commands for exploring, analyzing, and reviewing CPython's C source code. Regex scanners for include-graph mapping, complexity, refcounts, error paths, GIL, and NULL safety, plus tree-sitter-based crash-class detectors (recursion-guard, destructor exception-clobber, uninitialized-dealloc), an informed-explore loop, and a known-issues regression command.",
       "source": "./plugins/cpython-review-toolkit",
-      "version": "0.6.0",
+      "version": "0.7.0",
       "category": "code-quality",
       "keywords": [
         "cpython",

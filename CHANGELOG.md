@@ -3,6 +3,42 @@
 All notable changes to this project will be documented in this file.
 Format loosely follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.7.0] - 2026-07-24
+
+The dynamic-verification release. Adds the harness that turns a *static*
+candidate into a *reproduced* crash, plus the two remaining static detectors
+whose designs were already written down, and a differential oracle built from
+CPython's own shipped dual implementations.
+
+### Added
+- **oom-reproducer** + `run_oom_sweep.py` + the **`reproduce`** command: dense
+  `_testcapi.set_nomemory` OOM injection with one subprocess per iteration and
+  exit-code classification (139/-11 SIGSEGV, 134/-6 SIGABRT, 1 = a clean
+  `MemoryError` — the *safe* outcome). This is the technique that already found
+  gh-146092 (`_PyFrame_GetLocals`) by hand. Validated against a local CPython
+  build: abort detection confirmed end-to-end; the interpreter guard rejects a
+  python without `_testcapi`.
+- **parity-checker** + `find_parity_pairs.py`: CPython *ships* pure-Python twins
+  of several C accelerators (`_pydecimal`, `_pyio`, `_pydatetime`, …), which are
+  a free differential oracle — if the C side crashes where the twin raises, the
+  bug is confirmed and localized. Discovery finds 39 pairs on the current tree
+  (6 high-confidence).
+- **init-bypass-checker** + `scan_init_bypass.py`: builds the design in
+  `docs/python-wrapper-new-without-init.md` for the C side — a slot reads
+  `self->field` and INCREFs/calls/derefs it with no NULL guard on a type whose
+  `tp_new` doesn't guarantee initialization, or whose field is deletable
+  (gh-152954, gh-152817).
+- **memory-pattern-analyzer promoted to a real scanner** (`scan_memory_patterns.py`):
+  integer overflow in an allocation size from a Python-controlled multiply
+  (gh-3493, gh-1779) and the GC-track invariant (gh-152107); previously
+  qualitative-only. The patterns the script cannot cover stay documented as an
+  explicit by-hand phase.
+
+### Changed
+- `known-issues`: the `init-bypass` category is now scanned, closing the last
+  `no_scanner` gap in the catalog.
+- `explore` / `health` / `hotspots` wire the new agents; version → 0.7.0.
+
 ## [0.6.0] - 2026-07-24
 
 The free-threading release. Uses the v0.5 tree-sitter chassis to add data-race

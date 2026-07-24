@@ -48,7 +48,7 @@ claude --plugin-dir cpython-review-toolkit/plugins/cpython-review-toolkit
 
 - **Claude Code** installed and running.
 - **Python 3.10+** for the analysis scripts (type union syntax, match statements).
-- **tree-sitter + tree-sitter-c** (`pip install tree-sitter tree-sitter-c`) — required by the tree-sitter-based crash-class detectors (`recursion-guard`, `pyerr-clear`, `uninit-dealloc`), the `known-issues` command, and the `informed-explore` briefing. The legacy regex scanners (refcounts, error-paths, null-safety, GIL, complexity, PEP 7, includes) remain stdlib-only.
+- **tree-sitter + tree-sitter-c** (`pip install tree-sitter tree-sitter-c`) — required by the tree-sitter-based detectors (`recursion-guard`, `pyerr-clear`, `uninit-dealloc`, `init-bypass`, the free-threading trio, `memory`), the `known-issues` command, and the `informed-explore` briefing. The legacy regex scanners (refcounts, error-paths, null-safety, GIL, complexity, PEP 7, includes) remain stdlib-only.
 
 ## Commands
 
@@ -70,7 +70,7 @@ The primary command. Runs the include-graph-mapper first for structural context,
 /cpython-review-toolkit:explore . all summary
 ```
 
-**Aspects**: `includes`, `refcounts`, `errors`, `gil`, `complexity`, `style`, `null-safety`, `deprecation`, `macros`, `memory`, `recursion`, `pyerr-clear`, `uninit-dealloc`, `history`, `all`
+**Aspects**: `includes`, `refcounts`, `errors`, `gil`, `complexity`, `style`, `null-safety`, `deprecation`, `macros`, `memory`, `recursion`, `pyerr-clear`, `uninit-dealloc`, `ft-races`, `stw-safety`, `lock-discipline`, `init-bypass`, `parity`, `history`, `all`
 
 **Options**: `deep` (full detail), `summary` (top-level only), `parallel` (concurrent agents)
 
@@ -118,6 +118,19 @@ A catalog-seeded targeted pass. Builds a briefing from `data/cpython_bug_shapes.
 /cpython-review-toolkit:informed-explore Objects/
 ```
 
+### `/cpython-review-toolkit:reproduce [finding-or-snippet] [--python <build>]`
+
+Turn a static allocation-failure candidate into a **reproduced crash**. Runs a
+dense `_testcapi.set_nomemory` sweep (one subprocess per allocation index) on a
+locally-built CPython and classifies each outcome — `segv`/`abort` = reproduced,
+`memory_error` = the failure was handled correctly (the safe outcome). Needs a
+build providing `_testcapi.set_nomemory`; a debug or ASan build is best.
+
+```bash
+/cpython-review-toolkit:reproduce Objects/templateobject.c:225
+/cpython-review-toolkit:reproduce 'import json; json.loads("[1,2]")' --python ~/projects/cpython/python
+```
+
 ## Agents
 
 ### Safety-Critical (script-backed)
@@ -140,6 +153,7 @@ These target specific reachable-from-Python crash classes grounded in the fusil 
 | **recursion-guard-auditor** | Recursion-prone slots (`tp_hash`/`tp_richcompare`/`tp_repr`/`tp_str`, generic-alias parameter walks) that descend a user-controlled object graph without `Py_EnterRecursiveCall`/`Py_ReprEnter` → native-stack-overflow SIGSEGV (gh-154318, gh-154275) | `scan_recursion_guards.py` |
 | **pyerr-clear-auditor** | `PyErr_Clear()` in the destructor family (`tp_dealloc`/`tp_clear`/`tp_finalize`/`tp_traverse`) with no save/restore, swallowing an in-flight `MemoryError`/`KeyboardInterrupt` (gh-152083) | `scan_pyerr_clear.py` |
 | **uninitialized-dealloc-auditor** | Non-zeroing allocation freed on an error path before members are NULL-initialized → `tp_dealloc` reads garbage (gh-151815, gh-152851) | `scan_uninit_dealloc.py` |
+| **init-bypass-checker** | A slot reads `self->field` and INCREFs/calls/derefs it with no NULL guard, where `__new__` can bypass `tp_init` or the member is deletable (gh-152954, gh-152817) | `scan_init_bypass.py` |
 
 ### Free-Threading / Data Races (tree-sitter based)
 
@@ -159,6 +173,13 @@ Not part of the static explore pipeline; these consume/produce a ThreadSanitizer
 |-------|--------------|--------|
 | **tsan-report-analyzer** | Parses/dedups a TSan report; for CPython, races in CPython's own frames ARE the target (the extension-oriented filter is inverted) | `parse_tsan_report.py` |
 | **tsan-stress-generator** | Emits a concurrent stress script that hammers a shared stdlib object under `PYTHON_GIL=0` to trigger races | — (prompt) |
+| **oom-reproducer** | Dense `_testcapi.set_nomemory` sweep (one subprocess per index) that turns a static allocation-failure candidate into a **reproduced** crash — or an honest negative. See the `reproduce` command | `run_oom_sweep.py` |
+
+### Differential (parity)
+
+| Agent | What It Finds | Script |
+|-------|--------------|--------|
+| **parity-checker** | Behavioral divergence between a C accelerator and its shipped pure-Python twin (`_decimal`/`_pydecimal`, `_io`/`_pyio`, `_datetime`/`_pydatetime`, …). A C crash where the twin raises is a confirmed, localized bug — CPython ships its own oracle | `find_parity_pairs.py` |
 
 ### Code Quality (script-backed)
 
@@ -176,7 +197,14 @@ These agents search the codebase directly using Grep and read files for deep ana
 |-------|--------------|
 | **api-deprecation-tracker** | Usage of deprecated APIs (PyModule_AddObject, PyUnicode_READY, Py_UNICODE, etc.) with migration paths |
 | **macro-hygiene-reviewer** | Missing parentheses in macros, multiple evaluation, multi-statement macros without do-while, naming |
-| **memory-pattern-analyzer** | Mismatched alloc/free families, sprintf without bounds, integer overflow in allocation sizes |
+
+**memory-pattern-analyzer** became script-backed in 0.7 — see below. Its remaining
+qualitative checks (sprintf/strcpy bounds, use-after-free, double-free) stay an
+explicit by-hand phase in the agent prompt.
+
+| Agent | What It Finds | Script |
+|-------|--------------|--------|
+| **memory-pattern-analyzer** | Integer overflow in an allocation size from a Python-controlled multiply (gh-3493, gh-1779), the GC-track invariant (gh-152107), mismatched alloc/free families | `scan_memory_patterns.py` |
 
 ### Temporal
 
@@ -265,18 +293,19 @@ The `explore` command runs agents in a structured pipeline:
 | **0** | Project discovery | Detect CPython layout, count files, identify version |
 | **1** | include-graph-mapper, git-history-context | Structural + temporal context for all other agents |
 | **2A** | refcount-auditor, error-path-analyzer | Safety-critical (highest value) |
-| **2A2** | recursion-guard-auditor, pyerr-clear-auditor, uninitialized-dealloc-auditor | Crash-class detectors (tree-sitter) |
+| **2A2** | recursion-guard-auditor, pyerr-clear-auditor, uninitialized-dealloc-auditor, init-bypass-checker | Crash-class detectors (tree-sitter) |
 | **2B** | null-safety-scanner, gil-discipline-checker | Memory safety |
 | **2B2** | ft-race-scanner, stw-safety-checker, lock-discipline-checker | Free-threading / data races (PEP 703) |
 | **2C** | c-complexity-analyzer, pep7-style-checker | Code quality |
 | **2D** | api-deprecation-tracker, macro-hygiene-reviewer, memory-pattern-analyzer | Maintenance |
+| **2D2** | parity-checker | Differential vs the shipped pure-Python twin |
 | **2E** | git-history-analyzer | Temporal fix-completeness (runs last) |
 | **3** | Synthesis | Deduplicate, resolve conflicts, produce summary |
 
 ## Limitations
 
 - **Mixed parsing**: the legacy scanners are regex-based (cannot track pointer aliasing, complex control flow, or code-generating macros); the crash-class detectors use tree-sitter but are still syntactic — they report candidates, not definitive bugs, and the agent triage step is where FIX-confidence is earned.
-- **No dynamic reproduction yet**: the toolkit is static. Confirming a candidate crash (e.g. via `_testcapi.set_nomemory` OOM injection on a debug/ASan build) is a manual step today; an automated reproducer harness is planned (see `docs/improvement-plan.md`).
+- **Dynamic verification needs a built interpreter**: the `reproduce` command / `oom-reproducer` agent run real `_testcapi.set_nomemory` OOM sweeps, and the TSan agents need a `--disable-gil`+TSan build. Without such a build the toolkit is static-only. Note a non-reproduction is **not** a refutation — the payload may simply not reach the flagged line.
 - **No clang-tidy/cppcheck integration yet**: A future phase could integrate external C analysis tools alongside the CPython-specific scripts.
 - **Single-file scope for scripts**: Scripts analyze each function independently. Cross-function reference ownership transfer is tracked only at the API boundary level, not through arbitrary call chains.
 - **Best on idiomatic CPython code**: The regex patterns are tuned for PEP 7 style. Non-standard C code (vendored libraries, generated code) may produce more false positives.
@@ -296,11 +325,14 @@ cpython-review-toolkit/
 │   ├── recursion-guard-auditor.md          # crash-class (tree-sitter)
 │   ├── pyerr-clear-auditor.md              # crash-class (tree-sitter)
 │   ├── uninitialized-dealloc-auditor.md    # crash-class (tree-sitter)
+│   ├── init-bypass-checker.md              # crash-class (tree-sitter)
 │   ├── ft-race-scanner.md                  # free-threading (tree-sitter)
 │   ├── stw-safety-checker.md               # free-threading (tree-sitter)
 │   ├── lock-discipline-checker.md          # free-threading (tree-sitter)
 │   ├── tsan-report-analyzer.md             # dynamic TSan (on-demand)
 │   ├── tsan-stress-generator.md            # dynamic TSan (on-demand)
+│   ├── oom-reproducer.md                   # dynamic OOM (on-demand)
+│   ├── parity-checker.md                   # differential vs pure-Python twin
 │   ├── c-complexity-analyzer.md
 │   ├── pep7-style-checker.md
 │   ├── include-graph-mapper.md
@@ -313,6 +345,8 @@ cpython-review-toolkit/
 │   ├── explore.md
 │   ├── informed-explore.md
 │   ├── known-issues.md
+│   ├── reproduce.md
+│   ├── reproduce.md
 │   ├── health.md
 │   ├── hotspots.md
 │   └── map.md
@@ -343,6 +377,10 @@ cpython-review-toolkit/
     ├── scan_stw_safety.py                  # free-threading detector
     ├── scan_lock_discipline.py             # free-threading detector
     ├── parse_tsan_report.py                # dynamic TSan analyzer
+    ├── scan_init_bypass.py                 # crash-class detector
+    ├── scan_memory_patterns.py             # alloc-overflow / GC-track
+    ├── run_oom_sweep.py                    # OOM reproducer harness
+    ├── find_parity_pairs.py                # C <-> pure-Python twin discovery
     ├── check_known_issues.py               # known-issues command
     └── build_informed_briefing.py          # informed-explore briefing
 ```
@@ -356,8 +394,8 @@ cpython-review-toolkit/
 | **Root detection** | `pyproject.toml`, `.git` | `Include/Python.h`, `Objects/object.c` |
 | **Top bug class** | Logic errors, dead code | Refcount leaks, NULL deref, native-stack-overflow SIGSEGV, GIL violations |
 | **Style guide** | PEP 8 | PEP 7 |
-| **Agents** | 14 | 20 |
-| **Scripts** | 8 | 19 |
+| **Agents** | 14 | 23 |
+| **Scripts** | 8 | 23 |
 
 ## Author
 
