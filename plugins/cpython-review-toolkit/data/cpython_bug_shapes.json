@@ -1,0 +1,79 @@
+{
+  "_comment": "Reusable CPython C bug SHAPES (not file:line) for the informed-explore loop. Each shape carries a guarded_twin (the correct sibling = the fix), a hunt directive (how to find more), a differential (how to confirm), and confirmed_examples. Consumed by build_informed_briefing.py.",
+  "version": "0.5.0",
+  "shapes": [
+    {
+      "id": "unguarded-recursion-in-slot",
+      "title": "Recursion-prone slot without Py_EnterRecursiveCall",
+      "pattern": "A tp_hash / tp_richcompare / tp_repr / tp_str slot (or a generic-alias parameter walk) that descends a user-controlled object graph — self-recursion, or a loop calling PyObject_Hash/Repr/RichCompare on items — with no Py_EnterRecursiveCall / Py_ReprEnter.",
+      "guarded_twin": "A sibling slot in the same file that DOES bracket its descent with Py_EnterRecursiveCall()/Py_LeaveRecursiveCall() or Py_ReprEnter()/Py_ReprLeave().",
+      "hunt": "For every container/aggregate type, check tp_hash, tp_richcompare, tp_repr, tp_str for symmetry: if repr is guarded but hash is not, hash is suspect. Grep for copy-pasted hash algorithms across container types.",
+      "severity": "FIX",
+      "differential": "Build a deeply-nested or self-referential instance on a debug CPython and trigger the slot; a SIGSEGV (not RecursionError) confirms. A native stack overflow is a bug even if released CPython also crashes.",
+      "confirmed_examples": ["gh-154318 tuple_hash/frozendict_hash", "gh-154275 _Py_make_parameters", "gh-149146 tuple_dealloc"],
+      "scanner": "scan_recursion_guards.py"
+    },
+    {
+      "id": "pyerr-clear-in-destructor",
+      "title": "PyErr_Clear() clobbers an in-flight exception during teardown",
+      "pattern": "A tp_dealloc / tp_clear / tp_finalize calls PyErr_Clear() (or drops a fallible result) with no surrounding save/restore of the exception state; the destructor can run while an exception is already pending.",
+      "guarded_twin": "A destructor that captures with PyErr_GetRaisedException() at the top and restores with PyErr_SetRaisedException() at the bottom (or reports via PyErr_WriteUnraisable).",
+      "hunt": "Across a module family, check every dealloc/clear/finalize that calls a fallible API on a cleanup path; the ones that PyErr_Clear() without save/restore swallow MemoryError/KeyboardInterrupt.",
+      "severity": "FIX",
+      "differential": "Under set_nomemory OOM injection, raise MemoryError, then trigger the teardown; the swallowed error becomes a silent success/hang.",
+      "confirmed_examples": ["gh-152083 context_tp_dealloc", "OOM-0039 deque_clear", "OOM-0023 subtype_dealloc"],
+      "scanner": "scan_pyerr_clear.py"
+    },
+    {
+      "id": "dealloc-of-uninitialized-object",
+      "title": "Half-constructed object freed on an error path",
+      "pattern": "A constructor allocates via a non-zeroing allocator (PyObject_New/PyObject_GC_New/...), then on a fallible-step failure Py_DECREFs the object before its members are NULL-initialized; tp_dealloc reads garbage member pointers.",
+      "guarded_twin": "A constructor that NULL-initializes all members (or memsets the object) immediately after allocation, before any fallible call.",
+      "hunt": "For each non-zeroing allocation with an error path that frees the object, read the tp_dealloc: if it Py_XDECREFs / switches-on-enum a member the constructor sets late, it crashes on that path.",
+      "severity": "FIX",
+      "differential": "set_nomemory to fail the exact allocation on the error path, then construct from Python; a crash in tp_dealloc confirms (OOM class O5).",
+      "confirmed_examples": ["gh-151815 template_iter", "gh-152851 blake2 .copy()"],
+      "scanner": "scan_uninit_dealloc.py"
+    },
+    {
+      "id": "borrowed-ref-across-call",
+      "title": "Borrowed reference used across a call that can free it (crown jewel)",
+      "pattern": "A borrowed pointer loaded from a slot field or container (PyList/Tuple/Dict_GET_ITEM) is used after an intervening call that can run arbitrary Python (PyObject_Call*, PyObject_Repr/Str, converter callbacks like PyUnicode_FSConverter, warnings, GC) with no intervening Py_INCREF.",
+      "guarded_twin": "The same access pattern elsewhere that Py_INCREFs the borrowed ref before the call and Py_DECREFs after.",
+      "hunt": "Trace every borrowed load feeding a call that can execute Python; the free may come from a __del__, __fspath__, setcontext, or a re-entrant callback.",
+      "severity": "FIX",
+      "differential": "Supply an adversarial object whose callback drops the last strong ref (mutating __fspath__/__eq__/__index__), then observe UAF on ASan.",
+      "confirmed_examples": ["gh-148382 _decimal CURRENT_CONTEXT", "gh-151403 _posixsubprocess __fspath__", "gh-154527 defaultdict default_factory (FT)"],
+      "scanner": "scan_refcounts.py (widen the Python-reaching call set)"
+    },
+    {
+      "id": "return-null-without-exception",
+      "title": "Return NULL without setting an exception / stale-exception desync",
+      "pattern": "A PyObject*-returning function returns NULL with no prior PyErr_Set*, or an entry point trusts res!=NULL while PyErr_Occurred() is set.",
+      "guarded_twin": "Sibling error paths in the same function that set an exception before returning NULL.",
+      "hunt": "OOM paths are the usual offenders — a constructor whose allocation-failure branch returns NULL but forgets PyErr_NoMemory().",
+      "severity": "FIX",
+      "differential": "set_nomemory to force the failure; a SystemError('returned NULL without setting an exception') confirms.",
+      "confirmed_examples": ["gh-151968", "gh-151126 (missing PyErr_NoMemory cluster)"],
+      "scanner": "scan_error_paths.py (return_null_no_exception)"
+    },
+    {
+      "id": "integer-overflow-in-allocation",
+      "title": "Allocation size from a Python-controlled multiply with no overflow guard",
+      "pattern": "PyMem_*/malloc(n * size) where n derives from a Py_ssize_t parsed from Python args, with no `n > MAX/size` guard and no safe-multiply helper.",
+      "guarded_twin": "Sibling allocations that use PyMem_New / a checked multiply / an explicit bound.",
+      "hunt": "Every length/count argument that reaches an allocation multiply is a candidate; abort-vs-MemoryError is out of scope, wrong-size-then-write is the bug.",
+      "severity": "CONSIDER",
+      "differential": "Pass a length near SIZE_MAX/elem; a segfault (vs a clean MemoryError) confirms the overflow.",
+      "confirmed_examples": ["gh-3493", "gh-1779"],
+      "scanner": "memory-pattern-analyzer (promote to a real scanner in a later slice)"
+    }
+  ],
+  "triage_rules": [
+    "The guarded twin is the strongest static-review signal: nearly every real CPython bug has a correctly-handled sibling in the same file — cite it as the fix and hunt for other unfixed siblings.",
+    "Both-crash != acceptable: if the differential shows released CPython ALSO crashes on the input, that is not proof it is fine — search the CPython tracker (label:type-crash) and treat a pure-Python-reachable segfault as a bug in both.",
+    "Reachability first: rank a candidate by whether its triggering value flows from Python-controlled input (a parsed arg, a user __index__/__hash__/__repr__, a user-supplied index/length) vs an internal invariant (assert / 'cannot fail').",
+    "Confirm-don't-relitigate: a finding already recorded in the findings catalog is context, not a fresh discovery — confirm it still reproduces and move on to siblings.",
+    "Class J (abort-vs-MemoryError) is out of scope; a wrong-size write or a swallowed error is in scope."
+  ]
+}

@@ -31,8 +31,14 @@ Parse arguments into three categories:
 - `deprecation` → api-deprecation-tracker
 - `macros` → macro-hygiene-reviewer
 - `memory` → memory-pattern-analyzer
+- `recursion` → recursion-guard-auditor
+- `pyerr-clear` → pyerr-clear-auditor
+- `uninit-dealloc` → uninitialized-dealloc-auditor
 - `history` → git-history-analyzer
 - `all` → all agents (default)
+
+Note: `recursion`, `pyerr-clear`, and `uninit-dealloc` are the tree-sitter-based
+crash-class detectors (require `pip install tree-sitter tree-sitter-c`).
 
 **Options**:
 - `deep` → full detail, no output truncation
@@ -55,10 +61,11 @@ Before launching any agents:
 
 Launch the foundational context provider with the specified scope:
 
-**Group 0 — Structural context (always runs first)**:
+**Group 0 — Structural + temporal context (always runs first)**:
 - **include-graph-mapper** — include dependencies, API tiers, coupling
+- **git-history-context** — per-file bug-fix-density watchlist + shallow-clone guard, so the safety agents scrutinize the historically-buggiest files first (distinct from git-history-analyzer, which runs last)
 
-Store output for injection into Phase 2 agents.
+Store both outputs for injection into Phase 2 agents.
 
 ### Phase 2: Targeted Analysis
 
@@ -69,6 +76,11 @@ Based on the requested aspects (default: all), launch the appropriate agents. Ea
 **Group A — Safety-critical analysis** (highest value):
 1. refcount-auditor
 2. error-path-analyzer
+
+**Group A2 — Crash-class detectors (tree-sitter based)**:
+- recursion-guard-auditor — native-stack-overflow SIGSEGV in recursion-prone slots (gh-154318, gh-154275)
+- pyerr-clear-auditor — exception-clobber in the destructor family (gh-152083)
+- uninitialized-dealloc-auditor — half-built object freed on an error path (gh-151815, gh-152851)
 
 **Group B — Memory safety**:
 3. null-safety-scanner

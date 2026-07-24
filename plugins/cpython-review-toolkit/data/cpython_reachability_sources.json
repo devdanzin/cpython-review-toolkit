@@ -1,0 +1,48 @@
+{
+  "_comment": "Reachability tiering + input-provenance signals to rank CPython C findings. The candidate count on CPython is inherently huge; this turns a flat dump into a ranked list. Tiers are stamped by the source mapper; provenance signals up/down-weight individual findings.",
+  "version": "0.5.0",
+  "tiers": {
+    "T1_python_exposed": {
+      "weight": 3,
+      "description": "Directly reachable from a Python program: functions registered in PyMethodDef / PyGetSetDef / PyMemberDef arrays, or wired to a tp_* / nb_* / sq_* / mp_* slot, or a module-level PyCFunction. A crash here is directly triggerable.",
+      "signals": ["PyMethodDef", "PyGetSetDef", "PyMemberDef", "PyType_Slot", "tp_", "nb_", "sq_", "mp_", "METH_"]
+    },
+    "T2_public_capi": {
+      "weight": 2,
+      "description": "Public C-API reachable by extensions/embedders: PyAPI_FUNC / Py* exported symbols. Reachable, but the caller shares responsibility for preconditions.",
+      "signals": ["PyAPI_FUNC", "PyAPI_DATA"]
+    },
+    "T3_internal": {
+      "weight": 1,
+      "description": "Internal helpers: _Py* / static functions, reached only transitively and often with caller-guaranteed preconditions. Default-quieter unless a T1/T2 caller passes user input straight through.",
+      "signals": ["static ", "_Py", "_PyObject", "_PyErr"]
+    }
+  },
+  "input_provenance": {
+    "_comment": "A finding is strong when a high-weight provenance signal sits on a T1/T2 site — the failing value flows from Python-controlled input.",
+    "parsed_argument": {
+      "weight": 3,
+      "tokens": ["PyArg_ParseTuple", "PyArg_ParseTupleAndKeywords", "PyArg_Parse", "PyArg_UnpackTuple", "_PyArg_ParseStack"]
+    },
+    "user_index_or_length": {
+      "weight": 3,
+      "tokens": ["PyLong_AsSsize_t", "PyLong_AsLong", "PyNumber_AsSsize_t", "__index__", "PyObject_Length", "PyObject_Size"]
+    },
+    "user_dunder_callback": {
+      "weight": 3,
+      "tokens": ["PyObject_Hash", "PyObject_RichCompare", "PyObject_RichCompareBool", "PyObject_Repr", "PyObject_Str", "PyObject_GetIter", "PyIter_Next", "__eq__", "__hash__", "__index__", "__repr__"]
+    },
+    "converter_callback": {
+      "weight": 3,
+      "tokens": ["PyUnicode_FSConverter", "PyUnicode_FSDecoder", "PyObject_GetBuffer", "PyArg_Parse\"O&\""]
+    },
+    "reentrant_or_gc": {
+      "weight": 2,
+      "tokens": ["PyObject_CallFunction", "PyObject_CallMethod", "PyObject_Call", "PyObject_Vectorcall", "PyErr_WarnEx", "PyImport_Import", "PyObject_GC_New"]
+    }
+  },
+  "weak_internal_signals": {
+    "_comment": "These LOWER confidence — the failing condition is an internal invariant, not Python-reachable input.",
+    "tokens": ["assert(", "Py_UNREACHABLE", "cannot fail", "can't fail", "should never", "just created", "just inserted", "_PyErr_Occurred"]
+  }
+}
