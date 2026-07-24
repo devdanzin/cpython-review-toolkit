@@ -47,6 +47,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import scan_ft_races
 import scan_init_bypass
+import scan_memory_patterns
 import scan_null_checks
 import scan_pyerr_clear
 import scan_recursion_guards
@@ -73,6 +74,12 @@ CATEGORY_SCANNERS: dict[str, object] = {
     "refcount": scan_refcounts,
     "tsan": scan_ft_races,
     "init-bypass": scan_init_bypass,
+    # Allocation-size overflow, OOB member walks, GC-track invariants. Wired in
+    # when the findings catalog gained memory-pattern records: without it those
+    # entries report `no_scanner`, and filing them under a category whose
+    # scanner cannot express an allocation multiply would yield a misleading
+    # `absent` verdict instead.
+    "memory-pattern": scan_memory_patterns,
 }
 
 # ± lines tolerated around a catalog line before a match is called "drifted".
