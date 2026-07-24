@@ -151,26 +151,27 @@ class TestCheckKnownIssues(unittest.TestCase):
 
     # --- no_scanner passthrough --------------------------------------------
 
-    def test_no_scanner_category_passes_through(self):
-        # `init-bypass` has no scanner yet -> carried through as no_scanner.
-        # (`tsan` IS scanned now, by scan_ft_races.)
+    def test_unmapped_category_passes_through_as_no_scanner(self):
+        # As of 0.7 every shipped category has a scanner, so this exercises the
+        # forward-compatibility path: a catalog category with no CATEGORY_SCANNERS
+        # entry is carried through as no_scanner rather than crashing the run.
         report = self._run(
             {"Objects/present.c": _PRESENT_DEALLOC},
             [
                 (
-                    "INIT-1",
+                    "FUTURE-1",
                     "Objects/present.c",
                     0,
-                    "init-bypass",
+                    "not-a-known-category",
                     "0",
-                    "__new__ bypass",
+                    "a category added to the catalog before its scanner exists",
                 ),
             ],
         )
-        self.assertEqual(self._result_for(report, "INIT-1")["status"], "no_scanner")
-        self.assertEqual(report["bug_rollup"]["INIT-1"], "no_scanner")
+        self.assertEqual(self._result_for(report, "FUTURE-1")["status"], "no_scanner")
+        self.assertEqual(report["bug_rollup"]["FUTURE-1"], "no_scanner")
         # no_scanner entries are never scanned and never actionable findings.
-        self.assertFalse(any(f["bug_id"] == "INIT-1" for f in report["findings"]))
+        self.assertFalse(any(f["bug_id"] == "FUTURE-1" for f in report["findings"]))
 
     # --- bug_rollup collapsing multi-site bugs -----------------------------
 

@@ -18,6 +18,7 @@ Run the highest-value agents to find the worst functions to fix first: the crash
    - **recursion-guard-auditor** — native-stack-overflow SIGSEGV in recursion-prone slots
    - **pyerr-clear-auditor** — exception-clobber in the destructor family
    - **uninitialized-dealloc-auditor** — half-built object freed on an error path
+   - **init-bypass-checker** — NULL field deref after `__new__` bypass / a deletable member
    - **refcount-auditor** — find reference counting errors
    - **error-path-analyzer** — find error handling bugs
    - **c-complexity-analyzer** — find the hardest-to-maintain code

@@ -1,6 +1,6 @@
 {
   "name": "cpython-review-toolkit",
-  "version": "0.6.0",
+  "version": "0.7.0",
   "description": "CPython C code exploration and analysis agents: refcount auditing, error path analysis, GIL discipline, C complexity, include-graph mapping, PEP 7 style, NULL safety, deprecation, macros, and memory patterns \u2014 plus tree-sitter-based crash-class detectors (recursion-guard, destructor exception-clobber, uninitialized-dealloc), an informed-explore loop, and a known-issues regression command",
   "author": {
     "name": "Danzin"
