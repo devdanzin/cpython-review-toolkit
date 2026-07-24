@@ -1,33 +1,67 @@
 #!/usr/bin/env python3
 """Scan CPython C source for memory-management bugs beyond reference counting.
 
-Three syntactic checks, each with a distinct finding ``type``. All default to
+Four syntactic checks, each with a distinct finding ``type``. All default to
 silence — a candidate surfaces only when a specific, high-signal shape matches.
 
 1. ``alloc_size_overflow`` (bug class R5; cf. gh-3493, gh-1779)
    A ``PyMem_Malloc(n * size)`` / ``malloc(count * sizeof(T))`` /
-   ``PyMem_Realloc(p, n * k)`` where a multiply operand derives from a
-   **Python-controlled** value (a ``PyLong_As*`` / ``PyObject_Length`` /
-   ``Py_SIZE`` result, or a ``PyArg_Parse*`` output) and there is **no** prior
-   bounds guard (a ``PY_SSIZE_T_MAX / size`` division check, a ``< 0`` sign
-   check, ``__builtin_mul_overflow`` …). ``PyMem_New`` / ``PyMem_Resize`` /
-   ``*_Calloc`` do the overflow check internally and are treated as SAFE — they
-   never reach this check because their size arguments are separate operands,
-   not a bare ``a * b``.
+   ``PyMem_Realloc(p, n * k)`` where a multiply operand derives from an
+   **unbounded** Python-controlled value (a ``PyLong_As*`` result, a
+   protocol-dispatched ``PyObject_Length`` / ``PySequence_Size``, or a
+   ``PyArg_Parse*`` output) and there is **no** prior bounds guard (a
+   ``PY_SSIZE_T_MAX / size`` division check, a ``< 0`` sign check,
+   ``__builtin_mul_overflow`` …).
 
-2. ``gc_untrack_without_track`` (bug class O6; cf. gh-152107 OOM-0006/0017)
+   The taint table is split. ``Py_SIZE`` / ``PyTuple_GET_SIZE`` /
+   ``PyList_GET_SIZE`` / ``PyBytes_GET_SIZE`` / ``PyUnicode_GET_LENGTH`` and the
+   other concrete-type accessors are **bounded-by-an-existing-allocation**:
+   an n-element container already occupies n * elemsize live bytes, so
+   ``n * sizeof(ptr)`` cannot wrap. Such a multiply is dismissed unless it has a
+   second non-constant factor. ``PyMem_New`` / ``PyMem_Resize`` / ``*_Calloc``
+   overflow-check internally and never reach this check at all.
+
+2. ``varobject_nitems_unguarded``
+   ``PyObject_GC_NewVar`` / ``PyObject_NewVar`` / ``PyObject_GC_Resize`` (and
+   the ``_Py`` spellings) whose ``nitems`` argument is neither narrow-typed,
+   bounded by an existing allocation, nor preceded by an overflow guard. The
+   multiply lives inside ``_PyObject_VAR_SIZE(tp, nitems)`` — it never appears
+   in source, so rule 1 is *structurally* incapable of seeing it. There are
+   exactly 9 var-object allocation sites in all of ``Objects/``.
+
+   Live instance: ``Objects/structseq.c:77 PyStructSequence_New`` takes its
+   size from the type's own ``n_fields`` dict entry, and every type built by the
+   public ``PyStructSequence_NewType`` is a mutable heap type, so::
+
+       import os
+       os.terminal_size.n_fields = 2**62
+       os.terminal_size((7, 9))   # ASan: heap-buffer-overflow WRITE at :235
+
+   Guarded twin: ``Objects/tupleobject.c:52 tuple_alloc``, in structseq's own
+   base type, has exactly the ``n > MAX/elem`` division guard.
+
+3. ``gc_untrack_without_track`` (bug class O6; cf. gh-152107 OOM-0006/0017)
    A constructor allocates with ``PyObject_GC_New*`` and, on an early error
    path, frees the object (``Py_DECREF`` / ``Py_XDECREF`` / ``Py_CLEAR``)
-   *before* any ``PyObject_GC_Track`` on it. If ``tp_dealloc`` then runs the
-   untrack macro (``_PyObject_GC_UNTRACK``) on the never-tracked object the GC
-   invariant is violated.
+   *before* any ``PyObject_GC_Track`` on it. Reachable only when that type's
+   ``tp_dealloc`` runs the unchecked macro ``_PyObject_GC_UNTRACK``; the public
+   function ``PyObject_GC_UnTrack`` re-checks ``_PyObject_GC_IS_TRACKED`` and is
+   untracked-tolerant. (Untracked-tolerant, **not** NULL-safe —
+   ``_PyObject_GC_IS_TRACKED`` dereferences its argument unconditionally.)
 
-3. ``mismatched_alloc_free`` (allocator-family mismatch)
+   The gate is *type-level*: resolve ``PyObject_GC_New(T, &SomeType)`` ->
+   ``SomeType``'s ``tp_dealloc`` -> test that function's body, falling back to
+   the file-level test only when the type object cannot be resolved in-file.
+
+4. ``mismatched_alloc_free`` (allocator-family mismatch)
    The SAME variable is allocated by one allocator family and freed by another
    in the same function (``PyMem_Malloc`` freed with ``free`` / ``PyObject_Free``,
    ``PyObject_Malloc`` freed with ``PyMem_Free``, ``malloc`` freed with
    ``PyMem_Free`` …). The three families (raw ``malloc``, ``PyMem_*``,
    ``PyObject_*``) draw from different heaps and must not be crossed.
+
+Out of scope: abort-vs-``MemoryError`` (triage class J). The bug this scanner
+hunts is a *wrong-size* allocation followed by a write, not a failed one.
 
 Usage:
     python scan_memory_patterns.py [path] [--max-files N]
@@ -78,26 +112,17 @@ _SIZE_ARG_INDEX = {
     "PyObject_Realloc": 1,
 }
 
-# Calls whose result is a Python-controlled integer. Used both as
-# return-assignment taint sources and as inline operands inside the multiply
-# (the call's name appears as an identifier in the sub-tree).
-_TAINT_CALL_NAMES = frozenset(
+# Calls whose result is a Python-controlled integer, split by whether the value
+# is *bounded by an existing allocation*.
+#
+# Bounded: a concrete-type size accessor. An n-element tuple/list/bytes object
+# already occupies at least n * elemsize bytes of live memory, so n itself
+# cannot exceed PY_SSIZE_T_MAX / elemsize — multiplying it by a small element
+# size can never wrap. (`bounded-by-an-existing-allocation`, the single FP class
+# behind 100% of this rule's noise on Objects/.)
+_BOUNDED_LENGTH_CALLS = frozenset(
     {
-        "PyLong_AsSsize_t",
-        "PyLong_AsLong",
-        "PyLong_AsLongLong",
-        "PyLong_AsSize_t",
-        "PyLong_AsUnsignedLong",
-        "PyLong_AsUnsignedLongLong",
-        "PyLong_AsUnsignedLongMask",
-        "PyNumber_AsSsize_t",
-        "PyObject_Length",
-        "PyObject_Size",
-        "PyObject_LengthHint",
-        "PySequence_Length",
-        "PySequence_Size",
-        "PyMapping_Length",
-        "PyMapping_Size",
+        "Py_SIZE",
         "PyTuple_Size",
         "PyTuple_GET_SIZE",
         "PyList_Size",
@@ -108,9 +133,38 @@ _TAINT_CALL_NAMES = frozenset(
         "PyByteArray_GET_SIZE",
         "PyUnicode_GetLength",
         "PyUnicode_GET_LENGTH",
-        "Py_SIZE",
     }
 )
+
+# Unbounded: a raw integer conversion, a protocol-dispatched length (a Python
+# __len__ / __length_hint__ may return any Py_ssize_t with no memory behind
+# it), or a value read out of a mutable type dictionary.
+_UNBOUNDED_INT_CALLS = frozenset(
+    {
+        "PyLong_AsSsize_t",
+        "PyLong_AsLong",
+        "PyLong_AsLongLong",
+        "PyLong_AsSize_t",
+        "PyLong_AsUnsignedLong",
+        "PyLong_AsUnsignedLongLong",
+        "PyLong_AsUnsignedLongMask",
+        "PyNumber_AsSsize_t",
+        "PyNumber_AsOff_t",
+        "PyObject_Length",
+        "PyObject_Size",
+        "PyObject_LengthHint",
+        "PySequence_Length",
+        "PySequence_Size",
+        "PyMapping_Length",
+        "PyMapping_Size",
+    }
+)
+
+_TAINT_CALL_NAMES = _BOUNDED_LENGTH_CALLS | _UNBOUNDED_INT_CALLS
+
+# A non-tainted multiply operand no larger than this is treated as an element
+# size (the `sizeof(T)` role), not as a second attacker-controlled factor.
+_SMALL_FACTOR_MAX = 64
 
 _PYARG_PARSERS = frozenset(
     {
@@ -167,28 +221,44 @@ def _bare_ident(text: str) -> str | None:
     return m.group(1) if m else None
 
 
-def _collect_taint(func: dict, source_bytes: bytes) -> tuple[set[str], set[str]]:
-    """Return (strong_tainted_vars, weak_tainted_vars) for a function body.
+def _collect_taint(
+    func: dict, source_bytes: bytes
+) -> tuple[set[str], set[str], set[str]]:
+    """Return (strong, weak, bounded) tainted variable names for a function.
 
-    Strong: assigned from a PyLong_As* / length / Py_SIZE call.
+    Strong: assigned from an *unbounded* Python-controlled integer call.
     Weak: written through ``&var`` by a PyArg_Parse* call (broad; lower signal).
+    Bounded: assigned from a concrete-type size accessor — kept separate so the
+    ``bounded-by-an-existing-allocation`` class can be dismissed.
     """
     strong: set[str] = set()
     weak: set[str] = set()
+    bounded: set[str] = set()
 
     for assign in find_assignments_in_scope(func["body_node"], source_bytes):
         var = assign["variable"]
         if not var.isidentifier():
             continue
         head = _head_call(assign["value_text"])
-        if head in _TAINT_CALL_NAMES:
+        if head in _UNBOUNDED_INT_CALLS:
             strong.add(var)
+        elif head in _BOUNDED_LENGTH_CALLS:
+            bounded.add(var)
+        elif head is None:
+            # An arithmetic expression, e.g. `PyBytes_GET_SIZE(x) / sizeof(T)`.
+            # Classify by which taint family the expression mentions.
+            text = assign["value_text"]
+            names = set(_HEAD_CALL_RE.findall(text))
+            if names & _UNBOUNDED_INT_CALLS:
+                strong.add(var)
+            elif names & _BOUNDED_LENGTH_CALLS:
+                bounded.add(var)
 
     for call in find_calls_in_scope(func["body_node"], source_bytes, _PYARG_PARSERS):
         for m in _ADDR_IDENT_RE.finditer(call["arguments_text"]):
             weak.add(m.group(1))
 
-    return strong, weak
+    return strong, weak, bounded
 
 
 def _multiplies(node, source_bytes: bytes):
@@ -214,9 +284,83 @@ def _has_overflow_guard(pre_text: str, variables: set[str]) -> bool:
     return False
 
 
+def _small_constant(node, source_bytes: bytes) -> bool:
+    """True if ``node`` is a literal small enough to be an element size."""
+    if node.type != "number_literal":
+        return False
+    text = get_node_text(node, source_bytes).rstrip("uUlL")
+    try:
+        return abs(int(text, 0)) <= _SMALL_FACTOR_MAX
+    except ValueError:
+        return False
+
+
+def _arith_atoms(node):
+    """Yield ``(kind, node)`` leaf operands of an arithmetic expression."""
+    kind = node.type
+    if kind == "sizeof_expression":
+        yield ("sizeof", node)
+        return
+    if kind == "binary_expression":
+        for field in ("left", "right"):
+            child = node.child_by_field_name(field)
+            if child is not None:
+                yield from _arith_atoms(child)
+        return
+    if kind == "parenthesized_expression":
+        for child in node.named_children:
+            yield from _arith_atoms(child)
+        return
+    if kind in ("cast_expression", "unary_expression"):
+        child = node.child_by_field_name("value") or node.child_by_field_name(
+            "argument"
+        )
+        if child is not None:
+            yield from _arith_atoms(child)
+            return
+    if kind == "call_expression":
+        yield ("call", node)
+        return
+    if kind in ("identifier", "number_literal"):
+        yield (kind, node)
+        return
+    yield ("other", node)
+
+
+def _bounded_by_existing_allocation(bx, source_bytes: bytes, bounded: set[str]) -> bool:
+    """True if the multiply is `<container length> * <element size>`.
+
+    Exactly one operand derives from a concrete-type size accessor and every
+    other leaf is a ``sizeof(...)`` or a small integer literal. Two independent
+    length operands can still wrap, so those are *not* dismissed.
+    """
+    bounded_leaves = 0
+    for kind, node in _arith_atoms(bx):
+        if kind == "sizeof":
+            continue
+        if kind == "number_literal":
+            if _small_constant(node, source_bytes):
+                continue
+            return False
+        if kind == "identifier":
+            if get_node_text(node, source_bytes) in bounded:
+                bounded_leaves += 1
+                continue
+            return False
+        if kind == "call":
+            fn = node.child_by_field_name("function")
+            name = get_node_text(fn, source_bytes) if fn is not None else ""
+            if name in _BOUNDED_LENGTH_CALLS:
+                bounded_leaves += 1
+                continue
+            return False
+        return False
+    return bounded_leaves == 1
+
+
 def _check_alloc_size_overflow(func: dict, source_bytes: bytes, tree) -> list[dict]:
-    strong, weak = _collect_taint(func, source_bytes)
-    if not strong and not weak:
+    strong, weak, bounded = _collect_taint(func, source_bytes)
+    if not strong and not weak and not bounded:
         return []
 
     body = func["body"]
@@ -240,12 +384,22 @@ def _check_alloc_size_overflow(func: dict, source_bytes: bytes, tree) -> list[di
                 get_node_text(n, source_bytes)
                 for n in walk_descendants(bx, "identifier")
             }
-            strong_hit = idents & (strong | _TAINT_CALL_NAMES)
+            strong_hit = idents & (strong | _UNBOUNDED_INT_CALLS)
             weak_hit = idents & weak
-            if not strong_hit and not weak_hit:
+            bounded_hit = idents & (bounded | _BOUNDED_LENGTH_CALLS)
+            if not strong_hit and not weak_hit and not bounded_hit:
                 continue
 
-            guard_vars = (strong_hit - _TAINT_CALL_NAMES) | weak_hit
+            # `<container length> * sizeof(T)` cannot wrap — the container is
+            # already in memory, which is the bound.
+            if (
+                not strong_hit
+                and not weak_hit
+                and _bounded_by_existing_allocation(bx, source_bytes, bounded)
+            ):
+                continue
+
+            guard_vars = ((strong_hit | bounded_hit) - _TAINT_CALL_NAMES) | weak_hit
             offset = call["start_byte"] - body_start
             pre_text = body[:offset] if 0 <= offset <= len(body) else body
             if _has_overflow_guard(pre_text, guard_vars):
@@ -256,25 +410,200 @@ def _check_alloc_size_overflow(func: dict, source_bytes: bytes, tree) -> list[di
                 continue
 
             confidence = "medium" if strong_hit else "low"
-            operand = ", ".join(sorted(idents & (strong | weak | _TAINT_CALL_NAMES)))
+            tainted = idents & (strong | weak | bounded | _TAINT_CALL_NAMES)
+            operand = ", ".join(sorted(tainted))
+            source = (
+                "unbounded (PyLong_As* / protocol length / parsed argument)"
+                if strong_hit
+                else "bounded-by-an-existing-allocation, but multiplied by "
+                "another non-constant factor"
+                if bounded_hit and not weak_hit
+                else "a PyArg_Parse* output"
+            )
             findings.append(
                 {
                     "type": "alloc_size_overflow",
                     "function": func["name"],
                     "line": line,
                     "confidence": confidence,
+                    "operands": sorted(tainted),
                     "detail": (
                         f"{call['function_name']}() size argument multiplies a "
-                        f"Python-controlled operand ({operand}) with no visible "
-                        f"overflow guard (no PY_SSIZE_T_MAX/size division check, "
-                        f"< 0 sign check, or __builtin_mul_overflow before the "
-                        f"call). The product can wrap, under-allocating the "
-                        f"buffer (bug class R5; cf. gh-3493, gh-1779). Use "
-                        f"PyMem_New/PyMem_Calloc (they overflow-check) or add an "
-                        f"explicit `n > PY_SSIZE_T_MAX / size` guard."
+                        f"Python-controlled operand ({operand}) — {source} — "
+                        f"with no visible overflow guard (no PY_SSIZE_T_MAX/size "
+                        f"division check, < 0 sign check, or "
+                        f"__builtin_mul_overflow before the call). The product "
+                        f"can wrap, under-allocating the buffer (bug class R5; "
+                        f"cf. gh-3493, gh-1779). Use PyMem_New/PyMem_Calloc "
+                        f"(they overflow-check) or add an explicit "
+                        f"`n > PY_SSIZE_T_MAX / size` guard."
                     ),
                 }
             )
+    return findings
+
+
+# ---------------------------------------------------------------------------
+# Check 1b: unguarded nitems on a variable-length object allocation
+# ---------------------------------------------------------------------------
+
+# `PyObject_GC_NewVar(TYPE, typeobj, nitems)` and friends multiply nitems by
+# tp_itemsize *inside* the `_PyObject_VAR_SIZE` macro, so the product never
+# appears in source and `alloc_size_overflow` is structurally unable to see it.
+# {allocator: index of the nitems argument}
+_VAROBJ_NITEMS_INDEX = {
+    "PyObject_NewVar": 2,
+    "PyObject_GC_NewVar": 2,
+    "PyObject_GC_Resize": 2,
+    "_PyObject_NewVar": 1,
+    "_PyObject_GC_NewVar": 1,
+    "_PyObject_GC_Resize": 1,
+}
+
+# An operand of one of these declared types cannot make `nitems * tp_itemsize`
+# wrap a 64-bit size_t (LP64: int is 32-bit, tp_itemsize is a small constant).
+_NARROW_INT_TYPES = frozenset(
+    {
+        "int",
+        "unsigned",
+        "unsigned int",
+        "signed int",
+        "short",
+        "short int",
+        "unsigned short",
+        "char",
+        "signed char",
+        "unsigned char",
+        "int8_t",
+        "int16_t",
+        "int32_t",
+        "uint8_t",
+        "uint16_t",
+        "uint32_t",
+        "_Bool",
+        "bool",
+    }
+)
+
+_TYPE_NOISE_RE = re.compile(r"\b(?:const|volatile|static|register|restrict)\b")
+
+
+def _declared_types(func: dict, source_bytes: bytes) -> dict[str, str]:
+    """Map local/parameter name -> normalized declared type text."""
+    types: dict[str, str] = {}
+
+    for param in func["parameters"].split(","):
+        param = _TYPE_NOISE_RE.sub("", param).strip()
+        m = re.match(
+            r"^([A-Za-z_][\w\s]*?)\s+\**\s*([A-Za-z_]\w*)\s*(?:\[\s*\])?$", param
+        )
+        if m and "*" not in param.split(m.group(2))[0]:
+            types[m.group(2)] = " ".join(m.group(1).split())
+
+    for decl in walk_descendants(func["body_node"], "declaration"):
+        type_node = decl.child_by_field_name("type")
+        if type_node is None:
+            continue
+        type_text = " ".join(
+            _TYPE_NOISE_RE.sub("", get_node_text(type_node, source_bytes)).split()
+        )
+        for child in decl.named_children:
+            if child.type == "init_declarator":
+                child = child.child_by_field_name("declarator")
+            if child is None or child.type != "identifier":
+                continue
+            types.setdefault(get_node_text(child, source_bytes), type_text)
+
+    return types
+
+
+def _has_varobject_guard(pre_text: str) -> bool:
+    """True if an *overflow* guard precedes the allocation.
+
+    Deliberately stricter than ``_has_overflow_guard``: a bare ``n < 0`` sign
+    check is not an overflow guard. ``PyStructSequence_New`` has exactly such a
+    check and still hands ``2**62`` straight to ``_PyObject_VAR_SIZE``.
+    """
+    if any(c in pre_text for c in _MAX_CONSTS):
+        return True
+    return any(h in pre_text for h in _OVERFLOW_HELPERS)
+
+
+def _check_varobject_nitems(func: dict, source_bytes: bytes, tree) -> list[dict]:
+    body = func["body"]
+    body_start = func["body_node"].start_byte + 1
+    types = _declared_types(func, source_bytes)
+    strong, _weak, bounded = _collect_taint(func, source_bytes)
+
+    findings: list[dict] = []
+    for call in find_calls_in_scope(func["body_node"], source_bytes):
+        idx = _VAROBJ_NITEMS_INDEX.get(call["function_name"])
+        if idx is None:
+            continue
+        args_node = call["node"].child_by_field_name("arguments")
+        if args_node is None:
+            continue
+        arg_nodes = [c for c in args_node.named_children if c.type != "comment"]
+        if idx >= len(arg_nodes):
+            continue
+        nitems = arg_nodes[idx]
+        nitems_text = " ".join(get_node_text(nitems, source_bytes).split())
+
+        atoms = list(_arith_atoms(nitems))
+        idents = [
+            get_node_text(n, source_bytes) for kind, n in atoms if kind == "identifier"
+        ]
+
+        # A literal count, or one built only from small constants, is fine.
+        if not idents and all(
+            kind != "call"
+            and (kind != "number_literal" or _small_constant(n, source_bytes))
+            for kind, n in atoms
+        ):
+            continue
+        # Narrow declared types cannot overflow a 64-bit size_t.
+        if idents and all(types.get(i, "") in _NARROW_INT_TYPES for i in idents):
+            continue
+        # Bounded by an object that is already in memory.
+        if idents and all(i in bounded for i in idents):
+            continue
+        # Explicit overflow guard before the allocation.
+        offset = call["start_byte"] - body_start
+        pre_text = body[:offset] if 0 <= offset <= len(body) else body
+        if _has_varobject_guard(pre_text):
+            continue
+
+        line = call["start_line"]
+        if is_suppressed_by_comment(source_bytes, tree, line):
+            continue
+
+        confidence = "medium" if any(i in strong for i in idents) else "low"
+        findings.append(
+            {
+                "type": "varobject_nitems_unguarded",
+                "function": func["name"],
+                "line": line,
+                "confidence": confidence,
+                "nitems": nitems_text,
+                "operands": sorted(set(idents)),
+                "detail": (
+                    f"{call['function_name']}(..., {nitems_text}) reaches "
+                    f"_PyObject_VAR_SIZE(tp, nitems) = "
+                    f"tp_basicsize + nitems * tp_itemsize with **no** overflow "
+                    f"guard before the call (no PY_SSIZE_T_MAX/itemsize "
+                    f"division check, no __builtin_mul_overflow). The multiply "
+                    f"is inside the macro, so it never appears in source and "
+                    f"alloc_size_overflow cannot see it. If nitems is "
+                    f"attacker-controlled the product wraps, the allocation "
+                    f"succeeds far too small, and the first ob_item write is a "
+                    f"heap overflow (Objects/structseq.c:77 "
+                    f"PyStructSequence_New — reachable from pure Python via "
+                    f"`os.terminal_size.n_fields = 2**62`). Guarded twin: "
+                    f"Objects/tupleobject.c:52 tuple_alloc "
+                    f"(`n > (PY_SSIZE_T_MAX - base) / sizeof(PyObject *)`)."
+                ),
+            }
+        )
     return findings
 
 
@@ -298,26 +627,102 @@ _EARLY_FREE_NAMES = frozenset({"Py_DECREF", "Py_XDECREF", "Py_CLEAR"})
 
 # The O6 bug is only reachable when tp_dealloc runs the untrack *macro*
 # (_PyObject_GC_UNTRACK), which unconditionally unlinks an object it assumes is
-# tracked. The public *function* PyObject_GC_UnTrack guards with
-# _PyObject_GC_IS_TRACKED and is safe on a never-tracked object, so the
-# ubiquitous "Py_DECREF(op) on error before GC_Track" idiom is correct wherever
-# the untrack macro is absent. Gating on macro presence (below) suppresses the
-# entire safe-idiom population — nearly all of Modules/ uses only the function.
+# tracked. The public *function* PyObject_GC_UnTrack is untracked-*tolerant*
+# (it re-checks _PyObject_GC_IS_TRACKED — note: tolerant of an untracked
+# object, NOT NULL-safe; _PyObject_GC_IS_TRACKED dereferences its argument
+# unconditionally), so the ubiquitous "Py_DECREF(op) on error before GC_Track"
+# idiom is correct wherever the destructor uses the function form.
+#
+# The gate is *type-level*: resolve PyObject_GC_New(T, &SomeType) -> SomeType's
+# tp_dealloc -> test that function's body. A file-level test both misses
+# cross-file deallocs (unsound) and lets a sibling type's macro re-admit a safe
+# constructor (it produced the PyList_New false positive, where
+# listiter_dealloc uses the macro but list_dealloc uses the function).
 _GC_UNTRACK_MACRO = b"_PyObject_GC_UNTRACK"
+
+_TYPE_OBJECT_DEF_RE = re.compile(
+    rb"(?m)^[ \t]*(?:static\s+|extern\s+)*PyTypeObject\s+([A-Za-z_]\w*)\s*=\s*\{"
+)
+_TP_DEALLOC_DESIGNATED_RE = re.compile(
+    r"\.tp_dealloc\s*=\s*(?:\(\s*destructor\s*\)\s*)?&?\s*([A-Za-z_]\w*)"
+)
+_TP_DEALLOC_POSITIONAL_RE = re.compile(r"([A-Za-z_]\w*)\s*,\s*/\*\s*tp_dealloc\s*\*/")
+
+
+def _match_braces(source_bytes: bytes, open_index: int) -> int:
+    """Return the index just past the ``}`` matching the ``{`` at open_index."""
+    depth = 0
+    i = open_index
+    end = len(source_bytes)
+    while i < end:
+        ch = source_bytes[i : i + 1]
+        if ch == b"{":
+            depth += 1
+        elif ch == b"}":
+            depth -= 1
+            if depth == 0:
+                return i + 1
+        i += 1
+    return end
+
+
+def _type_dealloc_map(source_bytes: bytes, functions: list[dict]) -> dict[str, str]:
+    """Map static ``PyTypeObject`` symbol -> its ``tp_dealloc`` function name."""
+    bodies = {f["name"]: f["body"] for f in functions}
+    out: dict[str, str] = {}
+    for m in _TYPE_OBJECT_DEF_RE.finditer(source_bytes):
+        open_index = source_bytes.index(b"{", m.end() - 1)
+        init_text = source_bytes[open_index : _match_braces(source_bytes, open_index)]
+        text = init_text.decode("utf-8", "replace")
+        dm = _TP_DEALLOC_DESIGNATED_RE.search(text) or _TP_DEALLOC_POSITIONAL_RE.search(
+            text
+        )
+        if dm is None:
+            continue
+        dealloc = dm.group(1)
+        if dealloc in bodies:
+            out[m.group(1).decode("ascii", "replace")] = dealloc
+    return out
+
+
+_TYPE_ARG_RE = re.compile(r"^\s*&?\s*([A-Za-z_]\w*)\s*$")
+
+
+def _resolve_untrack_variant(
+    call_args: str, type_dealloc: dict[str, str], functions_by_name: dict[str, dict]
+) -> tuple[str, str | None]:
+    """Return (gate, dealloc_name) for a ``PyObject_GC_New*`` argument list.
+
+    gate is ``"type:macro"`` (the O6 shape is live), ``"type:function"`` (safe),
+    or ``"file"`` (unresolvable — the caller falls back to the file-level test).
+    """
+    parts = [p.strip() for p in call_args.split(",")]
+    if len(parts) < 2:
+        return "file", None
+    m = _TYPE_ARG_RE.match(parts[1])
+    if m is None:
+        return "file", None
+    dealloc = type_dealloc.get(m.group(1))
+    if dealloc is None:
+        return "file", None
+    body = functions_by_name[dealloc]["body"]
+    if _GC_UNTRACK_MACRO.decode() in body:
+        return "type:macro", dealloc
+    return "type:function", dealloc
 
 
 def _check_gc_untrack_without_track(
-    func: dict, source_bytes: bytes, tree
+    func: dict, source_bytes: bytes, tree, ctx: dict
 ) -> list[dict]:
-    # File-level gate: no untrack macro anywhere -> no tp_dealloc in this file
-    # can hit the O6 shape, so the free-before-track idiom here is safe.
-    if _GC_UNTRACK_MACRO not in source_bytes:
-        return []
+    file_has_macro = _GC_UNTRACK_MACRO in source_bytes
+    type_dealloc = ctx["type_dealloc"]
+    functions_by_name = ctx["functions_by_name"]
 
     body_node = func["body_node"]
 
     # Objects allocated with a GC allocator (var -> allocator, first assign).
     gc_objs: dict[str, str] = {}
+    gc_args: dict[str, str] = {}
     for assign in find_assignments_in_scope(body_node, source_bytes):
         var = assign["variable"]
         if not var.isidentifier() or var in gc_objs:
@@ -325,6 +730,11 @@ def _check_gc_untrack_without_track(
         head = _head_call(assign["value_text"])
         if head in _GC_ALLOCATORS:
             gc_objs[var] = head
+            args = assign["value_text"]
+            open_paren = args.find("(")
+            gc_args[var] = (
+                args[open_paren + 1 : args.rfind(")")] if open_paren >= 0 else ""
+            )
     if not gc_objs:
         return []
 
@@ -357,22 +767,50 @@ def _check_gc_untrack_without_track(
         # having never been placed in the GC list.
         if track is not None and track <= free["byte"]:
             continue
+
+        gate, dealloc = _resolve_untrack_variant(
+            gc_args.get(var, ""), type_dealloc, functions_by_name
+        )
+        if gate == "type:function":
+            # Resolved: this type's own tp_dealloc uses the untracked-tolerant
+            # function PyObject_GC_UnTrack. The shape is benign here.
+            continue
+        if gate == "file" and not file_has_macro:
+            # Unresolvable type (heap type from module state, itertype
+            # parameter, …) and the file never uses the untrack macro at all.
+            continue
+
         line = free["line"]
         if is_suppressed_by_comment(source_bytes, tree, line):
             continue
+        if gate == "type:macro":
+            evidence = (
+                f"its tp_dealloc ({dealloc}) runs the unchecked macro "
+                f"_PyObject_GC_UNTRACK"
+            )
+        else:
+            evidence = (
+                "the type could not be resolved in this file, which does use "
+                "_PyObject_GC_UNTRACK somewhere (file-level fallback — confirm "
+                "against this type's own tp_dealloc)"
+            )
         findings.append(
             {
                 "type": "gc_untrack_without_track",
                 "function": func["name"],
                 "line": line,
-                "confidence": "low",
+                "confidence": "medium" if gate == "type:macro" else "low",
+                "gate": gate,
+                "tp_dealloc": dealloc,
                 "detail": (
                     f"'{var}' is allocated via {allocator}() and freed with "
                     f"{free['func']}() on an error path before any "
-                    f"PyObject_GC_Track({var}) — if tp_dealloc runs the untrack "
-                    f"macro (_PyObject_GC_UNTRACK) on the never-tracked object "
-                    f"the GC invariant is violated (bug class O6; cf. gh-152107 "
-                    f"OOM-0006/0017). Ensure the error path does not reach an "
+                    f"PyObject_GC_Track({var}), and {evidence}. The macro "
+                    f"unconditionally unlinks an object it assumes is tracked, "
+                    f"so a never-tracked object corrupts the GC list (debug "
+                    f"build: _PyObject_AssertFailed, 'object not tracked by the "
+                    f"garbage collector'). Bug class O6; cf. gh-152107 "
+                    f"OOM-0006/0017. Ensure the error path does not reach an "
                     f"unconditional untrack, or track before the fallible step."
                 ),
             }
@@ -484,10 +922,11 @@ def _check_mismatched_alloc_free(func: dict, source_bytes: bytes, tree) -> list[
 # ---------------------------------------------------------------------------
 
 
-def _check_function(func: dict, source_bytes: bytes, tree) -> list[dict]:
+def _check_function(func: dict, source_bytes: bytes, tree, ctx: dict) -> list[dict]:
     findings: list[dict] = []
     findings.extend(_check_alloc_size_overflow(func, source_bytes, tree))
-    findings.extend(_check_gc_untrack_without_track(func, source_bytes, tree))
+    findings.extend(_check_varobject_nitems(func, source_bytes, tree))
+    findings.extend(_check_gc_untrack_without_track(func, source_bytes, tree, ctx))
     findings.extend(_check_mismatched_alloc_free(func, source_bytes, tree))
     return findings
 
@@ -520,10 +959,14 @@ def analyze(target: str, *, max_files: int = 0) -> dict:
 
         files_analyzed += 1
         rel = relpath(filepath, project_root)
+        ctx = {
+            "functions_by_name": {f["name"]: f for f in functions},
+            "type_dealloc": _type_dealloc_map(source_bytes, functions),
+        }
 
         for func in functions:
             total_functions += 1
-            for f in _check_function(func, source_bytes, tree):
+            for f in _check_function(func, source_bytes, tree, ctx):
                 f["file"] = rel
                 findings.append(f)
 

@@ -21,8 +21,9 @@
       "hunt": "Across a module family, check every dealloc/clear/finalize that calls a fallible API on a cleanup path; the ones that PyErr_Clear() without save/restore swallow MemoryError/KeyboardInterrupt.",
       "severity": "FIX",
       "differential": "Under set_nomemory OOM injection, raise MemoryError, then trigger the teardown; the swallowed error becomes a silent success/hang.",
-      "confirmed_examples": ["gh-152083 context_tp_dealloc", "OOM-0039 deque_clear", "OOM-0023 subtype_dealloc"],
-      "scanner": "scan_pyerr_clear.py"
+      "confirmed_examples": ["gh-152083 context_tp_dealloc", "OOM-0039 deque_clear", "gh-146102 PyErr_Clear-on-success sweep (upstream, in progress)"],
+      "scanner": "scan_pyerr_clear.py",
+      "scope_note": "The scanner is scoped to the destructor family, which is why it returns 0 across all of Objects/. That zero is correct for the destructor class (verified: 0 of 83 bare PyErr_Clear in Objects/ sit in any of its 226 destructor-family functions) but the wider gh-146102 class -- PyErr_Clear() on a success path, and unfiltered clears of an arbitrary user-callback exception -- is NOT covered: 9 real sites exist in Objects/ alone. Note also that only the literal spelling is matched; the private _PyErr_Clear(tstate) alias (70 sites in Python/) is invisible."
     },
     {
       "id": "dealloc-of-uninitialized-object",

@@ -9,7 +9,7 @@ You are an expert in CPython object construction and teardown. Your mission is t
 
 ## Why this matters
 
-`PyObject_New` / `PyObject_GC_New` / `PyObject_NewVar` allocate an object but **do not zero** its type-specific fields — those hold garbage until the constructor assigns them. A correct constructor NULL-initializes members (or `memset`s the object) *before* any fallible step. A buggy one performs a fallible call first and, on failure, `Py_DECREF`s the object — running `tp_dealloc`/`tp_clear`, which `Py_XDECREF`s member pointers that are still garbage. This is the dominant reachable-from-Python crash surface under out-of-memory. Confirmed: `template_iter` (gh-151815), blake2 `.copy()` with an uninitialized `impl` enum (gh-152851).
+`PyObject_New` / `PyObject_GC_New` / `PyObject_NewVar` allocate an object but **do not zero** its type-specific fields — those hold garbage until the constructor assigns them. A correct constructor NULL-initializes members (or `memset`s the object) *before* any fallible step. A buggy one performs a fallible call first and, on failure, `Py_DECREF`s the object — running `tp_dealloc`/`tp_clear`, which `Py_XDECREF`s member pointers that are still garbage. This is the dominant reachable-from-Python crash surface under out-of-memory. Confirmed: `odictiter_new` (Objects/odictobject.c:1945 — **reproduced**, `K=1` OOM sweep ⇒ SIGABRT), `PyList_New` (Objects/listobject.c:250, free-threaded build), `template_iter` (gh-151815), blake2 `.copy()` with an uninitialized `impl` enum (gh-152851).
 
 ## Scope
 
@@ -21,21 +21,34 @@ Analyze the scope provided. Default: the entire project. Requires tree-sitter (`
 python <plugin_root>/scripts/scan_uninit_dealloc.py [scope]
 ```
 
-Findings are **medium-confidence candidates** (a within-constructor heuristic): a non-zeroing allocation whose object is freed on an error path with no member NULL-init (and no `memset`) before the free. Key fields: `findings[].allocator`, `findings[].variable`, `findings[].function`.
+The scanner's predicate is **"is a member written *after* the free and not also on a path that dominates it"** — not "is there a `= NULL` somewhere before the free". Dominance is AST-based, so a write in one `if` / `else` / `switch` / loop arm does not excuse a free in a sibling arm. Preprocessor conditionals are treated per build configuration: a write in a plain `#ifdef X … #endif` block *does* dominate a later free outside it; only a *different arm* of the same group breaks dominance.
+
+Reported members are further filtered to ones the file's destructor actually cares about, and that filter sets the confidence:
+
+| `confidence` | `destructor_evidence[m].kind` | meaning |
+|---|---|---|
+| `medium` | `pointer` | the file does `Py_CLEAR` / `Py_XDECREF` / `Py_VISIT` on `x->m` — garbage there is a wild decref |
+| `low` | `destructor_read` | a destructor-shaped function merely *reads* `x->m` while tearing down other members — a scalar discriminator or loop bound (the blake2 `impl` shape) |
+
+Key fields: `allocator`, `variable`, `function`, `line` (the allocation), `free_line` (the first early free), `unset_members` (the filtered list — **start here**), `unset_members_all` (before filtering), `destructor_evidence`.
 
 ## Analysis Strategy
 
 ### Phase 1: Confirm the tp_dealloc/tp_clear reads the members
-Read the type's `tp_dealloc` (and `tp_clear`). The finding is real only if the destructor **reads a member the constructor had not yet initialized** at the point of the early free:
-- Does `tp_dealloc` do `Py_XDECREF(self->member)` / deref `self->member` / `switch` on an enum member?
-- Was that member still uninitialized when the early `Py_DECREF` ran? Walk the constructor from the allocation to the failing branch and list which members are set.
-- **ACCEPTABLE** if the destructor only touches members that are always set before any early free, or if `tp_alloc` (a zeroing allocator) is actually used.
+`unset_members` pre-answers most of this; verify it. The finding is real only if the destructor **reads a member the constructor had not yet initialized** at the point of the early free:
+- Does `tp_dealloc` do `Py_XDECREF(self->member)` / deref `self->member` / `switch` on an enum member / use it as a loop bound over an array it decrefs?
+- Was that member still uninitialized when the early `Py_DECREF` ran? The scanner's dominance analysis says yes; confirm against `goto` flow, which it does not model.
+- **ACCEPTABLE** if the destructor only touches members always set before any early free, or if `tp_alloc` (a zeroing allocator) is actually used.
+
+**Record which untrack variant the destructor uses — it is both a severity multiplier and a reproducibility predictor.** `_PyObject_GC_UNTRACK` (the unchecked *macro*) on a never-tracked object faults **before** any member is read, so those instances crash deterministically (this is why `odictiter_new` reproduced at `K=1` while gh-151815 does not). `PyObject_GC_UnTrack` (the *function*) is untracked-tolerant — note *untracked*-tolerant, **not** NULL-safe: `_PyObject_GC_IS_TRACKED` dereferences its argument unconditionally — so those instances are latent and often do not reproduce.
 
 ### Phase 2: Verify the allocator really doesn't zero
-`PyObject_GC_New` etc. do not zero. But confirm the object isn't zeroed by a wrapper or a following `memset` the scanner may have missed, and that construction doesn't go through `tp_alloc`/`PyType_GenericAlloc` (which zero).
+`PyObject_GC_New` etc. do not zero. But confirm the object isn't zeroed by a **project-local wrapper macro** or a following `memset` the scanner may have missed, and that construction doesn't go through `tp_alloc`/`PyType_GenericAlloc` (which zero). Do this check **last** — it is the least likely to change the verdict.
 
 ### Phase 3: Differential / OOM reproduction (high-value)
 Reproduce on a debug/ASan CPython using `_testcapi.set_nomemory(n, 0)` to fail the exact allocation on the error path, then trigger the constructor from Python. A crash in `tp_dealloc` confirms it. Record confirmed crashes in the findings repo (this is OOM class O5 / bug class B).
+
+**A clean OOM sweep is not an exoneration.** gh-151815 (`template_iter`) survives a 60/60-clean `MemoryError` sweep and is still a live bug at 3.16.0a0: the shape only crashes on a *dirty* recycled allocator block, and `templateiter_clear` NULLs both members before `tp_free`, so a same-type block always comes back clean. Record such a result as **"unstable trigger"**, never as "fixed" — go back to the source. Also arm `set_nomemory` *after* any freelist-draining setup, and grep the child's stderr for `AddressSanitizer` before classifying exit 1 as a clean `MemoryError`.
 
 ## Output Format
 
@@ -49,18 +62,21 @@ Reproduce on a debug/ASan CPython using `_testcapi.set_nomemory(n, 0)` to fail t
 
 ### Findings
 
-#### [FIX] template_iter frees a half-built iterator (Objects/templateobject.c:LINE)
-**What**: `it = PyObject_GC_New(...)`; on `PyObject_GetIter` failure `Py_DECREF(it)` runs before `it->index`/other members are set.
-**Impact**: tp_dealloc reads uninitialized member → crash (esp. under OOM).
+#### [FIX] odictiter_new frees a half-built iterator (Objects/odictobject.c:1945)
+**What**: `di = PyObject_GC_New(...)`; the fallible `_PyTuple_FromPairSteal` runs first, so `Py_DECREF(di)` at :1952 runs with `kind` / `di_odict` / `di_current` still garbage.
+**Impact**: `odictiter_dealloc` opens with the unchecked `_PyObject_GC_UNTRACK` and faults before the wild `Py_XDECREF`s — deterministic abort under OOM.
+**Guarded twin**: `Objects/dictobject.c:5617 dictiter_new` — same fallible call, placed last.
 **Fix**: NULL all members immediately after allocation, before the first fallible call.
 ```
 
 ## Classification Guide
 - **FIX**: the destructor demonstrably reads a member that is uninitialized at the early-free point. Cross-reference gh-151815 (template_iter), gh-152851 (blake2), and the OOM findings (class O5).
-- **CONSIDER**: plausible but you cannot fully trace which members are set before the free without running it — flag for OOM reproduction.
+- **CONSIDER**: plausible but you cannot fully trace which members are set before the free without running it — flag for OOM reproduction. A `low`-confidence (`destructor_read`) finding starts here.
 - **ACCEPTABLE**: destructor is safe against the uninitialized state, or a zeroing allocator is used.
 
 ## Important Guidelines
-- **Precision is deliberately traded for recall here** — this is the lowest-precision detector in the suite. Every finding needs the Phase-1 constructor↔destructor read before it can be called FIX.
+- **Every finding names its members.** Read `unset_members` and `destructor_evidence` before opening the file; Phase 1 is a confirmation, not a search.
 - **The fix is almost always "NULL members right after allocation."** Prefer that over restructuring the error paths.
-- **`Py_UNREACHABLE()`/`switch` on an uninitialized enum** (the blake2 shape) is a wild-free even on release builds — treat enum-discriminated payloads with extra suspicion.
+- **`Py_UNREACHABLE()`/`switch` on an uninitialized enum** (the blake2 shape) is a wild-free even on release builds — treat enum-discriminated payloads with extra suspicion. These surface as `low`-confidence `destructor_read` findings.
+- **Known recall holes, so you know where to hand-read**: (i) the destructor must be *in the same file* as the constructor — a type deallocated from another translation unit or through `subtype_dealloc` is invisible; (ii) only the **first** early free of an object is analyzed; (iii) `goto`-based cleanup ladders are not modelled.
+- **Do not re-hunt `Objects/structseq.c`.** `PyStructSequence_New` NULLs all `n_fields` slots before anything fallible; it is the guarded twin for this shape and a *silent correct negative*, not an unexamined file.

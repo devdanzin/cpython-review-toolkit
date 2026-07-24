@@ -31,30 +31,51 @@ Run the analysis script:
 # Short analysis (last 100 commits) — pipe directly, no temp file needed:
 python <plugin_root>/scripts/analyze_history.py <target_directory> --last 100
 
-# Longer analysis — save to a UNIQUE temp file:
+# Fix-completeness analysis needs a LONG window. --days is the lever; CPython's
+# C history goes back to 1990 (~13000 days). The full 9,203-commit history of
+# Objects/ analyses in well under a minute.
 python <plugin_root>/scripts/analyze_history.py <target_directory> \
-    --days 365 --max-commits 5000 > /tmp/cpython_history_MYRANGE_$$.json
+    --days 13000 --no-function > /tmp/cpython_history_MYRANGE_$$.json
 ```
 
-The script defaults to 8 parallel workers for git subprocess calls. Adjust with `--workers N`.
+The script defaults to 8 parallel workers for git subprocess calls. Adjust with `--workers N`. Unknown flags are a hard error (JSON `"type": "UnknownArguments"` plus a stderr line) — fix the flag rather than re-running; a silently-ignored window flag used to produce a confident, wrong analysis at the default 90-day window.
 
 The script produces structured output with:
 
 | Field | Description |
 |---|---|
-| `file_churn[]` | Files ranked by commit count, with churn rates |
+| `notes[]` | **Read this first.** Shallow clone, commit cap applied, script timeout, skipped passes — every condition that would otherwise silently truncate the analysis |
+| `is_shallow_clone`, `repo_total_commits`, `repo_first_commit_date` | Clone health, checked by the script rather than by hand |
+| `watchlist[]` | Files ranked by `crash_fix_density` (recent crash-shaped fix commits per KLOC, rename-following). **Prefer this over `churn_rate`** — raw churn was measured *anti-correlated* with defect density on `Objects/`: `genericaliasobject.c` ranks 1st by density and 36th by raw commits |
+| `file_churn[]` | Files ranked by commit count, with churn rates; the top `--density-top` entries also carry `fix_commits`, `crash_fix_commits`, `crash_fix_commits_recent`, `top_crash_fixes`, and `deleted: true` marks ghost paths |
 | `function_churn[]` | Functions ranked by commit count (regex-based C function boundaries) |
-| `recent_fixes[]` | Recent fix commits with diffs (classified by keywords: fix, bug, crash, leak, refcount, segfault, null, etc.) |
+| `recent_fixes[]` | Fix commits with diffs, sorted **highest `fix_confidence` and crash-shaped first**; each carries `fix_confidence` (`high`/`medium`/`low`/`none`) and `crash_class` (`crash`, `use-after-free`, `double-free`, `memory-leak`, `refcount`, `null-deref`, `overflow`, `data-race`, `uninitialized`, `recursion`, `assertion`, `corruption`, or `null`) |
 | `recent_features[]` | Recent feature commits |
 | `recent_refactors[]` | Recent refactor commits (includes Clinic conversions) |
 | `co_change_clusters[]` | Files that tend to change together |
+| `summary.commits_by_fix_confidence` / `.commits_by_crash_class` | Distribution of the re-scored classifier |
 | `module_families` | CPython module family groupings |
 
-Focus on `recent_fixes` first (highest value), then `file_churn` and `function_churn`.
+Read `recent_fixes` **in order** — it is sorted so the `high`-confidence, crash-shaped commits come first. On the full `Objects/` history only ~8% of commits score `high`, so that prefix is a tractable read even across 9,000 commits. The classifier is a heuristic on the *subject line*: a commit whose message hides what it did (e.g. "Store memory allocation information into `_PyListArray`") can still introduce a defect, so never treat `fix_confidence: none` as "safe".
+
+### The `--introduced-by` primitive
+
+Every fix-completeness verdict needs "which commit put this line here?". The script wraps `git blame -L` + `git log -L` so you do not have to run them by hand:
+
+```bash
+python <plugin_root>/scripts/analyze_history.py <target_directory> \
+    --introduced-by Objects/genericaliasobject.c:542
+```
+
+It returns `line_text`, `last_touched_by` (most recent change), `introduced_by` (the oldest commit `git log -L` reports for the range), and the full `line_history[]` — each entry annotated with `type`, `fix_confidence`, `crash_class`, and the commit's file list (`files_touched` ≥ 4 on a `fix` commit is the single-error-class-sweep shape: those commits are the ones most likely to have *introduced* a different defect or missed a sibling). **Caveat:** `introduced_by` is the oldest commit for the line *in its current shape*; if the line was rewritten since, widen the range (`FILE:START-END`) and walk back.
 
 ### Phase 2: Fix Completeness Review
 
-Before searching for similar bugs elsewhere, check whether each fix is itself complete. For each recent fix commit (cap at 15):
+Before searching for similar bugs elsewhere, check whether each fix is itself complete. Work down `recent_fixes` in the order the script emits it (highest `fix_confidence`, crash-shaped first) and cap at 15:
+
+0. **Anchor the site with `--introduced-by`.** For each confirmed or suspected defect line, run `analyze_history.py --introduced-by FILE:LINE`. That gives you the introducing commit, its full file list, and its `crash_class` in one call — the fact you need to say whether a *later* fix to a sibling should have caught this site. Two shapes are worth calling out explicitly when you see them:
+   - the introducing commit is itself classified `fix` (a fix that introduced a defect), and
+   - the introducing commit touched ≥ 4 files with a message naming exactly one error class (a single-error-class sweep) — those routinely introduce a *different* class or skip a structural sibling.
 
 1. **Read the fix diff and commit message**: Understand what was reported broken and what the fix changes.
 
@@ -114,22 +135,26 @@ For each recent fix commit:
 
 5. **Cap at 10 similar-bug findings**: Prioritize by confidence and severity.
 
-### Phase 4: Churn-Risk Matrix
+6. **State sweep completeness per shape.** A *bounded negative* — "shape B exists at 14 sites tree-wide; 13 carry the guard, only `X` does not" — is a higher-value result than another candidate, because it converts a search into a verdict. Report one such statement for every shape you swept, including the ones that came back clean.
 
-Combine churn data with quality signals:
+### Phase 4: Risk Matrix (density, not raw churn)
 
-| Churn Level | Quality Signal | Risk | Action |
+Combine the **bug-fix-density** signal (`watchlist[].crash_fix_density`) with quality signals. Use raw churn only as a tiebreaker: on `Objects/` it was anti-correlated with defect density, and `churn_rate` is additionally distorted by ghost paths and by files whose size changed.
+
+| Crash-fix density | Quality Signal | Risk | Action |
 |---|---|---|---|
-| High churn | Known bug patterns | HIGHEST | Immediate review |
-| High churn | High complexity | HIGH | Schedule review |
-| High churn | Low complexity, no bugs | MODERATE | Active development, monitor |
-| Low churn | Known bug patterns | HIGH | Latent bugs, long-standing |
-| Low churn | High complexity | MODERATE | Technical debt |
-| Low churn | Low complexity | LOW | Stable code |
+| High density | Known bug patterns | HIGHEST | Immediate review |
+| High density | High complexity | HIGH | Schedule review |
+| High density | Low complexity, no bugs | MODERATE | Active development, monitor |
+| Low density | Known bug patterns | HIGH | Latent bugs, long-standing |
+| Low density | High complexity | MODERATE | Technical debt |
+| Low density | Low complexity | LOW | Stable code |
 
 Cross-reference with other agents' findings if available. Cap at 10 entries.
 
 ### Phase 5: CPython-Specific Analyses
+
+**Gate this phase on scope.** Argument Clinic migration, `PyModule_AddObjectRef`, stable-ABI progress and `module_families` are all `Modules/`-shaped. On an `Objects/`-only or `Python/`-only scope they yield zero and are dead weight — say so in one line and spend the effort on Phase 3 instead.
 
 #### Module Family Fix Propagation
 
@@ -244,6 +269,10 @@ Final summary:
 
 6. **Be specific about what makes the code similar.** Don't say "this code looks similar." Say "this code assigns to self->data with Py_NewRef at line 200 without using Py_XSETREF, which is the same pattern fixed in commit abc123."
 
-7. **Cap similar-bug findings at 10.** Cap risk matrix at 10 entries. Note totals if more exist.
+7. **Cap similar-bug findings at 10.** Cap risk matrix at 10 entries. Note totals if more exist. A cap is not a licence to stop sweeping — report the sweep-completeness statement for every shape even when the candidate list is full.
 
 8. **Function-level churn uses regex for C files.** The script uses regex-based function boundary detection (consistent with other cpython-review-toolkit scripts). This handles most CPython functions including multi-line signatures and Argument Clinic `_impl` functions, but may miss functions with `#ifdef` brace imbalance.
+
+9. **Never trust a silent envelope.** Before reporting anything, confirm `notes[]` is free of `SHALLOW CLONE` / `COMMIT CAP APPLIED` / `SCRIPT TIMEOUT`. Any of those means what you are reading is a truncated prefix of the real history, and every temporal claim you make from it is unsound.
+
+10. **`--no-function` is a real trade-off.** Function-level churn is the slow pass and you will often want it off — but it is exactly the signal that separates "three defects in one 1,070-line file" from "this file is busy". If you disable it, say so, and compensate by running `--introduced-by` on the specific lines you care about.

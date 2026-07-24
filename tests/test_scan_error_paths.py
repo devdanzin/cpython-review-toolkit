@@ -10,64 +10,495 @@ from helpers import TempProject, import_script
 mod = import_script("scan_error_paths")
 
 
-class TestErrorPathDetection(unittest.TestCase):
-    """Test error handling bug detection."""
+def _types(result, kind):
+    return [f for f in result["findings"] if f["type"] == kind]
 
-    def test_detects_missing_null_check(self):
-        c_code = (
-            "static PyObject *\n"
-            "no_check(PyObject *self, PyObject *args)\n"
-            "{\n"
-            "    PyObject *result = PyObject_GetAttrString(self, \"name\");\n"
-            "    PyObject *str = PyObject_Str(result);\n"
-            "    return str;\n"
-            "}\n"
-        )
-        with TempProject({"Objects/test.c": c_code}) as root:
-            result = mod.analyze(str(root))
-            findings = result["findings"]
-            unchecked = [
-                f for f in findings
-                if f["type"] in ("missing_null_check", "unchecked_return")
-            ]
-            self.assertGreater(len(unchecked), 0)
 
-    def test_clean_error_handling(self):
-        c_code = (
-            "static PyObject *\n"
-            "clean(PyObject *self, PyObject *args)\n"
-            "{\n"
-            "    PyObject *result = PyObject_GetAttrString(self, \"name\");\n"
-            "    if (result == NULL) {\n"
-            "        return NULL;\n"
-            "    }\n"
-            "    return result;\n"
-            "}\n"
-        )
-        with TempProject({"Objects/test.c": c_code}) as root:
-            result = mod.analyze(str(root))
-            null_checks = [
-                f for f in result["findings"]
-                if f["type"] == "missing_null_check"
-                and f.get("variable") == "result"
-            ]
-            self.assertEqual(len(null_checks), 0)
+class TestStripComments(unittest.TestCase):
+    """Comment stripping must not destroy line structure (TK-15)."""
 
-    def test_detects_return_null_no_exception(self):
+    def test_block_comment_newlines_preserved(self):
+        src = "a\n/* one\ntwo\nthree */\nb\n"
+        out = mod.strip_comments_and_strings(src)
+        self.assertEqual(src.count("\n"), out.count("\n"))
+        self.assertEqual(out.split("\n")[4], "b")
+
+    def test_line_comment_preserved(self):
+        src = "a // note\nb\n"
+        out = mod.strip_comments_and_strings(src)
+        self.assertEqual(src.count("\n"), out.count("\n"))
+
+
+class TestFindFunctions(unittest.TestCase):
+    """Regression tests for the return-type off-by-one (TK-9)."""
+
+    def test_two_line_signature_return_type(self):
         c_code = (
-            "static PyObject *\n"
-            "bad_return(PyObject *self)\n"
+            "\n"
+            "PyObject *\n"
+            "_PyLazyImport_New(PyObject *name)\n"
             "{\n"
             "    return NULL;\n"
             "}\n"
         )
-        with TempProject({"Objects/test.c": c_code}) as root:
+        funcs = mod.find_functions(c_code)
+        self.assertEqual(len(funcs), 1)
+        self.assertEqual(funcs[0]["return_type"], "PyObject *")
+
+    def test_static_two_line_signature_return_type(self):
+        c_code = (
+            "}\n"
+            "\n"
+            "static bool\n"
+            "helper(PyObject *arg)\n"
+            "{\n"
+            "    return true;\n"
+            "}\n"
+        )
+        funcs = mod.find_functions(c_code)
+        self.assertEqual(funcs[0]["return_type"], "static bool")
+
+    def test_comment_above_is_not_a_return_type(self):
+        """The line above the signature must never be read as the type."""
+        c_code = (
+            "/* a comment that is not a return type */\n"
+            "static PyObject *\n"
+            "thing(void)\n"
+            "{\n"
+            "    return NULL;\n"
+            "}\n"
+        )
+        funcs = mod.find_functions(c_code)
+        self.assertEqual(funcs[0]["return_type"], "static PyObject *")
+
+    def test_body_start_line_is_first_body_line(self):
+        c_code = (
+            "static int\n"
+            "f(void)\n"
+            "{\n"
+            "    return 0;\n"
+            "}\n"
+        )
+        funcs = mod.find_functions(c_code)
+        # `{` is line 3, so the first body line is line 4.
+        self.assertEqual(funcs[0]["body_start_line"], 4)
+
+
+class TestLineAccuracy(unittest.TestCase):
+    """Reported lines must land on the construct (TK-15)."""
+
+    def test_line_survives_block_comment_in_body(self):
+        c_code = (
+            "static int\n"                                     # 1
+            "f(PyObject *o)\n"                                 # 2
+            "{\n"                                              # 3
+            "    /* a\n"                                       # 4
+            "       multi-line\n"                              # 5
+            "       comment */\n"                              # 6
+            "    int rc = PyObject_Hash(o);\n"                 # 7
+            "    if (rc == -1) {\n"                            # 8
+            "        PyErr_Clear();\n"                         # 9
+            "        return 0;\n"                              # 10
+            "    }\n"
+            "    return rc;\n"
+            "}\n"
+        )
+        with TempProject({"Objects/t.c": c_code}) as root:
             result = mod.analyze(str(root))
-            no_exc = [
-                f for f in result["findings"]
-                if f["type"] == "return_null_no_exception"
-            ]
-            self.assertGreaterEqual(len(no_exc), 0)
+            clears = _types(result, "unconditional_pyerr_clear")
+            self.assertEqual(len(clears), 1)
+            self.assertEqual(clears[0]["line"], 9)
+
+
+class TestAllocNullNoMemError(unittest.TestCase):
+    """Rule alloc_null_no_memerror (replaces return_null_no_exception)."""
+
+    def test_true_positive_raw_allocator(self):
+        c_code = (
+            "static PyObject *\n"
+            "leaky(Py_ssize_t n)\n"
+            "{\n"
+            "    char *buf = PyMem_Malloc(n);\n"
+            "    if (buf == NULL) {\n"
+            "        return NULL;\n"
+            "    }\n"
+            "    return PyBytes_FromStringAndSize(buf, n);\n"
+            "}\n"
+        )
+        with TempProject({"Objects/t.c": c_code}) as root:
+            result = mod.analyze(str(root))
+            found = _types(result, "alloc_null_no_memerror")
+            self.assertEqual(len(found), 1)
+            self.assertEqual(found[0]["api_call"], "PyMem_Malloc")
+            self.assertEqual(found[0]["line"], 4)
+            self.assertEqual(found[0]["guard_line"], 5)
+
+    def test_true_negative_pyerr_nomemory_present(self):
+        c_code = (
+            "static int\n"
+            "clean(Py_ssize_t n)\n"
+            "{\n"
+            "    char *buf = PyMem_Malloc(n);\n"
+            "    if (buf == NULL) {\n"
+            "        PyErr_NoMemory();\n"
+            "        return -1;\n"
+            "    }\n"
+            "    PyMem_Free(buf);\n"
+            "    return 0;\n"
+            "}\n"
+        )
+        with TempProject({"Objects/t.c": c_code}) as root:
+            result = mod.analyze(str(root))
+            self.assertEqual(_types(result, "alloc_null_no_memerror"), [])
+
+    def test_exception_setting_allocator_is_exempt(self):
+        """PyObject_GC_New raises MemoryError itself — never flagged."""
+        c_code = (
+            "static PyObject *\n"
+            "make(void)\n"
+            "{\n"
+            "    thing *t = PyObject_GC_New(thing, &Thing_Type);\n"
+            "    if (t == NULL) {\n"
+            "        return NULL;\n"
+            "    }\n"
+            "    return (PyObject *)t;\n"
+            "}\n"
+        )
+        with TempProject({"Objects/t.c": c_code}) as root:
+            result = mod.analyze(str(root))
+            self.assertEqual(_types(result, "alloc_null_no_memerror"), [])
+
+    def test_pymem_new_is_a_raw_allocator(self):
+        """PyMem_New is a macro over PyMem_Malloc, so it does *not* raise."""
+        self.assertIn("PyMem_New", mod.RAW_ALLOCATORS)
+        self.assertNotIn("PyMem_New", mod.EXCEPTION_SETTING_ALLOCATORS)
+        c_code = (
+            "static int *\n"
+            "marks(int len)\n"
+            "{\n"
+            "    int *starts = PyMem_New(int, len);\n"
+            "    if (starts == NULL) {\n"
+            "        return NULL;\n"
+            "    }\n"
+            "    return starts;\n"
+            "}\n"
+        )
+        with TempProject({"Objects/t.c": c_code}) as root:
+            result = mod.analyze(str(root))
+            self.assertEqual(len(_types(result, "alloc_null_no_memerror")), 1)
+
+    def test_caller_discharges_the_obligation(self):
+        """A thin helper whose in-file callers all raise is not a bug."""
+        c_code = (
+            "static void *\n"
+            "alloc_array(size_t n)\n"
+            "{\n"
+            "    void *array = PyMem_Malloc(n);\n"
+            "    if (array == NULL) {\n"
+            "        return NULL;\n"
+            "    }\n"
+            "    return array;\n"
+            "}\n"
+            "\n"
+            "static int\n"
+            "user(size_t n)\n"
+            "{\n"
+            "    void *a = alloc_array(n);\n"
+            "    if (a == NULL) {\n"
+            "        PyErr_NoMemory();\n"
+            "        return -1;\n"
+            "    }\n"
+            "    return 0;\n"
+            "}\n"
+        )
+        with TempProject({"Objects/t.c": c_code}) as root:
+            result = mod.analyze(str(root))
+            self.assertEqual(_types(result, "alloc_null_no_memerror"), [])
+
+
+class TestUnconditionalPyErrClear(unittest.TestCase):
+    """Rule unconditional_pyerr_clear (Objects/unionobject.c:172)."""
+
+    def test_true_positive_unguarded_clear(self):
+        c_code = (
+            "static bool\n"
+            "add_single(builder *ub, PyObject *arg)\n"
+            "{\n"
+            "    Py_hash_t hash = PyObject_Hash(arg);\n"
+            "    if (hash == -1) {\n"
+            "        PyErr_Clear();\n"
+            "        return true;\n"
+            "    }\n"
+            "    return false;\n"
+            "}\n"
+        )
+        with TempProject({"Objects/t.c": c_code}) as root:
+            result = mod.analyze(str(root))
+            found = _types(result, "unconditional_pyerr_clear")
+            self.assertEqual(len(found), 1)
+            self.assertEqual(found[0]["line"], 6)
+
+    def test_true_negative_narrowed_clear(self):
+        c_code = (
+            "static bool\n"
+            "add_single(builder *ub, PyObject *arg)\n"
+            "{\n"
+            "    Py_hash_t hash = PyObject_Hash(arg);\n"
+            "    if (hash == -1) {\n"
+            "        if (!PyErr_ExceptionMatches(PyExc_TypeError)) {\n"
+            "            return false;\n"
+            "        }\n"
+            "        PyErr_Clear();\n"
+            "        return true;\n"
+            "    }\n"
+            "    return false;\n"
+            "}\n"
+        )
+        with TempProject({"Objects/t.c": c_code}) as root:
+            result = mod.analyze(str(root))
+            self.assertEqual(_types(result, "unconditional_pyerr_clear"), [])
+
+    def test_destructor_family_is_left_to_scan_pyerr_clear(self):
+        c_code = (
+            "static void\n"
+            "thing_dealloc(PyObject *self)\n"
+            "{\n"
+            "    PyObject *cb = PyObject_CallNoArgs(hook);\n"
+            "    if (cb == NULL) {\n"
+            "        PyErr_Clear();\n"
+            "    }\n"
+            "    Py_XDECREF(cb);\n"
+            "}\n"
+        )
+        with TempProject({"Objects/t.c": c_code}) as root:
+            result = mod.analyze(str(root))
+            self.assertEqual(_types(result, "unconditional_pyerr_clear"), [])
+
+    def test_underscore_spelling_is_matched(self):
+        """CPython's internal `_PyErr_Clear(tstate)` spelling."""
+        c_code = (
+            "static int\n"
+            "f(PyThreadState *tstate, PyObject *o)\n"
+            "{\n"
+            "    PyObject *r = PyObject_Str(o);\n"
+            "    if (r == NULL) {\n"
+            "        _PyErr_Clear(tstate);\n"
+            "        return 0;\n"
+            "    }\n"
+            "    Py_DECREF(r);\n"
+            "    return 1;\n"
+            "}\n"
+        )
+        with TempProject({"Objects/t.c": c_code}) as root:
+            result = mod.analyze(str(root))
+            self.assertEqual(len(_types(result, "unconditional_pyerr_clear")), 1)
+
+    def test_clear_outside_a_failure_branch_is_ignored(self):
+        c_code = (
+            "static int\n"
+            "f(void)\n"
+            "{\n"
+            "    PyErr_Clear();\n"
+            "    return 0;\n"
+            "}\n"
+        )
+        with TempProject({"Objects/t.c": c_code}) as root:
+            result = mod.analyze(str(root))
+            self.assertEqual(_types(result, "unconditional_pyerr_clear"), [])
+
+
+class TestUncheckedReturnFalsePositives(unittest.TestCase):
+    """The five mechanical FP classes measured at 28/28 on Objects/."""
+
+    def _analyze(self, body):
+        c_code = (
+            "static PyObject *\n"
+            "f(PyObject *self, PyObject *args)\n"
+            "{\n"
+            + body
+            + "}\n"
+        )
+        with TempProject({"Objects/t.c": c_code}) as root:
+            return mod.analyze(str(root))
+
+    def test_class_a_value_returned_directly(self):
+        result = self._analyze(
+            "    PyObject *repr = PyObject_Repr(self);\n"
+            "    return repr;\n"
+        )
+        self.assertEqual(_types(result, "unchecked_return"), [])
+
+    def test_class_a_value_returned_wrapped(self):
+        result = self._analyze(
+            "    PyObject *obj = PyObject_Call(self, args, NULL);\n"
+            "    return set_orig_class(obj, self);\n"
+        )
+        self.assertEqual(_types(result, "unchecked_return"), [])
+
+    def test_class_b_positive_form_check(self):
+        result = self._analyze(
+            "    PyObject *v = PyObject_Str(self);\n"
+            "    if (v) {\n"
+            "        Py_DECREF(v);\n"
+            "    }\n"
+            "    return NULL;\n"
+        )
+        self.assertEqual(_types(result, "unchecked_return"), [])
+
+    def test_class_b_loop_condition_assignment(self):
+        result = self._analyze(
+            "    PyObject *key;\n"
+            "    while ((key = PyIter_Next(it)) != NULL) {\n"
+            "        Py_DECREF(key);\n"
+            "    }\n"
+            "    return NULL;\n"
+        )
+        self.assertEqual(_types(result, "unchecked_return"), [])
+
+    def test_class_b_for_header_assignment(self):
+        result = self._analyze(
+            "    PyObject *key;\n"
+            "    for (key = PyIter_Next(it); key; key = PyIter_Next(it)) {\n"
+            "        Py_DECREF(key);\n"
+            "    }\n"
+            "    return NULL;\n"
+        )
+        self.assertEqual(_types(result, "unchecked_return"), [])
+
+    def test_class_c_py_setref_alias(self):
+        result = self._analyze(
+            "    PyObject *tmp = PyObject_Str(self);\n"
+            "    Py_SETREF(item, tmp);\n"
+            "    if (item == NULL) {\n"
+            "        return NULL;\n"
+            "    }\n"
+            "    return item;\n"
+        )
+        self.assertEqual(_types(result, "unchecked_return"), [])
+
+    def test_class_d_multi_assign_alias(self):
+        result = self._analyze(
+            "    args = tuple_args = PySequence_Tuple(args);\n"
+            "    if (args == NULL) {\n"
+            "        return NULL;\n"
+            "    }\n"
+            "    return do_thing(tuple_args);\n"
+        )
+        self.assertEqual(_types(result, "unchecked_return"), [])
+
+    def test_class_f_struct_member_lhs(self):
+        result = self._analyze(
+            "    ub->args = PyList_New(0);\n"
+            "    if (ub->args == NULL) {\n"
+            "        return NULL;\n"
+            "    }\n"
+            "    return do_thing(ub);\n"
+        )
+        self.assertEqual(_types(result, "unchecked_return"), [])
+
+    def test_null_tolerant_consumer(self):
+        """PyModule_Add* reject NULL themselves (Python/modsupport.c:602)."""
+        result = self._analyze(
+            "    PyObject *r = Py_BuildValue(\"(ii)\", 1, 2);\n"
+            "    if (PyModule_Add(m, \"pair\", r) < 0) {\n"
+            "        return NULL;\n"
+            "    }\n"
+            "    return NULL;\n"
+        )
+        self.assertEqual(_types(result, "unchecked_return"), [])
+
+    def test_out_parameter_store(self):
+        result = self._analyze(
+            "    *method = PyObject_GetAttr(obj, name);\n"
+            "    return NULL;\n"
+        )
+        self.assertEqual(_types(result, "unchecked_return"), [])
+
+    def test_true_positive_still_fires(self):
+        result = self._analyze(
+            "    PyObject *v = PyObject_Str(self);\n"
+            "    PyList_Append(lst, v);\n"
+            "    Py_DECREF(v);\n"
+            "    return NULL;\n"
+        )
+        found = _types(result, "unchecked_return")
+        self.assertEqual(len(found), 1)
+        self.assertEqual(found[0]["variable"], "v")
+        self.assertEqual(found[0]["line"], 4)
+
+
+class TestMissingNullCheck(unittest.TestCase):
+    """Rule missing_null_check (deref before test)."""
+
+    def test_true_positive_deref_before_check(self):
+        c_code = (
+            "static PyObject *\n"
+            "f(PyObject *self)\n"
+            "{\n"
+            "    PyObject *r = PyObject_GetAttrString(self, \"x\");\n"
+            "    Py_ssize_t n = r->ob_refcnt;\n"
+            "    return PyLong_FromSsize_t(n);\n"
+            "}\n"
+        )
+        with TempProject({"Objects/t.c": c_code}) as root:
+            result = mod.analyze(str(root))
+            found = _types(result, "missing_null_check")
+            self.assertEqual(len(found), 1)
+            self.assertEqual(found[0]["line"], 4)
+
+    def test_self_reference_in_call_args_is_not_a_deref(self):
+        """`f = PyMem_Malloc(sizeof *f->a)` derefs nothing yet."""
+        c_code = (
+            "static int\n"
+            "f(struct src *src)\n"
+            "{\n"
+            "    fb = PyMem_Malloc(sizeof *fb + 3 * (sizeof *fb->array));\n"
+            "    if (fb == NULL) {\n"
+            "        PyErr_NoMemory();\n"
+            "        return -1;\n"
+            "    }\n"
+            "    return 0;\n"
+            "}\n"
+        )
+        with TempProject({"Objects/t.c": c_code}) as root:
+            result = mod.analyze(str(root))
+            self.assertEqual(_types(result, "missing_null_check"), [])
+
+
+class TestRetiredRules(unittest.TestCase):
+    """Rules removed in the 0/29-precision cleanup must stay removed."""
+
+    def test_no_return_null_no_exception(self):
+        c_code = (
+            "static PyObject *\n"
+            "f(void)\n"
+            "{\n"
+            "    return NULL;\n"
+            "}\n"
+        )
+        with TempProject({"Objects/t.c": c_code}) as root:
+            result = mod.analyze(str(root))
+            self.assertEqual(_types(result, "return_null_no_exception"), [])
+            self.assertNotIn("return_null_no_exception", result["summary"])
+
+    def test_no_sparse_error_cleanup(self):
+        c_code = (
+            "static PyObject *\n"
+            "f(void)\n"
+            "{\n"
+            "    PyObject *t = Py_BuildValue(\"(s)\", \"a\");\n"
+            "    if (!t) {\n"
+            "        goto error;\n"
+            "    }\n"
+            "    return t;\n"
+            "error:\n"
+            "    return NULL;\n"
+            "}\n"
+        )
+        with TempProject({"Objects/t.c": c_code}) as root:
+            result = mod.analyze(str(root))
+            self.assertEqual(_types(result, "sparse_error_cleanup"), [])
+            self.assertNotIn("sparse_error_cleanup", result["summary"])
 
 
 class TestAnalyze(unittest.TestCase):
@@ -85,9 +516,15 @@ class TestAnalyze(unittest.TestCase):
         }) as root:
             result = mod.analyze(str(root))
             self.assertIn("summary", result)
-            self.assertIn("missing_null_checks", result["summary"])
-            self.assertIn("unchecked_returns", result["summary"])
-            self.assertIn("total_findings", result["summary"])
+            for key in (
+                "missing_null_checks",
+                "unchecked_returns",
+                "alloc_null_no_memerror",
+                "unconditional_pyerr_clear",
+                "unchecked_parse_calls",
+                "total_findings",
+            ):
+                self.assertIn(key, result["summary"])
 
 
 if __name__ == "__main__":

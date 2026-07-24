@@ -107,6 +107,171 @@ class TestScanMemoryPatterns(unittest.TestCase):
         )
         self.assertEqual(self._of_type(result, "alloc_size_overflow"), [])
 
+    def test_alloc_overflow_bounded_by_existing_allocation_is_safe(self):
+        """Objects/call.c:491 and Objects/listobject.c:2985 — the single FP
+        class of this rule. An n-element container already occupies n*8 live
+        bytes, so `n * sizeof(ptr)` cannot wrap."""
+        result = self._findings(
+            {
+                "Objects/call.c": (
+                    "static PyObject *\n"
+                    "_PyObject_Call_Prepend(PyObject *callable, PyObject *args)\n"
+                    "{\n"
+                    "    Py_ssize_t argcount = PyTuple_GET_SIZE(args);\n"
+                    "    PyObject **stack = PyMem_Malloc((argcount + 1) * sizeof(PyObject *));\n"
+                    "    if (stack == NULL) return PyErr_NoMemory();\n"
+                    "    return NULL;\n"
+                    "}\n"
+                    "\n"
+                    "static PyObject *\n"
+                    "list_sort_impl(PyListObject *self)\n"
+                    "{\n"
+                    "    Py_ssize_t saved_ob_size = Py_SIZE(self);\n"
+                    "    PyObject **keys = PyMem_Malloc(sizeof(PyObject *) * saved_ob_size);\n"
+                    "    if (keys == NULL) return PyErr_NoMemory();\n"
+                    "    return NULL;\n"
+                    "}\n"
+                )
+            }
+        )
+        self.assertEqual(self._of_type(result, "alloc_size_overflow"), [])
+
+    def test_alloc_overflow_two_nonconstant_factors_still_flagged(self):
+        """A bounded length multiplied by a *second* non-constant factor can
+        still wrap — only `length * <element size>` is dismissed."""
+        result = self._findings(
+            {
+                "Objects/foo.c": (
+                    "static int\n"
+                    "frob(PyObject *code, int bytes_per_entry)\n"
+                    "{\n"
+                    "    Py_ssize_t code_len = PyBytes_GET_SIZE(code);\n"
+                    "    void *lines = PyMem_Malloc(1 + code_len * bytes_per_entry);\n"
+                    "    if (lines == NULL) return -1;\n"
+                    "    return 0;\n"
+                    "}\n"
+                )
+            }
+        )
+        hits = self._of_type(result, "alloc_size_overflow")
+        self.assertEqual(len(hits), 1)
+        self.assertEqual(hits[0]["confidence"], "low")
+
+    # === Check 1b: varobject_nitems_unguarded =============================
+
+    def test_varobject_nitems_from_type_dict_is_flagged(self):
+        """Objects/structseq.c:77 PyStructSequence_New — CONFIRMED, reproduced.
+
+        `size` is read from the type's own (Python-writable) `n_fields` dict
+        entry; the multiply happens inside `_PyObject_VAR_SIZE`, so it never
+        appears in source and `alloc_size_overflow` cannot see it. Note the
+        `size < 0` sign check must NOT count as an overflow guard — `2**62`
+        passes it.
+        """
+        result = self._findings(
+            {
+                "Objects/structseq.c": (
+                    "PyObject *\n"
+                    "PyStructSequence_New(PyTypeObject *type)\n"
+                    "{\n"
+                    "    PyStructSequence *obj;\n"
+                    "    Py_ssize_t size = REAL_SIZE_TP(type), i;\n"
+                    "    if (size < 0) {\n"
+                    "        return NULL;\n"
+                    "    }\n"
+                    "    Py_ssize_t vsize = VISIBLE_SIZE_TP(type);\n"
+                    "    if (vsize < 0) {\n"
+                    "        return NULL;\n"
+                    "    }\n"
+                    "    obj = PyObject_GC_NewVar(PyStructSequence, type, size);\n"
+                    "    if (obj == NULL)\n"
+                    "        return NULL;\n"
+                    "    Py_SET_SIZE(obj, vsize);\n"
+                    "    for (i = 0; i < size; i++)\n"
+                    "        obj->ob_item[i] = NULL;\n"
+                    "    return (PyObject*)obj;\n"
+                    "}\n"
+                )
+            }
+        )
+        hits = self._of_type(result, "varobject_nitems_unguarded")
+        self.assertEqual(len(hits), 1)
+        self.assertEqual(hits[0]["function"], "PyStructSequence_New")
+        self.assertEqual(hits[0]["nitems"], "size")
+
+    def test_varobject_tuple_alloc_guarded_twin_is_safe(self):
+        """Objects/tupleobject.c:52 tuple_alloc — the `n > MAX/elem` guard, in
+        structseq's own base type."""
+        result = self._findings(
+            {
+                "Objects/tupleobject.c": (
+                    "static PyTupleObject *\n"
+                    "tuple_alloc(Py_ssize_t size)\n"
+                    "{\n"
+                    "    if ((size_t)size > ((size_t)PY_SSIZE_T_MAX - (sizeof(PyTupleObject) -\n"
+                    "                sizeof(PyObject *))) / sizeof(PyObject *)) {\n"
+                    "        return (PyTupleObject *)PyErr_NoMemory();\n"
+                    "    }\n"
+                    "    PyTupleObject *result =\n"
+                    "        PyObject_GC_NewVar(PyTupleObject, &PyTuple_Type, size);\n"
+                    "    return result;\n"
+                    "}\n"
+                )
+            }
+        )
+        self.assertEqual(self._of_type(result, "varobject_nitems_unguarded"), [])
+
+    def test_varobject_narrow_int_operand_is_safe(self):
+        """CPython-specific: Objects/genobject.c / memoryobject.c pass an `int`.
+
+        On LP64 an `int` count cannot make `nitems * tp_itemsize` wrap a 64-bit
+        size_t, so these are silent by construction (7 of the 9 var-object
+        sites in Objects/ fall to this or to a bound/guard).
+        """
+        result = self._findings(
+            {
+                "Objects/genobject.c": (
+                    "static PyObject *\n"
+                    "make_gen(PyTypeObject *type, PyFunctionObject *func)\n"
+                    "{\n"
+                    "    PyCodeObject *code = (PyCodeObject *)func->func_code;\n"
+                    "    int slots = code->co_nlocalsplus + code->co_stacksize;\n"
+                    "    PyGenObject *gen = PyObject_GC_NewVar(PyGenObject, type, slots);\n"
+                    "    return (PyObject *)gen;\n"
+                    "}\n"
+                    "\n"
+                    "static PyMemoryViewObject *\n"
+                    "memory_alloc(int ndim)\n"
+                    "{\n"
+                    "    PyMemoryViewObject *mv;\n"
+                    "    mv = (PyMemoryViewObject *)\n"
+                    "        PyObject_GC_NewVar(PyMemoryViewObject, &PyMemoryView_Type, 3*ndim);\n"
+                    "    return mv;\n"
+                    "}\n"
+                )
+            }
+        )
+        self.assertEqual(self._of_type(result, "varobject_nitems_unguarded"), [])
+
+    def test_varobject_bounded_operand_is_safe(self):
+        """Objects/codeobject.c:736 — nitems derives from PyBytes_GET_SIZE of an
+        object already in memory."""
+        result = self._findings(
+            {
+                "Objects/codeobject.c": (
+                    "static PyCodeObject *\n"
+                    "_PyCode_New(struct _PyCodeConstructor *con)\n"
+                    "{\n"
+                    "    Py_ssize_t size = PyBytes_GET_SIZE(con->code) / sizeof(_Py_CODEUNIT);\n"
+                    "    PyCodeObject *co;\n"
+                    "    co = PyObject_GC_NewVar(PyCodeObject, &PyCode_Type, size);\n"
+                    "    return co;\n"
+                    "}\n"
+                )
+            }
+        )
+        self.assertEqual(self._of_type(result, "varobject_nitems_unguarded"), [])
+
     # === Check 2: gc_untrack_without_track ================================
 
     def test_gc_free_before_track_flagged(self):
@@ -233,6 +398,201 @@ class TestScanMemoryPatterns(unittest.TestCase):
             }
         )
         self.assertEqual(self._of_type(result, "gc_untrack_without_track"), [])
+
+    def test_gc_gate_is_type_level_not_file_level(self):
+        """Objects/listobject.c:262 PyList_New — the file-level gate's FP.
+
+        `list_dealloc` uses the untracked-tolerant *function*, but
+        `listiter_dealloc` — a different type in the same file — uses the
+        macro. A file-level gate lets PyList_New through; a type-level gate
+        does not.
+        """
+        result = self._findings(
+            {
+                "Objects/listobject.c": (
+                    "static void\n"
+                    "list_dealloc(PyObject *self)\n"
+                    "{\n"
+                    "    PyListObject *op = (PyListObject *)self;\n"
+                    "    PyObject_GC_UnTrack(op);\n"
+                    "    PyObject_GC_Del(op);\n"
+                    "}\n"
+                    "\n"
+                    "static void\n"
+                    "listiter_dealloc(PyObject *self)\n"
+                    "{\n"
+                    "    _PyObject_GC_UNTRACK(self);\n"
+                    "    PyObject_GC_Del(self);\n"
+                    "}\n"
+                    "\n"
+                    "PyTypeObject PyList_Type = {\n"
+                    "    PyVarObject_HEAD_INIT(&PyType_Type, 0)\n"
+                    '    "list",\n'
+                    "    sizeof(PyListObject),\n"
+                    "    0,\n"
+                    "    list_dealloc,                               /* tp_dealloc */\n"
+                    "};\n"
+                    "\n"
+                    "PyTypeObject PyListIter_Type = {\n"
+                    "    PyVarObject_HEAD_INIT(&PyType_Type, 0)\n"
+                    '    "list_iterator",\n'
+                    "    sizeof(listiterobject),\n"
+                    "    0,\n"
+                    "    listiter_dealloc,                           /* tp_dealloc */\n"
+                    "};\n"
+                    "\n"
+                    "PyObject *\n"
+                    "PyList_New(Py_ssize_t size)\n"
+                    "{\n"
+                    "    PyListObject *op = PyObject_GC_New(PyListObject, &PyList_Type);\n"
+                    "    if (op == NULL) return NULL;\n"
+                    "    op->ob_item = PyMem_Calloc(size, 8);\n"
+                    "    if (op->ob_item == NULL) {\n"
+                    "        Py_DECREF(op);\n"
+                    "        return PyErr_NoMemory();\n"
+                    "    }\n"
+                    "    _PyObject_GC_TRACK(op);\n"
+                    "    return (PyObject *)op;\n"
+                    "}\n"
+                )
+            }
+        )
+        self.assertEqual(self._of_type(result, "gc_untrack_without_track"), [])
+
+    def test_gc_gate_type_macro_resolution_is_flagged(self):
+        """Objects/odictobject.c:1952 odictiter_new — the scanner's one true
+        positive, resolved through the positional `/* tp_dealloc */` slot."""
+        result = self._findings(
+            {
+                "Objects/odictobject.c": (
+                    "static void\n"
+                    "odictiter_dealloc(PyObject *op)\n"
+                    "{\n"
+                    "    odictiterobject *di = (odictiterobject *)op;\n"
+                    "    _PyObject_GC_UNTRACK(di);\n"
+                    "    Py_XDECREF(di->di_odict);\n"
+                    "    PyObject_GC_Del(di);\n"
+                    "}\n"
+                    "\n"
+                    "PyTypeObject PyODictIter_Type = {\n"
+                    "    PyVarObject_HEAD_INIT(&PyType_Type, 0)\n"
+                    '    "odict_iterator",\n'
+                    "    sizeof(odictiterobject),\n"
+                    "    0,\n"
+                    "    odictiter_dealloc,                        /* tp_dealloc */\n"
+                    "};\n"
+                    "\n"
+                    "static PyObject *\n"
+                    "odictiter_new(PyODictObject *od, int kind)\n"
+                    "{\n"
+                    "    odictiterobject *di;\n"
+                    "    di = PyObject_GC_New(odictiterobject, &PyODictIter_Type);\n"
+                    "    if (di == NULL)\n"
+                    "        return NULL;\n"
+                    "    di->di_result = _PyTuple_FromPairSteal(Py_None, Py_None);\n"
+                    "    if (di->di_result == NULL) {\n"
+                    "        Py_DECREF(di);\n"
+                    "        return NULL;\n"
+                    "    }\n"
+                    "    di->di_odict = (PyODictObject*)Py_NewRef(od);\n"
+                    "    _PyObject_GC_TRACK(di);\n"
+                    "    return (PyObject *)di;\n"
+                    "}\n"
+                )
+            }
+        )
+        hits = self._of_type(result, "gc_untrack_without_track")
+        self.assertEqual(len(hits), 1)
+        self.assertEqual(hits[0]["function"], "odictiter_new")
+        self.assertEqual(hits[0]["gate"], "type:macro")
+        self.assertEqual(hits[0]["tp_dealloc"], "odictiter_dealloc")
+        self.assertEqual(hits[0]["confidence"], "medium")
+
+    def test_gc_gate_designated_initializer_resolution(self):
+        """Objects/templateobject.c uses `.tp_dealloc = …` — a designated
+        initializer — and the untracked-tolerant function, so it is silent even
+        though a sibling type in the file uses the macro."""
+        result = self._findings(
+            {
+                "Objects/templateobject.c": (
+                    "static void\n"
+                    "templateiter_dealloc(PyObject *op)\n"
+                    "{\n"
+                    "    PyObject_GC_UnTrack(op);\n"
+                    "    Py_TYPE(op)->tp_free(op);\n"
+                    "}\n"
+                    "\n"
+                    "static void\n"
+                    "other_dealloc(PyObject *op)\n"
+                    "{\n"
+                    "    _PyObject_GC_UNTRACK(op);\n"
+                    "}\n"
+                    "\n"
+                    "PyTypeObject _PyTemplateIter_Type = {\n"
+                    "    PyVarObject_HEAD_INIT(&PyType_Type, 0)\n"
+                    '    .tp_name = "string.templatelib.TemplateIter",\n'
+                    "    .tp_dealloc = templateiter_dealloc,\n"
+                    "};\n"
+                    "\n"
+                    "static PyObject *\n"
+                    "template_iter(PyObject *op)\n"
+                    "{\n"
+                    "    templateiterobject *iter =\n"
+                    "        PyObject_GC_New(templateiterobject, &_PyTemplateIter_Type);\n"
+                    "    if (iter == NULL) return NULL;\n"
+                    "    iter->stringsiter = PyObject_GetIter(op);\n"
+                    "    if (iter->stringsiter == NULL) {\n"
+                    "        Py_DECREF(iter);\n"
+                    "        return NULL;\n"
+                    "    }\n"
+                    "    PyObject_GC_Track(iter);\n"
+                    "    return (PyObject *)iter;\n"
+                    "}\n"
+                )
+            }
+        )
+        self.assertEqual(self._of_type(result, "gc_untrack_without_track"), [])
+
+    def test_gc_gate_unresolvable_type_falls_back_to_file(self):
+        """Objects/dictobject.c:5646 dictiter_new — the un-found sibling.
+
+        The type comes in as an `itertype` *parameter*, so type-level
+        resolution fails; the file-level fallback keeps it because
+        `dictiter_dealloc` does use the macro.
+        """
+        result = self._findings(
+            {
+                "Objects/dictobject.c": (
+                    "static void\n"
+                    "dictiter_dealloc(PyObject *self)\n"
+                    "{\n"
+                    "    dictiterobject *di = (dictiterobject *)self;\n"
+                    "    _PyObject_GC_UNTRACK(di);\n"
+                    "    PyObject_GC_Del(di);\n"
+                    "}\n"
+                    "\n"
+                    "static PyObject *\n"
+                    "dictiter_new(PyDictObject *dict, PyTypeObject *itertype)\n"
+                    "{\n"
+                    "    dictiterobject *di;\n"
+                    "    di = PyObject_GC_New(dictiterobject, itertype);\n"
+                    "    if (di == NULL) return NULL;\n"
+                    "    di->di_result = _PyTuple_FromPairSteal(Py_None, Py_None);\n"
+                    "    if (di->di_result == NULL) {\n"
+                    "        Py_DECREF(di);\n"
+                    "        return NULL;\n"
+                    "    }\n"
+                    "    _PyObject_GC_TRACK(di);\n"
+                    "    return (PyObject *)di;\n"
+                    "}\n"
+                )
+            }
+        )
+        hits = self._of_type(result, "gc_untrack_without_track")
+        self.assertEqual(len(hits), 1)
+        self.assertEqual(hits[0]["function"], "dictiter_new")
+        self.assertEqual(hits[0]["gate"], "file")
+        self.assertEqual(hits[0]["confidence"], "low")
 
     # === Check 3: mismatched_alloc_free ===================================
 

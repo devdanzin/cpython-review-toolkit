@@ -44,6 +44,10 @@ git clone https://github.com/devdanzin/cpython-review-toolkit.git
 claude --plugin-dir cpython-review-toolkit/plugins/cpython-review-toolkit
 ```
 
+### After upgrading the plugin
+
+**Run `/reload-plugins` before `explore` or `informed-explore`.** A Claude Code session registers dispatchable agents when the plugin is *loaded*, so agents shipped by a version installed mid-session are not dispatchable until you reload — those commands then run silently with the older, smaller agent set. This has bitten a real run: a session predating v0.5 could only dispatch the 11 v0.4 agents, and the 12 added across v0.5–v0.7 had to be driven by hand.
+
 ### Prerequisites
 
 - **Claude Code** installed and running.
@@ -103,7 +107,9 @@ Quick health dashboard — all agents in summary mode, producing a scored table 
 
 ### `/cpython-review-toolkit:known-issues [scope]`
 
-Regression baseline. Cross-references `data/cpython_known_bugs.tsv` — a seed catalog of previously-found CPython crashes (from the fusil OOM/TSan findings repos and the tracker) — against a fresh scan, classifying each as `present` / `line_drifted` / `absent` / `file_missing` / `no_scanner`. Answers "which catalogued crashes are still here, and did any regress?" (Note: some crash shapes carry no scannable token, so `absent` is not proof of a fix.)
+Regression baseline. Cross-references `data/cpython_known_bugs.tsv` — a seed catalog of previously-found CPython crashes (from the fusil OOM/TSan findings repos and the tracker) — against a fresh scan, classifying each as `present` / `line_drifted` / `absent_in_function` / `absent` / `file_missing` / `no_scanner`. Answers "which catalogued crashes are still here, and did any regress?"
+
+`absent_in_function` is deliberately distinct from `line_drifted`: drift means "the bug is still in this file, it just moved", while `absent_in_function` means "the catalogued function is still here and clean, though the file has findings elsewhere" — possibly fixed, materially weaker as a regression signal, and not emitted as a finding. (Note: some crash shapes carry no scannable token, so neither `absent` nor `absent_in_function` is proof of a fix.)
 
 ```bash
 /cpython-review-toolkit:known-issues
@@ -210,8 +216,10 @@ explicit by-hand phase in the agent prompt.
 
 | Agent | What It Finds | Script |
 |-------|--------------|--------|
-| **git-history-context** | Preflight (runs early): per-file bug-fix-density watchlist + recurring fix-keyword clusters + shallow-clone guard, so the safety agents scrutinize the historically-buggiest files first | `analyze_history.py` |
-| **git-history-analyzer** | Post-hoc (runs last): fix-completeness review, similar-bug detection, churn-risk matrix, Argument-Clinic / API-modernization migration gaps | `analyze_history.py` |
+| **git-history-context** | Preflight (runs early): per-file bug-fix-density watchlist (recent crash-fix commits per KLOC, rename-following) + recurring fix-keyword clusters + shallow-clone guard, so the safety agents scrutinize the historically-buggiest files first | `analyze_history.py` |
+| **git-history-analyzer** | Post-hoc (runs last): fix-completeness review (via `--introduced-by FILE:LINE`, which wraps `git blame -L` / `git log -L`), similar-bug detection, density-risk matrix, Argument-Clinic / API-modernization migration gaps | `analyze_history.py` |
+
+`analyze_history.py` surfaces everything that would otherwise silently truncate a temporal analysis in a `notes[]` array: shallow clone, commit cap, script timeout, skipped passes. Unknown CLI flags are a hard error rather than a silent default. Commit classification is scored rather than substring-matched — each commit carries `fix_confidence` (`high`/`medium`/`low`/`none`) and a `crash_class`, which cut the `fix` bucket on CPython's full `Objects/` history from 45% to 26%, with only ~8% scoring `high`.
 
 ## How It Works
 

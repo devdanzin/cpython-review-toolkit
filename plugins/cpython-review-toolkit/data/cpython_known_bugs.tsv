@@ -27,7 +27,11 @@ gh-151815	Objects/templateobject.c	225	uninit-dealloc	template_iter	non-zeroing 
 gh-152851	Modules/blake2module.c	0	uninit-dealloc	py_blake2_clear	.copy() frees object with uninitialized impl enum
 gh-152083	Python/context.c	0	pyerr-clear	context_tp_dealloc	clears pending exception during teardown
 OOM-0039	Modules/_collectionsmodule.c	750	pyerr-clear	deque_clear	newblock-fail PyErr_Clear swallows in-flight error
-OOM-0023	Objects/typeobject.c	0	pyerr-clear	subtype_dealloc	clears pending exception in dealloc
+# REMOVED 2026-07-24 (informed-explore Objects/ sample): OOM-0023 Objects/typeobject.c
+# subtype_dealloc was MIS-CATALOGUED, not fixed. subtype_dealloc contains zero
+# PyErr_* calls of any kind across its 167 lines, and `git log -S PyErr_Clear`
+# shows no commit ever removed one. It was the worked example in the
+# pyerr-clear-auditor prompt and actively misdirected a review run.
 gh-151673	Python/_warnings.c	0	null-deref	do_warn	unchecked PyUnicode_FromString on OOM path
 gh-151798	Parser/pegen.c	33	null-deref	_PyPegen_run_parser	unchecked PyUnicode_AsUTF8 deref
 gh-154385	Modules/readline.c	0	null-deref	0	unchecked PyLong_FromLong stored then Py_NewRef(NULL)

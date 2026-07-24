@@ -12,7 +12,6 @@ CPython source-tree markers rather than a ``.git`` / ``pyproject.toml`` root.
 """
 
 import json
-import re
 import sys
 from collections.abc import Generator
 from pathlib import Path
@@ -69,12 +68,21 @@ def resolve_roots(target: str) -> tuple[Path, Path]:
 
     ``project_root`` is the CPython root if one is found (so finding paths are
     reported relative to the checkout root, e.g. ``Objects/tupleobject.c``);
-    otherwise it falls back to the scan directory. ``scan_root`` is the
-    directory actually walked for ``.c`` / ``.h`` files.
+    otherwise it falls back to the target's directory. ``scan_root`` is what is
+    actually walked for ``.c`` / ``.h`` files.
+
+    ``scan_root`` is the target **itself**, file or directory. It used to be
+    ``target_path.parent`` for a file target, which silently widened the scan:
+    ``scan_pyerr_clear.py Modules/_interpretersmodule.c`` scanned all 400+ files
+    of ``Modules/`` and reported findings the caller never asked about.
+    :func:`discover_c_files` already handles a file root by yielding just that
+    file, so passing the target through is both correct and simpler.
     """
     target_path = Path(target).resolve()
-    scan_root = target_path if target_path.is_dir() else target_path.parent
-    project_root = find_cpython_root(target_path) or scan_root
+    scan_root = target_path
+    # project_root must still be a *directory* when there is no CPython root.
+    fallback_root = target_path if target_path.is_dir() else target_path.parent
+    project_root = find_cpython_root(target_path) or fallback_root
     return project_root, scan_root
 
 
@@ -117,13 +125,26 @@ def discover_c_files(
 # ---------------------------------------------------------------------------
 
 
-def parse_common_args(argv: list[str]) -> tuple[str, int]:
+def parse_common_args(
+    argv: list[str], *, known_flags: frozenset[str] | None = None
+) -> tuple[str, int]:
     """Parse common CLI arguments (positional path and ``--max-files N``).
 
     Returns ``(target_path, max_files)``. ``max_files == 0`` means unlimited.
+
+    Unrecognised ``--flags`` are **warned about on stderr** rather than silently
+    dropped. Silently ignoring a flag is how ``analyze_history.py --months 420``
+    came to run with the default 90-day window and report a confident, wrong
+    analysis; a scan that ignores ``--max-files-typo`` has the same failure mode.
+    Callers that legitimately accept extra flags pass them in ``known_flags`` so
+    they are not reported.
+
+    Warnings go to stderr, never stdout, because stdout carries the JSON report.
     """
+    known = known_flags or frozenset()
     max_files = 0
     positional: list[str] = []
+    unknown: list[str] = []
     i = 0
     while i < len(argv):
         if argv[i] == "--max-files" and i + 1 < len(argv):
@@ -142,10 +163,18 @@ def parse_common_args(argv: list[str]) -> tuple[str, int]:
                 sys.exit(2)
             i += 2
         elif argv[i].startswith("--"):
+            flag = argv[i].split("=", 1)[0]
+            if flag not in known:
+                unknown.append(argv[i])
             i += 1
         else:
             positional.append(argv[i])
             i += 1
+    if unknown:
+        print(
+            f"warning: ignoring unrecognised option(s): {' '.join(unknown)}",
+            file=sys.stderr,
+        )
     target = positional[0] if positional else "."
     return target, max_files
 
@@ -248,34 +277,33 @@ def is_suppressed_by_comment(
 
 
 def deduplicate_findings(findings: list[dict]) -> list[dict]:
-    """Collapse near-identical findings by (type, file, normalized detail).
+    """Collapse only **exact** duplicates, keyed on ``(type, file, line)``.
 
-    Keeps the first occurrence as canonical and records the rest under
-    ``duplicate_count`` / ``duplicate_locations`` — useful when a systemic
-    pattern (e.g. a copy-pasted slot) repeats across many sites.
+    This used to group on a *normalized* detail string that rewrote ``line \\d+``
+    to ``line N`` and every ``'quoted'`` token to ``'VAR'`` — i.e. it erased the
+    variable and function names that distinguish two findings. Two genuinely
+    distinct bugs of the same shape in one file therefore collapsed into one,
+    with the second demoted to ``duplicate_locations`` and effectively hidden.
+
+    That was measured, not theoretical: ``xibufferview_dealloc``
+    (``Modules/_interpretersmodule.c``) has unguarded ``PyErr_Clear()`` calls at
+    both :175 and :183, and the second vanished; the same happened to
+    ``bytearrayobject.c:1171`` / ``:1177``. Silently dropping a real finding is
+    far worse than emitting two similar ones, so exactness wins.
+
+    A systemic copy-paste pattern is still visible — it is simply reported as N
+    findings at N distinct lines, which is what a reviewer needs to fix them all.
     """
-
-    def _normalize_detail(detail: str) -> str:
-        text = re.sub(r"line \d+", "line N", detail)
-        text = re.sub(r"'[^']+?'", "'VAR'", text)
-        return text
-
-    groups: dict[tuple[str, str, str], list[dict]] = {}
+    groups: dict[tuple[str, str, int], list[dict]] = {}
     for f in findings:
-        key = (
-            f.get("type", ""),
-            f.get("file", ""),
-            _normalize_detail(f.get("detail", "")),
-        )
+        key = (f.get("type", ""), f.get("file", ""), int(f.get("line", 0) or 0))
         groups.setdefault(key, []).append(f)
 
     result: list[dict] = []
     for group in groups.values():
         canonical = group[0]
         if len(group) > 1:
+            # Same type at the same file:line — a genuine re-emission.
             canonical["duplicate_count"] = len(group) - 1
-            canonical["duplicate_locations"] = [
-                {"file": d.get("file", ""), "line": d.get("line", 0)} for d in group[1:]
-            ]
         result.append(canonical)
     return result

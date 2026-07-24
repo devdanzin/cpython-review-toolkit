@@ -4,15 +4,38 @@
 Outputs a JSON structure with per-function metrics:
 - line_count, nesting_depth, cyclomatic_complexity
 - parameter_count, local_variable_count, goto_count, switch_case_count
+- manual_cleanup_ladder (goto-free manual cleanup burden -- see below)
 - weighted score (1-10)
 
+**Calibration warning (read before using ``score`` as a filter).** Measured on
+CPython ``Objects/``: 3,073 functions, observed score range 1.0-6.5. An absolute
+cutoff of 5.0 therefore fires ~3 times tree-wide and *zero* times on a typical
+14-file sample, so the hotspot threshold here is **relative** (top N% by score,
+``--top-percent``, default 2.0) with an optional absolute floor (``--min-score``).
+
+The score **ranks** well and **gates** badly. Ground truth from a 14-file
+``Objects/`` sample with 25 known defect-bearing functions: the top 10 by score
+held 5 of the 25 (10x enrichment, p=0.00004), but 20 of the 25 sat at the score
+floor. Never use ``score`` as a severity input -- for the recursion class it
+actively *inverts* (``tuple_repr`` 1.6 vs the buggy ``tuple_hash`` 1.0), because
+a recursion guard is itself a branch and so the *correct* twin outscores the
+defective one.
+
+``manual_cleanup_ladder`` is the experimental counter-metric:
+``returns_with_cleanup * owned_locals``, reported only when ``goto_count == 0``.
+In CPython a ``goto``-based cleanup ladder is a *positive* signal (24 of those
+25 defect functions had zero gotos); its absence combined with several owned
+locals released repeatedly before each ``return`` is the risk marker.
+
 Usage:
-    python measure_c_complexity.py [path]
+    python measure_c_complexity.py [path] [--max-files N]
+                                   [--top-percent P] [--min-score S]
 
     path: directory, file, or omitted for current directory
 """
 
 import json
+import math
 import re
 import sys
 from pathlib import Path
@@ -66,11 +89,30 @@ def discover_c_files(
 
 
 def strip_comments_and_strings(source: str) -> str:
-    """Remove C comments and string/char literals from source."""
-    source = re.sub(r'/\*.*?\*/', ' ', source, flags=re.DOTALL)
+    """Remove C comments and string/char literals from source.
+
+    Line-preserving: a block comment is replaced by a space plus as many
+    newlines as it spanned, so every surviving construct keeps its original
+    line number. (The previous ``re.sub(r'/\\*.*?\\*/', ' ', ..., DOTALL)``
+    collapsed multi-line comments to one space and silently shifted every
+    subsequent line number in the file.)
+
+    The literal patterns exclude newlines. A C string or character literal
+    cannot contain a raw newline, and without that exclusion the double-quote
+    pattern runs away at the first unbalanced quote -- which happens on the
+    perfectly legal char literal ``'"'`` -- swallowing whole blocks of code.
+    Measured on ``Objects/typeobject.c``: 3,210 of 13,068 lines (25%) were
+    being consumed that way.
+    """
+    source = re.sub(
+        r'/\*.*?\*/',
+        lambda m: " " + "\n" * m.group(0).count("\n"),
+        source,
+        flags=re.DOTALL,
+    )
     source = re.sub(r'//[^\n]*', ' ', source)
-    source = re.sub(r'"(?:[^"\\]|\\.)*"', '""', source)
-    source = re.sub(r"'(?:[^'\\]|\\.)*'", "''", source)
+    source = re.sub(r'"(?:[^"\\\n]|\\.)*"', '""', source)
+    source = re.sub(r"'(?:[^'\\\n]|\\.)*'", "''", source)
     return source
 
 
@@ -78,55 +120,126 @@ def strip_comments_and_strings(source: str) -> str:
 # C function detection
 # ---------------------------------------------------------------------------
 
-# Match function definitions in CPython style:
-#   return_type\nfunction_name(params)\n{
-# or single-line: return_type function_name(params) {
-_FUNC_START_RE = re.compile(
-    r'^(\w[\w\s\*]+?)\s*\n'          # return type line
-    r'^(\w+)\s*\(([^)]*)\)\s*\n'     # name(params) line
-    r'^\{',                           # opening brace
-    re.MULTILINE,
-)
+# Tokens that can never name a function definition.
+_NOT_A_FUNCTION_NAME = frozenset({
+    'if', 'for', 'while', 'switch', 'do', 'else', 'sizeof', 'return',
+    'typedef', 'struct', 'union', 'enum', 'defined', 'case', 'goto',
+})
 
-# Simpler fallback: identifier( at column 0, followed by { within 2 lines.
-_FUNC_SIMPLE_RE = re.compile(
-    r'^(\w+)\s*\(([^)]*)\)\s*(?:\n\s*)?\{',
-    re.MULTILINE,
-)
+# How many lines above the opening brace a signature may span. CPython's
+# widest real signatures are ~8 lines; 16 is a safe ceiling that still stops
+# a runaway backwards walk.
+_MAX_SIGNATURE_LINES = 16
+
+# A line that can never be part of the signature we are walking back through:
+# statement terminators, block ends, preprocessor lines, labels.
+_SIGNATURE_STOP_RE = re.compile(r'(?:[;}]|^\s*#)\s*$|^\s*#')
 
 
-def find_functions(source: str) -> list[dict]:
+def _split_signature(text: str) -> tuple[str, str] | None:
+    """Split a joined signature into ``(name, params)``.
+
+    ``text`` must end with the parameter list's ``)``. The parameter list is
+    located by matching that ``)`` backwards to its own ``(`` -- not by taking
+    the *first* ``(`` -- so that a macro-wrapped return type such as
+    ``Py_LOCAL_INLINE(int) foo(a, b)`` yields ``foo`` rather than
+    ``Py_LOCAL_INLINE``.
+    """
+    text = text.strip()
+    if not text.endswith(')'):
+        return None
+    depth = 0
+    open_idx = -1
+    for k in range(len(text) - 1, -1, -1):
+        ch = text[k]
+        if ch == ')':
+            depth += 1
+        elif ch == '(':
+            depth -= 1
+            if depth == 0:
+                open_idx = k
+                break
+    if open_idx <= 0:
+        return None
+    head = text[:open_idx]
+    m = re.search(r'(\w+)\s*$', head)
+    if not m:
+        return None
+    name = m.group(1)
+    if name in _NOT_A_FUNCTION_NAME:
+        return None
+    # A definition head is a declarator: type tokens, ``*``, and the name.
+    # Anything else (``=``, ``,``, ``;``, ``&&`` ...) means this is an
+    # expression or an initializer, not a function definition.
+    if not re.fullmatch(r'[\w\s\*\)\(]*', head):
+        return None
+    params = text[open_idx + 1:-1].strip()
+    return name, params
+
+
+def find_functions(source: str) -> tuple[list[dict], dict]:
     """Find C function definitions and extract their bodies.
 
-    Returns list of dicts with: name, params, body, start_line, end_line.
+    Returns ``(functions, coverage)``. Each function dict has: name, params,
+    body, start_line, end_line, signature_lines.
+
+    The signature may span any number of lines up to ``_MAX_SIGNATURE_LINES``:
+    the walk backwards from the opening brace accumulates lines until the
+    parentheses balance. (The previous implementation matched only the single
+    line directly above the brace, silently dropping every multi-line
+    parameter list -- 22.4% of functions on a measured CPython sample.)
+
+    Comments are stripped first (line-preservingly), and blank lines are
+    skipped during the walk, so an Argument Clinic ``_impl`` function -- whose
+    signature is separated from its brace by a ``/*[clinic end generated
+    code: ...]*/`` block -- is found. That shape alone accounted for 305 of the
+    324 misses on CPython ``Objects/``.
+
+    ``coverage`` reports how many column-0 opening braces were seen and how
+    many yielded a function, so a future regression in signature parsing is
+    visible in the output envelope instead of silent.
     """
-    lines = source.split('\n')
+    lines = strip_comments_and_strings(source).split('\n')
     functions: list[dict] = []
+    brace_blocks = 0
+    unparsed: list[int] = []
+    multiline_signatures = 0
 
     # Strategy: find opening braces at column 0, then work backwards
     # to find the function signature.
     for i, line in enumerate(lines):
         if not line.startswith('{'):
             continue
-        # Look backwards for the function signature.
-        # Typical pattern: name(params) on line i-1, return type on i-2.
         if i < 1:
             continue
-        prev = lines[i - 1].strip()
-        # Check if previous line looks like name(params)
-        m = re.match(r'^(\w+)\s*\(([^)]*)\)\s*$', prev)
-        if not m:
-            # Try: return_type name(params) on same line
-            m = re.match(r'^(?:\w[\w\s\*]*?)\s+(\w+)\s*\(([^)]*)\)\s*$', prev)
-        if not m:
+        brace_blocks += 1
+
+        # Walk backwards accumulating signature lines until parens balance.
+        parsed: tuple[str, str] | None = None
+        sig_first = i - 1
+        chunk: list[str] = []
+        for j in range(i - 1, max(-1, i - 1 - _MAX_SIGNATURE_LINES), -1):
+            stripped = lines[j].strip()
+            if not stripped:
+                # Blank (or comment-only, now stripped) line: skip it. This is
+                # what lets the Argument Clinic `_impl` shape resolve.
+                continue
+            if chunk and _SIGNATURE_STOP_RE.search(stripped):
+                break
+            chunk.insert(0, stripped)
+            joined = ' '.join(chunk)
+            if joined.count('(') == joined.count(')') and '(' in joined:
+                parsed = _split_signature(joined)
+                sig_first = j
+                break
+            if _SIGNATURE_STOP_RE.search(stripped):
+                break
+        if parsed is None:
+            unparsed.append(i + 1)
             continue
-        func_name = m.group(1)
-        params = m.group(2).strip()
-        # Skip common false positives.
-        if func_name in ('if', 'for', 'while', 'switch', 'do', 'else',
-                         'sizeof', 'return', 'typedef', 'struct', 'union',
-                         'enum', 'defined'):
-            continue
+        func_name, params = parsed
+        if len(chunk) > 1:
+            multiline_signatures += 1
 
         # Find the matching closing brace.
         depth = 1
@@ -145,8 +258,8 @@ def find_functions(source: str) -> list[dict]:
                 break
 
         body = '\n'.join(lines[body_start:body_end])
-        # Determine start line (return type might be 1-2 lines above).
-        sig_start = i - 1
+        # Determine start line (return type might be on the line above).
+        sig_start = sig_first
         if sig_start > 0 and re.match(r'^[\w\s\*]+$', lines[sig_start - 1].strip()):
             # Previous line looks like a return type.
             sig_start -= 1
@@ -157,8 +270,19 @@ def find_functions(source: str) -> list[dict]:
             "body": body,
             "start_line": sig_start + 1,  # 1-indexed
             "end_line": body_end + 1,
+            "signature_lines": len(chunk),
         })
-    return functions
+
+    coverage = {
+        "brace_blocks_seen": brace_blocks,
+        "functions_parsed": len(functions),
+        "signatures_unparsed": len(unparsed),
+        "multiline_signatures": multiline_signatures,
+        "coverage_pct": (
+            round(100.0 * len(functions) / brace_blocks, 1) if brace_blocks else 100.0
+        ),
+    }
+    return functions, coverage
 
 
 # ---------------------------------------------------------------------------
@@ -178,6 +302,83 @@ _LOCAL_VAR = re.compile(
     r'Py_hash_t|Py_uhash_t|uint\d+_t|int\d+_t|long|short|unsigned)\s*\*?\s+\w+',
     re.MULTILINE,
 )
+
+# ---------------------------------------------------------------------------
+# manual_cleanup_ladder (experimental counter-metric -- see module docstring)
+# ---------------------------------------------------------------------------
+
+# Calls that release an owned resource. A local that is passed to one of these
+# is an *owned* local: the function is responsible for freeing it.
+_RELEASE_APIS = (
+    'Py_DECREF', 'Py_XDECREF', 'Py_CLEAR', 'Py_SETREF', 'Py_XSETREF',
+    'PyMem_Free', 'PyMem_RawFree', 'PyMem_Del', 'PyObject_Free',
+    'PyObject_GC_Del', 'PyBuffer_Release', 'free',
+)
+_RELEASE_CALL = re.compile(
+    r'\b(?:' + '|'.join(_RELEASE_APIS) + r')\s*\(\s*&?\s*([A-Za-z_]\w*)'
+)
+_RELEASE_ANY = re.compile(r'\b(?:' + '|'.join(_RELEASE_APIS) + r')\s*\(')
+
+# A local pointer declaration: ``PyObject *foo``, ``char *buf = NULL``, ...
+_POINTER_LOCAL = re.compile(
+    r'^\s+(?:(?:static|const|volatile|register|unsigned|signed)\s+)*'
+    r'(?:struct\s+)?\w+\s*\*+\s*([A-Za-z_]\w*)\s*(?:[=;,)]|\[)',
+    re.MULTILINE,
+)
+_RETURN_STMT = re.compile(r'^\s*return\b')
+
+# Walking back from a `return`, these end the window: another exit, or a block
+# boundary. Without this the cleanup belonging to the *previous* return leaks
+# into the next one's window and inflates the count.
+_CLEANUP_WINDOW_STOP = re.compile(r'^\s*[}{]|\breturn\b|\bgoto\b|^\s*\w+\s*:\s*$')
+
+# How many preceding non-blank lines count as "the cleanup before this return".
+_CLEANUP_WINDOW = 3
+
+
+def measure_cleanup_ladder(clean_body: str) -> dict:
+    """Measure the goto-free manual-cleanup burden of a function body.
+
+    Returns ``owned_locals``, ``returns_with_cleanup`` and their product
+    ``manual_cleanup_ladder``.
+
+    * ``owned_locals`` -- local pointer declarations whose name is later
+      passed to a release API (``Py_DECREF`` / ``PyMem_Free`` / ``free`` ...),
+      i.e. locals this function must dispose of itself.
+    * ``returns_with_cleanup`` -- ``return`` statements with at least one
+      release call in the preceding ``_CLEANUP_WINDOW`` non-blank lines.
+
+    Their product approximates "how many times the same cleanup sequence had
+    to be hand-written". A ``goto``-based ladder writes it once, which is why
+    the caller reports the product only when ``goto_count == 0``.
+    """
+    declared = set(_POINTER_LOCAL.findall(clean_body))
+    released = set(_RELEASE_CALL.findall(clean_body))
+    owned_locals = len(declared & released)
+
+    body_lines = clean_body.split('\n')
+    returns_with_cleanup = 0
+    for idx, line in enumerate(body_lines):
+        if not _RETURN_STMT.match(line):
+            continue
+        seen = 0
+        for back in range(idx - 1, -1, -1):
+            prev = body_lines[back]
+            if not prev.strip():
+                continue
+            seen += 1
+            if _RELEASE_ANY.search(prev):
+                returns_with_cleanup += 1
+                break
+            if _CLEANUP_WINDOW_STOP.search(prev):
+                break
+            if seen >= _CLEANUP_WINDOW:
+                break
+    return {
+        "owned_locals": owned_locals,
+        "returns_with_cleanup": returns_with_cleanup,
+        "manual_cleanup_ladder": owned_locals * returns_with_cleanup,
+    }
 
 
 def measure_function(func: dict) -> dict:
@@ -246,6 +447,8 @@ def measure_function(func: dict) -> dict:
 
     score = min(max(round(score, 1), 1.0), 10.0)
 
+    ladder = measure_cleanup_ladder(clean)
+
     return {
         "name": func["name"],
         "start_line": func["start_line"],
@@ -257,6 +460,13 @@ def measure_function(func: dict) -> dict:
         "local_variable_count": local_var_count,
         "goto_count": goto_count,
         "switch_case_count": switch_case_count,
+        "signature_lines": func.get("signature_lines", 1),
+        "owned_locals": ladder["owned_locals"],
+        "returns_with_cleanup": ladder["returns_with_cleanup"],
+        # Only meaningful without a goto ladder -- see the module docstring.
+        "manual_cleanup_ladder": (
+            ladder["manual_cleanup_ladder"] if goto_count == 0 else 0
+        ),
         "score": score,
     }
 
@@ -265,25 +475,82 @@ def measure_function(func: dict) -> dict:
 # Main analysis
 # ---------------------------------------------------------------------------
 
-def analyze(target: str, *, max_files: int = 0) -> dict:
+DEFAULT_TOP_PERCENT = 2.0
+_MAX_HOTSPOTS = 50
+
+
+def select_hotspots(
+    all_funcs: list[dict],
+    *,
+    top_percent: float = DEFAULT_TOP_PERCENT,
+    min_score: float = 0.0,
+) -> tuple[list[dict], float]:
+    """Select hotspots by *relative* rank, returning ``(hotspots, threshold)``.
+
+    The shipped absolute cutoff (``score >= 5.0``) fired 3 times across all of
+    CPython ``Objects/`` -- whose maximum observed score is 6.5 -- and zero
+    times on a 14-file sample. Ranking by percentile keeps the check meaningful
+    on any corpus. ``min_score`` layers an optional absolute floor on top.
+
+    Ties at the cut score are kept, so the returned list may be slightly longer
+    than ``top_percent`` of the corpus. A function sitting at the corpus
+    *minimum* is never a hotspot, however: on a flat distribution the
+    percentile cut can land on the floor itself, which would otherwise select
+    the whole corpus.
+    """
+    if not all_funcs:
+        return [], min_score
+    ranked = sorted(all_funcs, key=lambda x: -x["score"])
+    floor = ranked[-1]["score"]
+    cut = max(1, math.ceil(len(ranked) * top_percent / 100.0))
+    threshold = max(ranked[min(cut, len(ranked)) - 1]["score"], min_score)
+    if threshold <= floor:
+        selected = [
+            f for f in ranked if f["score"] > floor and f["score"] >= min_score
+        ]
+    else:
+        selected = [f for f in ranked if f["score"] >= threshold]
+    effective = min((f["score"] for f in selected), default=threshold)
+    return selected, effective
+
+
+def analyze(
+    target: str,
+    *,
+    max_files: int = 0,
+    top_percent: float = DEFAULT_TOP_PERCENT,
+    min_score: float = 0.0,
+) -> dict:
     """Analyze C function complexity for the given target path."""
     target_path = Path(target).resolve()
     project_root = find_cpython_root(target_path)
     if project_root is None:
         project_root = target_path if target_path.is_dir() else target_path.parent
-    scan_root = target_path if target_path.is_dir() else target_path.parent
+    # scan_root is the target itself: discover_c_files() yields just that file
+    # for a file root. Using .parent here silently widened a single-file scan
+    # to the entire directory.
+    scan_root = target_path
 
     files_data: list[dict] = []
     total_functions = 0
-    hotspot_count = 0
+    files_analyzed = 0
+    cov_totals = {
+        "brace_blocks_seen": 0,
+        "functions_parsed": 0,
+        "signatures_unparsed": 0,
+        "multiline_signatures": 0,
+    }
 
     for filepath in discover_c_files(scan_root, max_files=max_files):
         try:
             source = filepath.read_text(encoding="utf-8", errors="replace")
         except OSError:
             continue
+        files_analyzed += 1
 
-        functions = find_functions(source)
+        functions, coverage = find_functions(source)
+        for key in cov_totals:
+            cov_totals[key] += coverage[key]
         if not functions:
             continue
 
@@ -293,8 +560,6 @@ def analyze(target: str, *, max_files: int = 0) -> dict:
         for func in functions:
             metrics = measure_function(func)
             total_functions += 1
-            if metrics["score"] >= 5.0:
-                hotspot_count += 1
             file_entry["functions"].append(metrics)
 
         if file_entry["functions"]:
@@ -307,15 +572,43 @@ def analyze(target: str, *, max_files: int = 0) -> dict:
             all_funcs.append({**fn, "file": f["file"]})
     all_funcs.sort(key=lambda x: -x["score"])
 
+    hotspots, threshold = select_hotspots(
+        all_funcs, top_percent=top_percent, min_score=min_score
+    )
+    ladder_ranked = sorted(
+        (f for f in all_funcs if f["manual_cleanup_ladder"] > 0),
+        key=lambda x: -x["manual_cleanup_ladder"],
+    )
+
+    seen = cov_totals["brace_blocks_seen"]
+    coverage = {
+        **cov_totals,
+        "coverage_pct": (
+            round(100.0 * cov_totals["functions_parsed"] / seen, 1) if seen else 100.0
+        ),
+    }
+
     return {
         "project_root": str(project_root),
         "scan_root": str(scan_root),
+        "files_analyzed": files_analyzed,
         "functions_analyzed": total_functions,
+        "coverage": coverage,
         "files": files_data,
-        "hotspots": all_funcs[:30],
+        "hotspots": hotspots[:_MAX_HOTSPOTS],
+        "cleanup_ladders": ladder_ranked[:_MAX_HOTSPOTS],
         "summary": {
             "total_functions": total_functions,
-            "hotspot_count": hotspot_count,
+            "hotspot_count": len(hotspots),
+            "hotspot_threshold": threshold,
+            "hotspot_selection": (
+                f"top {top_percent}% by score"
+                + (f", floor {min_score}" if min_score else "")
+            ),
+            "max_score": all_funcs[0]["score"] if all_funcs else 0.0,
+            "max_cleanup_ladder": (
+                ladder_ranked[0]["manual_cleanup_ladder"] if ladder_ranked else 0
+            ),
             "avg_cyclomatic": (
                 round(
                     sum(fn["cyclomatic_complexity"] for fn in all_funcs)
@@ -333,12 +626,21 @@ def analyze(target: str, *, max_files: int = 0) -> dict:
             "max_nesting": max(
                 (fn["nesting_depth"] for fn in all_funcs), default=0
             ),
+            "signal_caveat": (
+                "score RANKS well but GATES badly: on a measured CPython sample "
+                "the top 10 held 5 of 25 defect-bearing functions (10x "
+                "enrichment) while 20 of 25 sat at the score floor. Do not use "
+                "score as a severity input, and never for recursion/free-"
+                "threading findings, where it inverts."
+            ),
         },
     }
 
 
 def main() -> None:
     max_files = 0
+    top_percent = DEFAULT_TOP_PERCENT
+    min_score = 0.0
     positional: list[str] = []
     argv = sys.argv[1:]
     i = 0
@@ -346,13 +648,21 @@ def main() -> None:
         if argv[i] == "--max-files" and i + 1 < len(argv):
             max_files = int(argv[i + 1])
             i += 2
+        elif argv[i] == "--top-percent" and i + 1 < len(argv):
+            top_percent = float(argv[i + 1])
+            i += 2
+        elif argv[i] == "--min-score" and i + 1 < len(argv):
+            min_score = float(argv[i + 1])
+            i += 2
         elif argv[i].startswith("--"):
             i += 1
         else:
             positional.append(argv[i])
             i += 1
     target = positional[0] if positional else "."
-    result = analyze(target, max_files=max_files)
+    result = analyze(
+        target, max_files=max_files, top_percent=top_percent, min_score=min_score
+    )
     json.dump(result, sys.stdout, indent=2)
     sys.stdout.write("\n")
 

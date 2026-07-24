@@ -1,0 +1,555 @@
+{
+  "_meta": {
+    "description": "Deprecated CPython C APIs that CPython's OWN code still calls. Backs scan_deprecated_apis.py.",
+    "verified_against": "CPython main @ 4f3be1b5 (3.16.0a0)",
+    "verified_on": "2026-07-24",
+    "method": "Every entry was checked against the tree itself: Py_DEPRECATED / _Py_DEPRECATED_EXTERNALLY markers in Include/, `.. deprecated::` / `.. soft-deprecated::` directives in Doc/c-api/, and Doc/deprecations/c-api-pending-removal-in-*.rst. Nothing here is from memory.",
+    "tiers": {
+      "hard": "Py_DEPRECATED(...) marker in Include/. The compiler warns for external users AND for CPython's own build.",
+      "hard-internal": "_Py_DEPRECATED_EXTERNALLY(...) marker. Include/pyport.h:269-274 expands this to NOTHING under Py_BUILD_CORE, so -Wdeprecated-declarations is silent on CPython's own call sites. A scanner is the only way to find these -- this is the highest-value tier.",
+      "soft": "Documented as deprecated / soft-deprecated but carrying no compiler marker."
+    },
+    "severity_rule": "removed_in set -> FIX (the call will stop compiling in that release). Otherwise CONSIDER.",
+    "deliberately_excluded": {
+      "PyDict_GetItem": "NOT deprecated. Include/dictobject.h:22 is a plain PyAPI_FUNC and Doc/c-api/dict.rst carries only a 'Prefer PyDict_GetItemRef' note -- no .. deprecated:: directive. Discouraged != deprecated.",
+      "PyMapping_HasKey": "NOT deprecated. Include/abstract.h:845 plain; Doc/c-api/mapping.rst has a note only.",
+      "PyMapping_HasKeyString": "NOT deprecated. Include/abstract.h:838 plain.",
+      "PyWeakref_GetObject": "REMOVED in 3.15 (Doc/whatsnew/3.15.rst). Zero occurrences remain; scanning for it finds nothing.",
+      "PyEval_CallObject": "REMOVED in 3.13. Likewise PyEval_CallObjectWithKeywords / PyEval_CallFunction / PyEval_CallMethod / PyCFunction_Call.",
+      "PyUnicode_GetSize": "REMOVED in 3.12, along with PyUnicode_GET_SIZE / PyUnicode_AsUnicode / PyUnicode_AS_UNICODE.",
+      "PyObject_AsCharBuffer": "REMOVED in 3.13, with the rest of the old buffer protocol trio.",
+      "Py_TRASHCAN_SAFE_BEGIN": "REMOVED in 3.13.",
+      "PyOS_snprintf": "NOT deprecated. Include/pyerrors.h:324 plain; 26 live call sites."
+    }
+  },
+  "apis": [
+    {
+      "name": "_PyUnicodeWriter_Init",
+      "tier": "hard-internal",
+      "deprecated_in": "3.14",
+      "removed_in": "3.18",
+      "replacement": "PyUnicodeWriter_Create(0)",
+      "notes": "Include/cpython/unicodeobject.h:554. Suppressed under Py_BUILD_CORE, so CPython's own ~19 call sites compile silently."
+    },
+    {
+      "name": "_PyUnicodeWriter_Finish",
+      "tier": "hard-internal",
+      "deprecated_in": "3.14",
+      "removed_in": "3.18",
+      "replacement": "PyUnicodeWriter_Finish",
+      "notes": "Include/cpython/unicodeobject.h:629."
+    },
+    {
+      "name": "_PyUnicodeWriter_Dealloc",
+      "tier": "hard-internal",
+      "deprecated_in": "3.14",
+      "removed_in": "3.18",
+      "replacement": "PyUnicodeWriter_Discard",
+      "notes": "Include/cpython/unicodeobject.h:633."
+    },
+    {
+      "name": "_PyUnicodeWriter_WriteStr",
+      "tier": "hard-internal",
+      "deprecated_in": "3.14",
+      "removed_in": "3.18",
+      "replacement": "PyUnicodeWriter_WriteStr",
+      "notes": "Include/cpython/unicodeobject.h:600."
+    },
+    {
+      "name": "_PyUnicodeWriter_WriteChar",
+      "tier": "hard-internal",
+      "deprecated_in": "3.14",
+      "removed_in": "3.18",
+      "replacement": "PyUnicodeWriter_WriteChar",
+      "notes": "Include/cpython/unicodeobject.h:594."
+    },
+    {
+      "name": "_PyUnicodeWriter_WriteSubstring",
+      "tier": "hard-internal",
+      "deprecated_in": "3.14",
+      "removed_in": "3.18",
+      "replacement": "PyUnicodeWriter_WriteSubstring",
+      "notes": "Include/cpython/unicodeobject.h:606."
+    },
+    {
+      "name": "_PyUnicodeWriter_WriteASCIIString",
+      "tier": "hard-internal",
+      "deprecated_in": "3.14",
+      "removed_in": "3.18",
+      "replacement": "PyUnicodeWriter_WriteASCII",
+      "notes": "Include/cpython/unicodeobject.h:614."
+    },
+    {
+      "name": "_PyUnicodeWriter_WriteLatin1String",
+      "tier": "hard-internal",
+      "deprecated_in": "3.14",
+      "removed_in": "3.18",
+      "replacement": "PyUnicodeWriter_WriteUTF8",
+      "notes": "Include/cpython/unicodeobject.h:621."
+    },
+    {
+      "name": "_PyUnicodeWriter_PrepareInternal",
+      "tier": "hard-internal",
+      "deprecated_in": "3.14",
+      "removed_in": "3.18",
+      "replacement": "",
+      "notes": "Include/cpython/unicodeobject.h:571. No direct replacement -- restructure onto PyUnicodeWriter."
+    },
+    {
+      "name": "_PyUnicodeWriter_PrepareKindInternal",
+      "tier": "hard-internal",
+      "deprecated_in": "3.14",
+      "removed_in": "3.18",
+      "replacement": "",
+      "notes": "Include/cpython/unicodeobject.h:588."
+    },
+    {
+      "name": "PyCode_New",
+      "tier": "hard-internal",
+      "deprecated_in": "3.12",
+      "removed_in": "",
+      "replacement": "PyUnstable_Code_New",
+      "notes": "Include/cpython/code.h:198."
+    },
+    {
+      "name": "PyCode_NewWithPosOnlyArgs",
+      "tier": "hard-internal",
+      "deprecated_in": "3.12",
+      "removed_in": "",
+      "replacement": "PyUnstable_Code_NewWithPosOnlyArgs",
+      "notes": "Include/cpython/code.h:208."
+    },
+    {
+      "name": "_PyCode_GetExtra",
+      "tier": "hard-internal",
+      "deprecated_in": "3.12",
+      "removed_in": "",
+      "replacement": "PyUnstable_Code_GetExtra",
+      "notes": "Include/cpython/code.h:297."
+    },
+    {
+      "name": "_PyCode_SetExtra",
+      "tier": "hard-internal",
+      "deprecated_in": "3.12",
+      "removed_in": "",
+      "replacement": "PyUnstable_Code_SetExtra",
+      "notes": "Include/cpython/code.h:302."
+    },
+    {
+      "name": "_PyEval_RequestCodeExtraIndex",
+      "tier": "hard-internal",
+      "deprecated_in": "3.12",
+      "removed_in": "",
+      "replacement": "PyUnstable_Eval_RequestCodeExtraIndex",
+      "notes": "Include/cpython/ceval.h:19."
+    },
+    {
+      "name": "_PyBytes_Join",
+      "tier": "hard",
+      "deprecated_in": "3.14",
+      "removed_in": "3.18",
+      "replacement": "PyBytes_Join",
+      "notes": "Include/cpython/bytesobject.h:38."
+    },
+    {
+      "name": "_PyUnicode_AsString",
+      "tier": "hard",
+      "deprecated_in": "3.14",
+      "removed_in": "3.18",
+      "replacement": "PyUnicode_AsUTF8",
+      "notes": "Include/cpython/unicodeobject.h:655."
+    },
+    {
+      "name": "_PyThreadState_UncheckedGet",
+      "tier": "hard",
+      "deprecated_in": "3.14",
+      "removed_in": "3.18",
+      "replacement": "PyThreadState_GetUnchecked",
+      "notes": "Include/cpython/pystate.h:266."
+    },
+    {
+      "name": "_PyDict_GetItemStringWithError",
+      "tier": "hard",
+      "deprecated_in": "3.14",
+      "removed_in": "3.18",
+      "replacement": "PyDict_GetItemStringRef",
+      "notes": "Include/cpython/dictobject.h:48."
+    },
+    {
+      "name": "_PyDict_Pop",
+      "tier": "hard",
+      "deprecated_in": "3.14",
+      "removed_in": "3.18",
+      "replacement": "PyDict_Pop",
+      "notes": "Include/cpython/dictobject.h:73."
+    },
+    {
+      "name": "_PyLong_New",
+      "tier": "hard",
+      "deprecated_in": "3.14",
+      "removed_in": "3.18",
+      "replacement": "PyLongWriter_Create",
+      "notes": "Include/cpython/longintrepr.h:103."
+    },
+    {
+      "name": "_PyLong_FromDigits",
+      "tier": "hard",
+      "deprecated_in": "3.14",
+      "removed_in": "3.18",
+      "replacement": "PyLongWriter_Create",
+      "notes": "Include/cpython/longintrepr.h:108."
+    },
+    {
+      "name": "_PyLong_Sign",
+      "tier": "hard",
+      "deprecated_in": "3.14",
+      "removed_in": "3.18",
+      "replacement": "PyLong_GetSign",
+      "notes": "Include/cpython/longobject.h:38."
+    },
+    {
+      "name": "_Py_HashPointer",
+      "tier": "hard",
+      "deprecated_in": "3.14",
+      "removed_in": "3.18",
+      "replacement": "Py_HashPointer",
+      "notes": "Include/cpython/pyhash.h:46."
+    },
+    {
+      "name": "_Py_fopen_obj",
+      "tier": "hard",
+      "deprecated_in": "3.14",
+      "removed_in": "3.18",
+      "replacement": "Py_fopen",
+      "notes": "Include/cpython/fileutils.h:10."
+    },
+    {
+      "name": "_PyObject_GetAttrId",
+      "tier": "hard",
+      "deprecated_in": "3.15",
+      "removed_in": "3.20",
+      "replacement": "PyUnicode_InternFromString + PyObject_GetAttr",
+      "notes": "Include/cpython/object.h:310."
+    },
+    {
+      "name": "_PyUnicode_FromId",
+      "tier": "hard",
+      "deprecated_in": "3.15",
+      "removed_in": "3.20",
+      "replacement": "PyUnicode_InternFromString",
+      "notes": "Include/cpython/unicodeobject.h:781."
+    },
+    {
+      "name": "_PyObject_CallMethodId",
+      "tier": "hard",
+      "deprecated_in": "3.15",
+      "removed_in": "3.20",
+      "replacement": "PyObject_CallMethod",
+      "notes": "Include/cpython/abstract.h:9."
+    },
+    {
+      "name": "Py_UNICODE",
+      "tier": "hard",
+      "deprecated_in": "3.13",
+      "removed_in": "3.16",
+      "replacement": "wchar_t",
+      "notes": "Include/cpython/unicodeobject.h:10. Beware: most textual hits in Modules/ are Argument Clinic docstring prose, not type uses -- the scanner strips strings and comments before matching."
+    },
+    {
+      "name": "PY_UNICODE_TYPE",
+      "tier": "hard",
+      "deprecated_in": "3.13",
+      "removed_in": "3.16",
+      "replacement": "wchar_t",
+      "notes": "Include/cpython/unicodeobject.h:9."
+    },
+    {
+      "name": "PyEval_InitThreads",
+      "tier": "hard",
+      "deprecated_in": "3.9",
+      "removed_in": "",
+      "replacement": "",
+      "notes": "Include/ceval.h:114. No-op since 3.9 -- delete the call."
+    },
+    {
+      "name": "PyOS_AfterFork",
+      "tier": "hard",
+      "deprecated_in": "3.7",
+      "removed_in": "",
+      "replacement": "PyOS_AfterFork_Child",
+      "notes": "Include/intrcheck.h:18."
+    },
+    {
+      "name": "PySlice_GetIndicesEx",
+      "tier": "hard",
+      "deprecated_in": "3.7",
+      "removed_in": "",
+      "replacement": "PySlice_Unpack + PySlice_AdjustIndices",
+      "notes": "Include/sliceobject.h:28. Doc/c-api/slice.rst:86 says 3.6.1; the marker says 3.7."
+    },
+    {
+      "name": "PyModule_GetFilename",
+      "tier": "hard",
+      "deprecated_in": "3.2",
+      "removed_in": "",
+      "replacement": "PyModule_GetFilenameObject",
+      "notes": "Include/moduleobject.h:28."
+    },
+    {
+      "name": "PyCode_GetFirstFree",
+      "tier": "hard",
+      "deprecated_in": "3.13",
+      "removed_in": "",
+      "replacement": "PyUnstable_Code_GetFirstFree",
+      "notes": "Include/cpython/code.h:180."
+    },
+    {
+      "name": "PyThread_exit_thread",
+      "tier": "hard",
+      "deprecated_in": "3.14",
+      "removed_in": "",
+      "replacement": "",
+      "notes": "Include/pythread.h:38. Return from the thread function instead."
+    },
+    {
+      "name": "PyThread_create_key",
+      "tier": "hard",
+      "deprecated_in": "3.7",
+      "removed_in": "",
+      "replacement": "PyThread_tss_alloc",
+      "notes": "Include/pythread.h:95."
+    },
+    {
+      "name": "PyThread_delete_key",
+      "tier": "hard",
+      "deprecated_in": "3.7",
+      "removed_in": "",
+      "replacement": "PyThread_tss_free",
+      "notes": "Include/pythread.h:96."
+    },
+    {
+      "name": "PyThread_set_key_value",
+      "tier": "hard",
+      "deprecated_in": "3.7",
+      "removed_in": "",
+      "replacement": "PyThread_tss_set",
+      "notes": "Include/pythread.h:97."
+    },
+    {
+      "name": "PyThread_get_key_value",
+      "tier": "hard",
+      "deprecated_in": "3.7",
+      "removed_in": "",
+      "replacement": "PyThread_tss_get",
+      "notes": "Include/pythread.h:99."
+    },
+    {
+      "name": "PyThread_delete_key_value",
+      "tier": "hard",
+      "deprecated_in": "3.7",
+      "removed_in": "",
+      "replacement": "PyThread_tss_delete",
+      "notes": "Include/pythread.h:100."
+    },
+    {
+      "name": "PyThread_ReInitTLS",
+      "tier": "hard",
+      "deprecated_in": "3.7",
+      "removed_in": "",
+      "replacement": "",
+      "notes": "Include/pythread.h:103. Unneeded since 3.7."
+    },
+    {
+      "name": "Py_SetProgramName",
+      "tier": "hard",
+      "deprecated_in": "3.11",
+      "removed_in": "3.16",
+      "replacement": "PyConfig.program_name",
+      "notes": "Include/pylifecycle.h:37."
+    },
+    {
+      "name": "Py_SetPythonHome",
+      "tier": "hard",
+      "deprecated_in": "3.11",
+      "removed_in": "3.16",
+      "replacement": "PyConfig.home",
+      "notes": "Include/pylifecycle.h:38."
+    },
+    {
+      "name": "PySys_SetArgv",
+      "tier": "hard",
+      "deprecated_in": "3.11",
+      "removed_in": "3.16",
+      "replacement": "PyConfig.argv",
+      "notes": "Include/sysmodule.h:16."
+    },
+    {
+      "name": "PySys_SetArgvEx",
+      "tier": "hard",
+      "deprecated_in": "3.11",
+      "removed_in": "3.16",
+      "replacement": "PyConfig.argv",
+      "notes": "Include/sysmodule.h:17."
+    },
+    {
+      "name": "_PyBytes_Resize",
+      "tier": "soft",
+      "deprecated_in": "3.15",
+      "removed_in": "",
+      "replacement": "PyBytesWriter API",
+      "notes": "Doc/whatsnew/3.15.rst, Deprecated C APIs. 30 real call sites across Objects/ + Modules/."
+    },
+    {
+      "name": "PyModule_AddObject",
+      "tier": "soft",
+      "deprecated_in": "3.13",
+      "removed_in": "",
+      "replacement": "PyModule_Add or PyModule_AddObjectRef",
+      "notes": "Doc/c-api/module.rst:1022 `.. soft-deprecated:: 3.13`. Steals a reference only on success -- the replacement does not, so refcount handling must be adjusted, not just the name."
+    },
+    {
+      "name": "PyErr_Fetch",
+      "tier": "soft",
+      "deprecated_in": "3.12",
+      "removed_in": "",
+      "replacement": "PyErr_GetRaisedException",
+      "notes": "Doc/c-api/exceptions.rst:514; listed in Doc/deprecations/c-api-pending-removal-in-future.rst:9."
+    },
+    {
+      "name": "PyErr_Restore",
+      "tier": "soft",
+      "deprecated_in": "3.12",
+      "removed_in": "",
+      "replacement": "PyErr_SetRaisedException",
+      "notes": "Doc/c-api/exceptions.rst:542."
+    },
+    {
+      "name": "PyErr_NormalizeException",
+      "tier": "soft",
+      "deprecated_in": "3.12",
+      "removed_in": "",
+      "replacement": "PyErr_GetRaisedException",
+      "notes": "Doc/c-api/exceptions.rst:567. Normalization is implicit in the raised-exception API."
+    },
+    {
+      "name": "PyErr_Display",
+      "tier": "soft",
+      "deprecated_in": "",
+      "removed_in": "",
+      "replacement": "PyErr_DisplayException",
+      "notes": "Doc/deprecations/c-api-pending-removal-in-future.rst:23."
+    },
+    {
+      "name": "_PyErr_ChainExceptions",
+      "tier": "soft",
+      "deprecated_in": "",
+      "removed_in": "",
+      "replacement": "_PyErr_ChainExceptions1",
+      "notes": "Doc/deprecations/c-api-pending-removal-in-future.rst:25."
+    },
+    {
+      "name": "PyUnicode_READY",
+      "tier": "soft",
+      "deprecated_in": "3.10",
+      "removed_in": "",
+      "replacement": "",
+      "notes": "No-op since 3.12 -- delete the call. Doc/c-api/unicode.rst:1968. The docs contradict themselves: unicode.rst:1965 says there are no plans to remove it, while c-api-pending-removal-in-future.rst:21 lists it."
+    },
+    {
+      "name": "PyUnicode_IS_READY",
+      "tier": "soft",
+      "deprecated_in": "3.14",
+      "removed_in": "",
+      "replacement": "",
+      "notes": "No-op since 3.12. Doc/c-api/unicode.rst:1982."
+    },
+    {
+      "name": "PyEval_GetBuiltins",
+      "tier": "soft",
+      "deprecated_in": "3.13",
+      "removed_in": "",
+      "replacement": "PyEval_GetFrameBuiltins",
+      "notes": "Doc/c-api/reflection.rst:10 (PEP 667). Returns a borrowed reference."
+    },
+    {
+      "name": "PyEval_GetGlobals",
+      "tier": "soft",
+      "deprecated_in": "3.13",
+      "removed_in": "",
+      "replacement": "PyEval_GetFrameGlobals",
+      "notes": "Doc/c-api/reflection.rst:48 (PEP 667)."
+    },
+    {
+      "name": "PyEval_GetLocals",
+      "tier": "soft",
+      "deprecated_in": "3.13",
+      "removed_in": "",
+      "replacement": "PyEval_GetFrameLocals",
+      "notes": "Doc/c-api/reflection.rst:20 (PEP 667)."
+    },
+    {
+      "name": "PySequence_In",
+      "tier": "soft",
+      "deprecated_in": "3.14",
+      "removed_in": "",
+      "replacement": "PySequence_Contains",
+      "notes": "Doc/c-api/sequence.rst:112."
+    },
+    {
+      "name": "Py_TPFLAGS_HAVE_FINALIZE",
+      "tier": "soft",
+      "deprecated_in": "3.8",
+      "removed_in": "",
+      "replacement": "",
+      "notes": "Doc/c-api/typeobj.rst:1380. Unneeded since 3.8 -- the flag is always set."
+    },
+    {
+      "name": "PyMem_MALLOC",
+      "tier": "soft",
+      "deprecated_in": "2.0",
+      "removed_in": "",
+      "replacement": "PyMem_Malloc",
+      "notes": "Doc/c-api/memory.rst:304."
+    },
+    {
+      "name": "PyMem_NEW",
+      "tier": "soft",
+      "deprecated_in": "2.0",
+      "removed_in": "",
+      "replacement": "PyMem_New",
+      "notes": "Doc/c-api/memory.rst:304. 26 real call sites."
+    },
+    {
+      "name": "PyMem_RESIZE",
+      "tier": "soft",
+      "deprecated_in": "2.0",
+      "removed_in": "",
+      "replacement": "PyMem_Resize",
+      "notes": "Doc/c-api/memory.rst:304."
+    },
+    {
+      "name": "PyMem_DEL",
+      "tier": "soft",
+      "deprecated_in": "2.0",
+      "removed_in": "",
+      "replacement": "PyMem_Free",
+      "notes": "Doc/c-api/memory.rst:332."
+    },
+    {
+      "name": "PyMem_FREE",
+      "tier": "soft",
+      "deprecated_in": "2.0",
+      "removed_in": "",
+      "replacement": "PyMem_Free",
+      "notes": "Doc/c-api/memory.rst:332."
+    },
+    {
+      "name": "ob_shash",
+      "tier": "hard",
+      "deprecated_in": "3.11",
+      "removed_in": "",
+      "replacement": "PyObject_Hash",
+      "notes": "Include/cpython/bytesobject.h:7. Struct member, not a function."
+    }
+  ]
+}
