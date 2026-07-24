@@ -1,8 +1,8 @@
 {
   "$schema": "https://anthropic.com/claude-code/marketplace.schema.json",
   "name": "cpython-review-toolkit",
-  "version": "0.4.0",
-  "description": "CPython C code exploration and analysis toolkit: 10 specialized agents for refcount auditing, error path analysis, GIL discipline checking, complexity measurement, include graph mapping, PEP 7 style checking, NULL safety scanning, API deprecation tracking, macro hygiene review, and memory pattern analysis.",
+  "version": "0.5.0",
+  "description": "CPython C code exploration and analysis toolkit: specialized agents for refcount auditing, error path analysis, GIL discipline, NULL safety, complexity, include-graph mapping, PEP 7 style, deprecation, macros, and memory patterns — plus tree-sitter-based crash-class detectors (recursion-guard, destructor exception-clobber, uninitialized-dealloc), an informed-explore loop, and a known-issues regression command.",
   "owner": {
     "name": "Danzin",
     "email": "lafleurfuzzer@gmail.com"
@@ -10,9 +10,9 @@
   "plugins": [
     {
       "name": "cpython-review-toolkit",
-      "description": "10 specialized agents and 4 commands for exploring, analyzing, and reviewing CPython's C source code. Includes analysis scripts for include graph mapping, C complexity measurement, refcount auditing, error path analysis, GIL usage scanning, PEP 7 style checking, and NULL safety scanning.",
+      "description": "Specialized agents and commands for exploring, analyzing, and reviewing CPython's C source code. Regex scanners for include-graph mapping, complexity, refcounts, error paths, GIL, and NULL safety, plus tree-sitter-based crash-class detectors (recursion-guard, destructor exception-clobber, uninitialized-dealloc), an informed-explore loop, and a known-issues regression command.",
       "source": "./plugins/cpython-review-toolkit",
-      "version": "0.4.0",
+      "version": "0.5.0",
       "category": "code-quality",
       "keywords": [
         "cpython",

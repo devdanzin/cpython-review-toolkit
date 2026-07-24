@@ -6,7 +6,7 @@ allowed-tools: ["Bash", "Glob", "Grep", "Read", "Task"]
 
 # CPython C Code Hotspots
 
-Run the three highest-value agents to find the worst functions to fix first: **c-complexity-analyzer**, **refcount-auditor**, and **error-path-analyzer**. Answers the question: "Where should I focus my review efforts?"
+Run the highest-value agents to find the worst functions to fix first: the crash-class detectors plus **c-complexity-analyzer**, **refcount-auditor**, and **error-path-analyzer**. Answers the question: "Where should I focus my review efforts?"
 
 **Scope:** "$ARGUMENTS" (default: entire project)
 
@@ -15,6 +15,9 @@ Run the three highest-value agents to find the worst functions to fix first: **c
 1. Identify CPython project root
 2. Run **include-graph-mapper** first (structural context)
 3. Run with at most 2 agents in parallel, feeding context:
+   - **recursion-guard-auditor** — native-stack-overflow SIGSEGV in recursion-prone slots
+   - **pyerr-clear-auditor** — exception-clobber in the destructor family
+   - **uninitialized-dealloc-auditor** — half-built object freed on an error path
    - **refcount-auditor** — find reference counting errors
    - **error-path-analyzer** — find error handling bugs
    - **c-complexity-analyzer** — find the hardest-to-maintain code

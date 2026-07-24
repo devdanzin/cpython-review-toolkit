@@ -1,0 +1,46 @@
+# cpython_known_bugs.tsv — regression catalog for the `known-issues` command.
+#
+# Seed catalog of previously-found CPython crashes, cross-referenced against a
+# fresh scan so a fix (or a regression-after-revert) is detected. Regenerate /
+# extend from the findings repos (cpython-oom-findings, cpython-tsan-findings)
+# and the CPython tracker as new bugs land.
+#
+# Columns (TAB-separated):
+#   bug_id     upstream issue (gh-NNNNNN) or findings-repo id (OOM-####, TSAN-####)
+#   path       repo-relative C source path
+#   line       1-indexed line, or 0 if unknown (match by function/category)
+#   category   recursion | pyerr-clear | uninit-dealloc | null-deref | refcount | tsan | init-bypass
+#   function   enclosing function (for line-drift-tolerant matching)
+#   note       short description / status
+#
+# NOTE: some crash shapes carry no scannable token at the exact site (a native
+# stack overflow, a data race). For those, `absent` against a fresh scan is NOT
+# proof of a fix — read the file. See the `known-issues` command docs.
+#
+# bug_id	path	line	category	function	note
+gh-154318	Objects/tupleobject.c	0	recursion	tuple_hash	copy-pasted guardless hash; deep/cyclic tuple -> C-stack SIGSEGV
+gh-154318	Objects/tupleobject.c	0	recursion	tuple_richcompare	sibling of tuple_hash, element descent w/o guard
+gh-154275	Objects/genericaliasobject.c	231	recursion	_Py_make_parameters	self-recursive parameter walk, no Py_EnterRecursiveCall
+gh-154318	Objects/unionobject.c	0	recursion	union_hash	sibling class surfaced by recursion-guard-auditor
+gh-149146	Objects/tupleobject.c	0	recursion	tuple_dealloc	recursion during MemoryError unwind
+gh-151815	Objects/templateobject.c	225	uninit-dealloc	template_iter	non-zeroing alloc freed before member init
+gh-152851	Modules/blake2module.c	0	uninit-dealloc	py_blake2_clear	.copy() frees object with uninitialized impl enum
+gh-152083	Python/context.c	0	pyerr-clear	context_tp_dealloc	clears pending exception during teardown
+OOM-0039	Modules/_collectionsmodule.c	750	pyerr-clear	deque_clear	newblock-fail PyErr_Clear swallows in-flight error
+OOM-0023	Objects/typeobject.c	0	pyerr-clear	subtype_dealloc	clears pending exception in dealloc
+gh-151673	Python/_warnings.c	0	null-deref	do_warn	unchecked PyUnicode_FromString on OOM path
+gh-151798	Parser/pegen.c	33	null-deref	_PyPegen_run_parser	unchecked PyUnicode_AsUTF8 deref
+gh-154385	Modules/readline.c	0	null-deref	0	unchecked PyLong_FromLong stored then Py_NewRef(NULL)
+gh-153800	Modules/_sqlite/connection.c	0	null-deref	0	window agg NULL deref on empty frame
+gh-152954	Modules/_sqlite/connection.c	0	init-bypass	0	Connection.__new__ bypass -> NULL row_factory INCREF
+gh-152817	Modules/_sqlite/cursor.c	0	init-bypass	0	del cursor.row_factory -> NULL vectorcall
+gh-151818	Python/bytecodes.c	0	refcount	_CALL_LIST_APPEND	list.append grow-fail double-free under MemoryError
+gh-152951	Modules/_collectionsmodule.c	0	refcount	deque_extend	block-alloc-fail double-DECREF
+gh-153210	Modules/arraymodule.c	0	refcount	array_modexec	error during import -> double-DECREF ArrayType
+gh-148382	Modules/_decimal/_decimal.c	0	refcount	current_context	borrowed CURRENT_CONTEXT across callbacks (UAF)
+gh-151403	Modules/posixmodule.c	0	refcount	os_posix_spawn	borrowed argv item freed by __fspath__
+TSAN-0053	Objects/dictobject.c	6158	tsan	dictiter_iternextitem	shared dict iterator double-DECREF (gh-154130)
+TSAN-0054	Objects/setobject.c	1130	tsan	setiter_iternext	shared set iterator double-DECREF (gh-144357)
+TSAN-0033	Modules/_asynciomodule.c	2963	tsan	TaskObj_dealloc	finalize before GC_UnTrack (gh-153809)
+TSAN-0006	Modules/itertoolsmodule.c	0	tsan	count_repr	plain read of atomically-written cnt
+TSAN-0043	Objects/descrobject.c	0	tsan	descr_get_qualname	lazy-init cache without critical section

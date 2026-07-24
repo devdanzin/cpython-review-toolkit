@@ -34,29 +34,30 @@ claude --plugin-dir cpython-review-toolkit/plugins/cpython-review-toolkit
 Navigate to a CPython source checkout, then:
 
 ```bash
-/cpython-review-toolkit:map        # Understand include structure
-/cpython-review-toolkit:health     # Quick health dashboard
-/cpython-review-toolkit:hotspots   # Refcount leaks + error bugs + complexity
-/cpython-review-toolkit:explore    # Full exploration (all 10 agents)
+/cpython-review-toolkit:map            # Understand include structure
+/cpython-review-toolkit:health         # Quick health dashboard
+/cpython-review-toolkit:hotspots       # Crash-class detectors + refcount + complexity
+/cpython-review-toolkit:explore        # Full exploration (all agents)
+/cpython-review-toolkit:known-issues   # Regression check vs the known-crash catalog
 ```
 
 Start with `map` to understand the include graph, then `hotspots` to find the highest-impact bugs.
 
 ## What's Included
 
-- **10 analysis agents** covering reference counting, error handling, GIL discipline, complexity, NULL safety, PEP 7 style, include dependencies, API deprecation, macro hygiene, and memory patterns.
-- **4 commands** (`explore`, `map`, `hotspots`, `health`) for different analysis workflows.
-- **7 analysis scripts** (stdlib-only Python) for include graphing, complexity measurement, refcount scanning, error path analysis, NULL safety checking, GIL usage scanning, and PEP 7 style checking.
+- **15 analysis agents** covering reference counting, error handling, GIL discipline, complexity, NULL safety, PEP 7 style, include dependencies, API deprecation, macro hygiene, memory patterns, and temporal history — plus tree-sitter-based **crash-class detectors** for recursion-guard gaps, destructor exception-clobber, and uninitialized-dealloc.
+- **6 commands** (`explore`, `informed-explore`, `known-issues`, `map`, `hotspots`, `health`) for different analysis workflows.
+- **Analysis scripts** — stdlib-only regex scanners for the legacy dimensions, plus tree-sitter crash-class detectors, a `known-issues` regression checker, and an `informed-explore` briefing generator.
 
 ## Prerequisites
 
 - **Claude Code** installed and running.
-- **Python 3.10+** for the analysis scripts (type syntax from 3.10+).
-- No third-party packages — all scripts use only the standard library.
+- **Python 3.10+** for the analysis scripts.
+- **tree-sitter + tree-sitter-c** (`pip install tree-sitter tree-sitter-c`) for the crash-class detectors, `known-issues`, and `informed-explore`; the legacy scanners remain stdlib-only.
 
 ## How It Works
 
-The scripts use regex-based scanning to find candidate issues in C source files. This is intentionally imprecise — scripts identify candidates with an expected 30-50% false positive rate, and the agents read the actual code to confirm or dismiss each finding. This approach works well for CPython because PEP 7 makes the code style very regular and predictable.
+Two generations of scanner coexist: stdlib-only **regex scanners** for the legacy dimensions (refcounts, errors, NULL, GIL, complexity, PEP 7, includes), and **tree-sitter crash-class detectors** that parse a real C syntax tree to target specific reachable-from-Python crash classes (validated against confirmed CPython crashes). All scripts report candidates — expect 10-50% false positives depending on the detector — and the agents read the actual code to confirm or dismiss each finding and classify it FIX / CONSIDER / POLICY / ACCEPTABLE.
 
 For detailed usage, agent descriptions, and recommended workflows, see the [plugin README](plugins/cpython-review-toolkit/README.md).
 

@@ -48,7 +48,7 @@ claude --plugin-dir cpython-review-toolkit/plugins/cpython-review-toolkit
 
 - **Claude Code** installed and running.
 - **Python 3.10+** for the analysis scripts (type union syntax, match statements).
-- No third-party Python packages — all scripts use only the standard library.
+- **tree-sitter + tree-sitter-c** (`pip install tree-sitter tree-sitter-c`) — required by the tree-sitter-based crash-class detectors (`recursion-guard`, `pyerr-clear`, `uninit-dealloc`), the `known-issues` command, and the `informed-explore` briefing. The legacy regex scanners (refcounts, error-paths, null-safety, GIL, complexity, PEP 7, includes) remain stdlib-only.
 
 ## Commands
 
@@ -57,7 +57,7 @@ claude --plugin-dir cpython-review-toolkit/plugins/cpython-review-toolkit
 The primary command. Runs the include-graph-mapper first for structural context, then dispatches selected agents.
 
 ```bash
-# Full exploration (all 10 agents)
+# Full exploration (all agents)
 /cpython-review-toolkit:explore
 
 # Specific directory
@@ -70,7 +70,7 @@ The primary command. Runs the include-graph-mapper first for structural context,
 /cpython-review-toolkit:explore . all summary
 ```
 
-**Aspects**: `includes`, `refcounts`, `errors`, `gil`, `complexity`, `style`, `null-safety`, `deprecation`, `macros`, `memory`, `all`
+**Aspects**: `includes`, `refcounts`, `errors`, `gil`, `complexity`, `style`, `null-safety`, `deprecation`, `macros`, `memory`, `recursion`, `pyerr-clear`, `uninit-dealloc`, `history`, `all`
 
 **Options**: `deep` (full detail), `summary` (top-level only), `parallel` (concurrent agents)
 
@@ -101,6 +101,23 @@ Quick health dashboard — all agents in summary mode, producing a scored table 
 /cpython-review-toolkit:health Python/
 ```
 
+### `/cpython-review-toolkit:known-issues [scope]`
+
+Regression baseline. Cross-references `data/cpython_known_bugs.tsv` — a seed catalog of previously-found CPython crashes (from the fusil OOM/TSan findings repos and the tracker) — against a fresh scan, classifying each as `present` / `line_drifted` / `absent` / `file_missing` / `no_scanner`. Answers "which catalogued crashes are still here, and did any regress?" (Note: some crash shapes carry no scannable token, so `absent` is not proof of a fix.)
+
+```bash
+/cpython-review-toolkit:known-issues
+/cpython-review-toolkit:known-issues Objects/
+```
+
+### `/cpython-review-toolkit:informed-explore [scope]`
+
+A catalog-seeded targeted pass. Builds a briefing from `data/cpython_bug_shapes.json` (each bug shape + its guarded twin + hunt directive + differential) and the `data/cpython_non_bugs.md` FP taxonomy, then runs the explore agents with three rules: confirm-don't-relitigate known findings, skip (or justify) known FP classes, and hunt siblings via the guarded twin. Optionally `--catalog-dir` a `cpython-review-findings` repo.
+
+```bash
+/cpython-review-toolkit:informed-explore Objects/
+```
+
 ## Agents
 
 ### Safety-Critical (script-backed)
@@ -113,6 +130,16 @@ These agents find bugs that cause crashes, memory corruption, or undefined behav
 | **error-path-analyzer** | Missing NULL checks after API calls, return NULL without PyErr_Set*, incomplete goto cleanup, inconsistent error conventions | `scan_error_paths.py` |
 | **null-safety-scanner** | Unchecked malloc/PyMem_Malloc, dereference before NULL check, PyArg_Parse without return check | `scan_null_checks.py` |
 | **gil-discipline-checker** | Mismatched BEGIN/END_ALLOW_THREADS, Python API calls without GIL, blocking I/O with GIL held, PyGILState balance | `scan_gil_usage.py` |
+
+### Crash-Class Detectors (tree-sitter based)
+
+These target specific reachable-from-Python crash classes grounded in the fusil OOM/TSan findings and the CPython tracker. They parse a real C syntax tree and stay deliberately quiet — a whole-tree run surfaces a small, triageable set (each validated against confirmed CPython crashes).
+
+| Agent | What It Finds | Script |
+|-------|--------------|--------|
+| **recursion-guard-auditor** | Recursion-prone slots (`tp_hash`/`tp_richcompare`/`tp_repr`/`tp_str`, generic-alias parameter walks) that descend a user-controlled object graph without `Py_EnterRecursiveCall`/`Py_ReprEnter` → native-stack-overflow SIGSEGV (gh-154318, gh-154275) | `scan_recursion_guards.py` |
+| **pyerr-clear-auditor** | `PyErr_Clear()` in the destructor family (`tp_dealloc`/`tp_clear`/`tp_finalize`/`tp_traverse`) with no save/restore, swallowing an in-flight `MemoryError`/`KeyboardInterrupt` (gh-152083) | `scan_pyerr_clear.py` |
+| **uninitialized-dealloc-auditor** | Non-zeroing allocation freed on an error path before members are NULL-initialized → `tp_dealloc` reads garbage (gh-151815, gh-152851) | `scan_uninit_dealloc.py` |
 
 ### Code Quality (script-backed)
 
@@ -132,15 +159,22 @@ These agents search the codebase directly using Grep and read files for deep ana
 | **macro-hygiene-reviewer** | Missing parentheses in macros, multiple evaluation, multi-statement macros without do-while, naming |
 | **memory-pattern-analyzer** | Mismatched alloc/free families, sprintf without bounds, integer overflow in allocation sizes |
 
+### Temporal
+
+| Agent | What It Finds | Script |
+|-------|--------------|--------|
+| **git-history-context** | Preflight (runs early): per-file bug-fix-density watchlist + recurring fix-keyword clusters + shallow-clone guard, so the safety agents scrutinize the historically-buggiest files first | `analyze_history.py` |
+| **git-history-analyzer** | Post-hoc (runs last): fix-completeness review, similar-bug detection, churn-risk matrix, Argument-Clinic / API-modernization migration gaps | `analyze_history.py` |
+
 ## How It Works
 
 ### Scripts Find Candidates, Agents Confirm
 
-The 7 analysis scripts use regex-based scanning — not a C parser — to identify candidate issues. This is a deliberate design choice:
+The analysis scripts identify candidate issues; the agent then reads the real code and classifies each finding. Two generations of scanner coexist:
 
-1. **Stdlib-only**: No pycparser, tree-sitter, or libclang dependency.
-2. **CPython's regularity**: PEP 7 makes function definitions, brace placement, and naming conventions predictable enough for regex.
-3. **Acceptable false positive rate**: Scripts report candidates (expect 30-50% false positives). The agent reads the actual code, tracks control flow, and classifies each finding as confirmed, likely, or false positive.
+1. **Legacy regex scanners** (refcounts, error-paths, null-safety, GIL, complexity, PEP 7, includes) are stdlib-only. PEP 7's regularity makes function definitions, brace placement, and naming predictable enough for regex.
+2. **Tree-sitter crash-class detectors** (`recursion-guard`, `pyerr-clear`, `uninit-dealloc`) parse a real C syntax tree via the shared `tree_sitter_utils` chassis (vendored from the cext sibling), so they track true function boundaries, calls, and slot tables instead of line patterns.
+3. **Acceptable false positive rate**: Scripts report candidates (expect 10-50% false positives depending on the detector). The agent reads the actual code, tracks control flow, and classifies each finding as FIX / CONSIDER / POLICY / ACCEPTABLE.
 
 ### CPython Layout Awareness
 
@@ -210,16 +244,19 @@ The `explore` command runs agents in a structured pipeline:
 | Phase | Agents | Purpose |
 |-------|--------|---------|
 | **0** | Project discovery | Detect CPython layout, count files, identify version |
-| **1** | include-graph-mapper | Structural context for all other agents |
+| **1** | include-graph-mapper, git-history-context | Structural + temporal context for all other agents |
 | **2A** | refcount-auditor, error-path-analyzer | Safety-critical (highest value) |
+| **2A2** | recursion-guard-auditor, pyerr-clear-auditor, uninitialized-dealloc-auditor | Crash-class detectors (tree-sitter) |
 | **2B** | null-safety-scanner, gil-discipline-checker | Memory safety |
 | **2C** | c-complexity-analyzer, pep7-style-checker | Code quality |
 | **2D** | api-deprecation-tracker, macro-hygiene-reviewer, memory-pattern-analyzer | Maintenance |
+| **2E** | git-history-analyzer | Temporal fix-completeness (runs last) |
 | **3** | Synthesis | Deduplicate, resolve conflicts, produce summary |
 
 ## Limitations
 
-- **Regex-based, not a real C parser**: Cannot track through pointer aliasing, complex control flow, or macros that generate code. Reports candidates, not definitive bugs.
+- **Mixed parsing**: the legacy scanners are regex-based (cannot track pointer aliasing, complex control flow, or code-generating macros); the crash-class detectors use tree-sitter but are still syntactic — they report candidates, not definitive bugs, and the agent triage step is where FIX-confidence is earned.
+- **No dynamic reproduction yet**: the toolkit is static. Confirming a candidate crash (e.g. via `_testcapi.set_nomemory` OOM injection on a debug/ASan build) is a manual step today; an automated reproducer harness is planned (see `docs/improvement-plan.md`).
 - **No clang-tidy/cppcheck integration yet**: A future phase could integrate external C analysis tools alongside the CPython-specific scripts.
 - **Single-file scope for scripts**: Scripts analyze each function independently. Cross-function reference ownership transfer is tracked only at the API boundary level, not through arbitrary call chains.
 - **Best on idiomatic CPython code**: The regex patterns are tuned for PEP 7 style. Non-standard C code (vendored libraries, generated code) may produce more false positives.
@@ -234,27 +271,47 @@ cpython-review-toolkit/
 ├── agents/
 │   ├── refcount-auditor.md
 │   ├── error-path-analyzer.md
-│   ├── gil-discipline-checker.md
-│   ├── c-complexity-analyzer.md
-│   ├── include-graph-mapper.md
-│   ├── pep7-style-checker.md
 │   ├── null-safety-scanner.md
+│   ├── gil-discipline-checker.md
+│   ├── recursion-guard-auditor.md          # crash-class (tree-sitter)
+│   ├── pyerr-clear-auditor.md              # crash-class (tree-sitter)
+│   ├── uninitialized-dealloc-auditor.md    # crash-class (tree-sitter)
+│   ├── c-complexity-analyzer.md
+│   ├── pep7-style-checker.md
+│   ├── include-graph-mapper.md
 │   ├── api-deprecation-tracker.md
 │   ├── macro-hygiene-reviewer.md
-│   └── memory-pattern-analyzer.md
+│   ├── memory-pattern-analyzer.md
+│   ├── git-history-context.md              # preflight temporal
+│   └── git-history-analyzer.md             # post-hoc temporal
 ├── commands/
 │   ├── explore.md
+│   ├── informed-explore.md
+│   ├── known-issues.md
 │   ├── health.md
 │   ├── hotspots.md
 │   └── map.md
+├── data/
+│   ├── cpython_known_bugs.tsv              # known-issues regression catalog
+│   ├── cpython_bug_shapes.json             # informed-explore bug shapes
+│   ├── cpython_reachability_sources.json   # T1/T2/T3 reachability tiers
+│   └── cpython_non_bugs.md                 # false-positive taxonomy
 └── scripts/
+    ├── tree_sitter_utils.py                # vendored C parsing chassis
+    ├── scan_common.py                      # shared helpers
     ├── analyze_includes.py
+    ├── analyze_history.py
     ├── check_pep7.py
     ├── measure_c_complexity.py
     ├── scan_error_paths.py
     ├── scan_gil_usage.py
     ├── scan_null_checks.py
-    └── scan_refcounts.py
+    ├── scan_refcounts.py
+    ├── scan_recursion_guards.py            # tree-sitter detector
+    ├── scan_pyerr_clear.py                 # tree-sitter detector
+    ├── scan_uninit_dealloc.py              # tree-sitter detector
+    ├── check_known_issues.py               # known-issues command
+    └── build_informed_briefing.py          # informed-explore briefing
 ```
 
 ## Comparison with code-review-toolkit
@@ -262,12 +319,12 @@ cpython-review-toolkit/
 | Dimension | code-review-toolkit | cpython-review-toolkit |
 |-----------|--------------------|-----------------------|
 | **Language** | Python | C (CPython source) |
-| **Parsing** | Python `ast` module | Regex-based |
+| **Parsing** | Python `ast` module | Regex (legacy scanners) + tree-sitter (crash-class detectors) |
 | **Root detection** | `pyproject.toml`, `.git` | `Include/Python.h`, `Objects/object.c` |
-| **Top bug class** | Logic errors, dead code | Refcount leaks, NULL deref, GIL violations |
+| **Top bug class** | Logic errors, dead code | Refcount leaks, NULL deref, native-stack-overflow SIGSEGV, GIL violations |
 | **Style guide** | PEP 8 | PEP 7 |
-| **Agents** | 14 | 10 |
-| **Scripts** | 8 | 7 |
+| **Agents** | 14 | 15 |
+| **Scripts** | 8 | 15 |
 
 ## Author
 

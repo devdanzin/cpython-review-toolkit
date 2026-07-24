@@ -24,6 +24,9 @@ Run all agents in summary mode to produce a quick health dashboard. Each agent r
 | Dimension          | Status      | Score | FIX | Top Finding                    |
 |--------------------|-------------|-------|-----|--------------------------------|
 | Refcount Safety    | 🟢/🟡/🔴  | X/10  | N   | [1-line summary]               |
+| Recursion Guards   | 🟢/🟡/🔴  | X/10  | N   | [1-line summary]               |
+| Destructor PyErr   | 🟢/🟡/🔴  | X/10  | N   | [1-line summary]               |
+| Uninit Dealloc     | 🟢/🟡/🔴  | X/10  | N   | [1-line summary]               |
 | Error Handling     | 🟢/🟡/🔴  | X/10  | N   | [1-line summary]               |
 | GIL Discipline     | 🟢/🟡/🔴  | X/10  | N   | [1-line summary]               |
 | Complexity         | 🟢/🟡/🔴  | X/10  | N   | [1-line summary]               |
