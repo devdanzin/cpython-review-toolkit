@@ -48,6 +48,270 @@ CPP_EXTENSIONS = frozenset({".cpp", ".cxx", ".cc", ".hpp"})
 ALL_SOURCE_EXTENSIONS = C_EXTENSIONS | CPP_EXTENSIONS
 
 
+# ---------------------------------------------------------------------------
+# Macro pre-substitution ("scrubbing")
+# ---------------------------------------------------------------------------
+# CPython -- and extensions that mimic its idioms -- uses macros that expand to
+# unbalanced braces, bare declarations, or _Pragma() directives. Tree-sitter has
+# no preprocessor, so these desynchronize the parse. Three failure modes, all
+# measured against CPython main (Objects/, 50 files, 118k lines):
+#
+#   PRAGMA  _Py_COMP_DIAG_PUSH / _POP / _IGNORE_DEPR_DECLS expand to _Pragma().
+#           This is the worst mode because it is SILENT: it produces no
+#           top-level ERROR node, so a has_error check misses it. Instead the
+#           parse nests every following function inside one record. At
+#           Objects/object.c:1271 this swallowed 87 functions into a single
+#           2,254-line "_PyObject_GetAttrId" record. Misattribution is worse
+#           than omission -- a finding at line 3412 gets reported against a
+#           function starting at line 1267, and that survives review as
+#           plausible.
+#   PUNCT   PyObject_HEAD and friends supply their own ';' or ',', so the use
+#           site is a bare identifier where a declaration is expected.
+#   BRACE   Py_BEGIN/END_ALLOW_THREADS, Py_BEGIN/END_CRITICAL_SECTION* and
+#           _Py_BEGIN/END_SUPPRESS_IPH carry an unbalanced '{' or '}'.
+#
+# Substituting these three classes is a measured win: +192 functions, -28%
+# ERROR nodes, the largest single record drops from 2,254 lines to 127, and
+# Objects/dictobject.c goes from 187 functions (extraction dying at line 5239
+# of 8598) to 292 with the whole frozendict family recovered.
+#
+# Two things that look like they belong here do NOT, and were rejected on
+# measurement rather than taste:
+#
+#   * Argument Clinic "*_METHODDEF" element substitution makes things WORSE:
+#     dictobject.c drops from 292 functions back to 72, and critical-section
+#     sites falling outside any function go from 3 to 47.
+#   * Recovering function_definition nodes from inside ERROR nodes yields only
+#     garbage -- 5 candidates tree-wide, every one an "else if" fragment.
+#
+# Substitution is byte-length- AND line-count-preserving, so node.start_byte,
+# node.end_byte and node.start_point still index the ORIGINAL source. Callers
+# keep passing the original bytes to get_node_text(), so extracted text and
+# reported line numbers still show real source -- including the macro names
+# themselves, which is why the text-based macro searches in scan_gil_usage.py
+# and scan_lock_discipline.py keep working unchanged.
+
+# Macros carrying an unbalanced '{'.
+_BRACE_OPEN_MACROS = frozenset(
+    {
+        "Py_BEGIN_ALLOW_THREADS",
+        "Py_BEGIN_CRITICAL_SECTION",
+        "Py_BEGIN_CRITICAL_SECTION2",
+        "Py_BEGIN_CRITICAL_SECTION_MUTEX",
+        "Py_BEGIN_CRITICAL_SECTION2_MUTEX",
+        "Py_BEGIN_CRITICAL_SECTION_SEQUENCE_FAST",
+        "_Py_BEGIN_SUPPRESS_IPH",
+    }
+)
+
+# Macros carrying an unbalanced '}'. Note there is no Py_END_CRITICAL_SECTION_MUTEX:
+# the _MUTEX and non-_MUTEX openers share the same closer.
+#
+# Py_TRASHCAN_BEGIN / Py_TRASHCAN_END are deliberately absent. They LOOK like a
+# brace pair but on CPython main (Include/cpython/object.h:446-447) both expand
+# to nothing at all -- adding them here would inject a spurious brace pair.
+_BRACE_CLOSE_MACROS = frozenset(
+    {
+        "Py_END_ALLOW_THREADS",
+        "Py_END_CRITICAL_SECTION",
+        "Py_END_CRITICAL_SECTION2",
+        "Py_END_CRITICAL_SECTION_SEQUENCE_FAST",
+        "_Py_END_SUPPRESS_IPH",
+    }
+)
+
+# Macros expanding to one or more ';'-terminated struct members or declarations.
+# The replacement must be no longer than the text it replaces, since the
+# substitution is length-preserving.
+#
+# The stand-ins are deliberately opaque "char" arrays rather than the truthful
+# expansion ("PyObject ob_base;" for PyObject_HEAD). A truthful stand-in makes
+# the synthetic member VISIBLE to find_struct_members(), and scan_type_slots.py
+# then reports the object header itself as a PyObject* member that tp_traverse
+# forgot to visit. These macro-hidden fields were invisible to the scanners
+# before this substitution existed, and they must stay invisible; the point of
+# the stand-in is only to keep the struct parseable.
+_DECLARATION_MACROS = {
+    "PyObject_HEAD": "char oh_[8];",
+    "PyObject_VAR_HEAD": "char ovh_[16];",
+    "PyException_HEAD": "char eh_[8];",
+    "_PyGenObject_HEAD": "char gh_[8];",
+    "_PyTZINFO_HEAD": "char th_[8];",
+    "_PyDateTime_TIMEHEAD": "char dth_[8];",
+    "_PyDateTime_DATETIMEHEAD": "char ddh_[8];",
+    "_Py_COMMON_FIELDS": "char cf_[8];",
+    "_ASDL_SEQ_HEAD": "char sh_[8];",
+    "PyABIInfo_VAR": "char av_[8];",
+    "STRUCT_FOR_ID": "char si_[8];",
+}
+
+# Macros expanding to a ','-terminated braced initializer element.
+_ELEMENT_MACROS = frozenset({"PyObject_HEAD_INIT", "PyVarObject_HEAD_INIT"})
+
+# Macros expanding to a _Pragma() directive (or, on unsupported compilers,
+# to nothing). Blanked out entirely.
+_ERASE_MACROS = frozenset(
+    {
+        "_Py_COMP_DIAG_PUSH",
+        "_Py_COMP_DIAG_POP",
+        "_Py_COMP_DIAG_IGNORE_DEPR_DECLS",
+    }
+)
+
+# Macros used as a BARE identifier, with no argument list. Never consume a
+# following "(...)" for these. This matters: CPython writes
+#
+#     Py_BEGIN_ALLOW_THREADS
+#     (void)closesocket(fd);
+#
+# in three places (signalmodule.c, socketmodule.c, _sqlite/connection.c). A
+# naive paren-matcher skips the newline and swallows the "(void)" cast, which
+# both corrupts real code and destroys a line.
+_ARGLESS_MACROS = frozenset(
+    {
+        "Py_BEGIN_ALLOW_THREADS",
+        "Py_END_ALLOW_THREADS",
+        "_Py_BEGIN_SUPPRESS_IPH",
+        "_Py_END_SUPPRESS_IPH",
+        "PyObject_HEAD",
+        "PyObject_VAR_HEAD",
+        "PyException_HEAD",
+        "_PyTZINFO_HEAD",
+        "_PyDateTime_TIMEHEAD",
+        "_PyDateTime_DATETIMEHEAD",
+        "_ASDL_SEQ_HEAD",
+    }
+    | _ERASE_MACROS
+)
+
+_MACRO_IDENT_RE = re.compile(rb"[A-Za-z_][A-Za-z0-9_]*")
+# Matches the text between the start of a line and a macro name, when that name
+# is the one being #define'd. Used to leave a macro's own definition alone.
+_DEFINE_PREFIX_RE = re.compile(rb"^[ \t]*#[ \t]*define[ \t]+$")
+
+
+def _macro_arg_end(source_bytes: bytes, pos: int) -> int:
+    """Return the index just past the "(...)" beginning at/after ``pos``.
+
+    Returns ``pos`` unchanged when there is no argument list. Bails out on a
+    ';' inside the parentheses, which means we mis-detected the construct.
+    """
+    i = pos
+    n = len(source_bytes)
+    while i < n and source_bytes[i : i + 1] in (b" ", b"\t", b"\n", b"\r"):
+        i += 1
+    if i >= n or source_bytes[i : i + 1] != b"(":
+        return pos
+    depth = 0
+    while i < n:
+        char = source_bytes[i : i + 1]
+        if char == b"(":
+            depth += 1
+        elif char == b")":
+            depth -= 1
+            if depth == 0:
+                return i + 1
+        elif char == b";":
+            return pos
+        i += 1
+    return pos
+
+
+def _pad_replacement(replacement: bytes, original_span: bytes) -> bytes | None:
+    """Pad ``replacement`` to the exact byte length AND newline count of the span.
+
+    Newlines are re-emitted at the end of the padding. Byte offsets after the
+    span are therefore unchanged, and so is every line number after it. Returns
+    None if the replacement does not fit, in which case the caller must skip the
+    substitution rather than corrupt offsets.
+    """
+    newlines = original_span.count(b"\n")
+    fill = len(original_span) - len(replacement) - newlines
+    if fill < 0:
+        return None
+    return replacement + b" " * fill + b"\n" * newlines
+
+
+def _follows_label(source_bytes: bytes, pos: int) -> bool:
+    """True if the nearest non-whitespace byte before ``pos`` ends a goto label.
+
+    The free-threading idiom ``goto exit; ... exit: Py_END_CRITICAL_SECTION();``
+    leaves a label immediately before the closing macro, and ``label: }`` is not
+    a valid statement. Emitting ``;}`` there rather than ``}`` is worth 62
+    functions in Objects/listobject.c alone; emitting it unconditionally
+    regresses other files, so it is applied only in this position.
+    """
+    i = pos - 1
+    while i >= 0 and source_bytes[i : i + 1].isspace():
+        i -= 1
+    if i < 0 or source_bytes[i : i + 1] != b":":
+        return False
+    # Exclude C++ "::" and the ternary "? :".
+    return source_bytes[i - 1 : i] not in (b":", b"?")
+
+
+def scrub_macros(source_bytes: bytes) -> bytes:
+    """Neutralize parse-breaking CPython macros, preserving bytes and lines.
+
+    Returns source of the exact same byte length and the exact same newline
+    count, with the macros listed in the tables above replaced by parseable
+    stand-ins padded with spaces. Every ``node.start_byte`` / ``node.end_byte``
+    / ``node.start_point`` derived from the result therefore still indexes the
+    ORIGINAL source, and callers should keep passing the ORIGINAL bytes to
+    ``get_node_text``.
+
+    The tables are CPython-specific by design but harmless elsewhere: a project
+    that never uses these macro names gets its source back unchanged. Extensions
+    with their own brace-carrying macros can extend the frozensets above.
+    """
+    out = bytearray(source_bytes)
+    changed = False
+
+    for match in _MACRO_IDENT_RE.finditer(source_bytes):
+        name = match.group(0).decode("ascii", errors="replace")
+        if name in _BRACE_OPEN_MACROS:
+            kind = "open"
+        elif name in _BRACE_CLOSE_MACROS:
+            kind = "close"
+        elif name in _DECLARATION_MACROS:
+            kind = "declaration"
+        elif name in _ELEMENT_MACROS:
+            kind = "element"
+        elif name in _ERASE_MACROS:
+            kind = "erase"
+        else:
+            continue
+
+        start = match.start()
+        end = match.end()
+        if name not in _ARGLESS_MACROS:
+            end = _macro_arg_end(source_bytes, end)
+
+        # Leave the macro's own "#define NAME ..." line intact.
+        line_start = source_bytes.rfind(b"\n", 0, start) + 1
+        if _DEFINE_PREFIX_RE.match(source_bytes[line_start:start]):
+            continue
+
+        if kind == "open":
+            replacement = b"{"
+        elif kind == "close":
+            replacement = b";}" if _follows_label(source_bytes, start) else b"}"
+        elif kind == "declaration":
+            replacement = _DECLARATION_MACROS[name].encode("ascii")
+        elif kind == "element":
+            replacement = b"{0},"
+        else:
+            replacement = b""
+
+        padded = _pad_replacement(replacement, source_bytes[start:end])
+        if padded is None:
+            continue
+        out[start:end] = padded
+        changed = True
+
+    return bytes(out) if changed else source_bytes
+
+
 def is_cpp_available() -> bool:
     """Check if tree-sitter-cpp is installed."""
     return _CPP_AVAILABLE
@@ -73,25 +337,41 @@ def get_parser_for_file(filepath: Path) -> tree_sitter.Parser:
     return _parser
 
 
-def parse_bytes_for_file(source_bytes: bytes, filepath: Path) -> tree_sitter.Tree:
-    """Parse source bytes using the parser appropriate for the file type."""
+def parse_bytes_for_file(
+    source_bytes: bytes, filepath: Path, *, scrub: bool = True
+) -> tree_sitter.Tree:
+    """Parse source bytes using the parser appropriate for the file type.
+
+    ``scrub`` applies :func:`scrub_macros` first. It is on by default and is
+    offset-transparent -- keep passing the ORIGINAL ``source_bytes`` to
+    ``get_node_text`` and friends.
+    """
     parser = get_parser_for_file(filepath)
+    if scrub:
+        source_bytes = scrub_macros(source_bytes)
     return parser.parse(source_bytes)
 
 
-def parse_file(path: Path) -> tree_sitter.Tree:
+def parse_file(path: Path, *, scrub: bool = True) -> tree_sitter.Tree:
     """Parse a C source file and return the Tree-sitter syntax tree."""
-    source_bytes = path.read_bytes()
-    return _parser.parse(source_bytes)
+    return parse_bytes(path.read_bytes(), scrub=scrub)
 
 
-def parse_string(source: str) -> tree_sitter.Tree:
+def parse_string(source: str, *, scrub: bool = True) -> tree_sitter.Tree:
     """Parse a C source string and return the Tree-sitter syntax tree."""
-    return _parser.parse(source.encode("utf-8"))
+    return parse_bytes(source.encode("utf-8"), scrub=scrub)
 
 
-def parse_bytes(source_bytes: bytes) -> tree_sitter.Tree:
-    """Parse C source from bytes already in memory."""
+def parse_bytes(source_bytes: bytes, *, scrub: bool = True) -> tree_sitter.Tree:
+    """Parse C source from bytes already in memory.
+
+    ``scrub`` applies :func:`scrub_macros` first, neutralizing CPython macros
+    that would otherwise desynchronize the parse. Because scrubbing preserves
+    byte length and line count, every offset in the returned tree still indexes
+    the ORIGINAL ``source_bytes``; pass those originals to ``get_node_text``.
+    """
+    if scrub:
+        source_bytes = scrub_macros(source_bytes)
     return _parser.parse(source_bytes)
 
 
@@ -471,12 +751,79 @@ def extract_static_declarations(
     return results
 
 
+# Macros that scrub_macros() removes from the tree AND that carry an argument
+# list -- i.e. the ones that tree-sitter parsed as a call_expression before the
+# substitution existed. find_calls_in_scope() re-surfaces these on request so a
+# scanner asking for them by name still sees them.
+_CALL_LIKE_SCRUBBED_MACROS = frozenset(
+    (
+        _BRACE_OPEN_MACROS
+        | _BRACE_CLOSE_MACROS
+        | _ELEMENT_MACROS
+        | frozenset(_DECLARATION_MACROS)
+    )
+    - _ARGLESS_MACROS
+)
+
+
+def _find_scrubbed_macro_calls(
+    node: tree_sitter.Node, source_bytes: bytes, api_names: set[str]
+) -> list[dict]:
+    """Re-surface macro invocations that scrub_macros() erased from the tree.
+
+    Scrubbing replaces ``Py_BEGIN_CRITICAL_SECTION(self)`` with ``{``, so it is
+    no longer a call_expression. scan_lock_discipline.py finds critical sections
+    through the AST rather than by text search, and would otherwise report ZERO
+    findings on exactly the unbalanced code it exists to catch.
+
+    Only macros the caller named explicitly in ``api_names`` are returned, so
+    broad ``api_names=None`` walks keep their existing behaviour. The scanners
+    doing those broad walks either skip Py*/_Py* names outright or match against
+    refcount/nullable API tables that contain none of these macros.
+    """
+    wanted = api_names & _CALL_LIKE_SCRUBBED_MACROS
+    if not wanted:
+        return []
+
+    results = []
+    region = source_bytes[node.start_byte : node.end_byte]
+    for match in _MACRO_IDENT_RE.finditer(region):
+        name = match.group(0).decode("ascii", errors="replace")
+        if name not in wanted:
+            continue
+        start = node.start_byte + match.start()
+        ident_end = node.start_byte + match.end()
+        end = _macro_arg_end(source_bytes, ident_end)
+        if end == ident_end:
+            # No argument list, so it was never a call_expression.
+            continue
+        args_text = source_bytes[ident_end:end].decode("utf-8", errors="replace").strip()
+        if args_text.startswith("(") and args_text.endswith(")"):
+            args_text = args_text[1:-1].strip()
+        results.append(
+            {
+                "function_name": name,
+                "arguments_text": args_text,
+                # A real node so callers can use .parent / .end_byte safely. It
+                # is the substituted construct (usually the '{' or '}'), not a
+                # call_expression -- the macro call no longer exists in the tree.
+                "node": node.descendant_for_byte_range(start, start),
+                "start_line": source_bytes.count(b"\n", 0, start) + 1,
+                "start_byte": start,
+            }
+        )
+    return results
+
+
 def find_calls_in_scope(
     node: tree_sitter.Node, source_bytes: bytes, api_names: set[str] | None = None
 ) -> list[dict]:
     """Find all function calls within a given AST node (typically a function body).
 
-    If api_names is provided, only return calls to those functions.
+    If api_names is provided, only return calls to those functions. Naming a
+    macro that :func:`scrub_macros` neutralizes (for example
+    ``Py_BEGIN_CRITICAL_SECTION``) also returns that macro's invocations, which
+    scrubbing removed from the tree.
 
     Returns list of dicts with keys:
       - function_name: str
@@ -511,6 +858,12 @@ def find_calls_in_scope(
                 "start_byte": call_node.start_byte,
             }
         )
+
+    if api_names is not None:
+        macro_calls = _find_scrubbed_macro_calls(node, source_bytes, api_names)
+        if macro_calls:
+            results.extend(macro_calls)
+            results.sort(key=lambda call: call["start_byte"])
 
     return results
 
@@ -683,10 +1036,91 @@ def find_struct_members(
 
 
 def strip_comments(source: str) -> str:
-    """Remove C comments (/* */ and //) from source text.
-    Simpler than tree-sitter for cases where we just need clean text."""
-    # Remove block comments.
-    source = re.sub(r"/\*.*?\*/", " ", source, flags=re.DOTALL)
-    # Remove line comments.
+    """Remove C comments (/* */ and //) from source text, preserving line numbers.
+
+    Simpler than tree-sitter for cases where we just need clean text.
+
+    A multi-line block comment is replaced by a space plus the same number of
+    newlines it contained, so ``strip_comments(src).count("\\n")`` always equals
+    ``src.count("\\n")``. Without that, any caller computing a line number from
+    the stripped text reports the wrong line: on Objects/genericaliasobject.c
+    the naive version drifted 14 lines, and tree-wide it misplaced 111 of 113
+    scan_null_checks findings in Objects/.
+
+    Line comments are already line-preserving -- ``[^\\n]*`` stops at the
+    newline.
+
+    Known limitation (unchanged): string and character literals are not
+    respected, so a "/*" inside a string literal is still treated as a comment
+    opener.
+    """
+    # Remove block comments, keeping one newline per newline consumed.
+    source = re.sub(
+        r"/\*.*?\*/",
+        lambda m: " " + "\n" * m.group(0).count("\n"),
+        source,
+        flags=re.DOTALL,
+    )
+    # Remove line comments (already line-preserving).
     source = re.sub(r"//[^\n]*", " ", source)
     return source
+
+
+def parse_health(tree: tree_sitter.Tree, source_bytes: bytes) -> dict:
+    """Report how well a file actually parsed, so a zero result is auditable.
+
+    A scanner that returns zero findings is indistinguishable from a scanner
+    whose parse silently collapsed -- the PRAGMA failure mode described above
+    produces no top-level ERROR node at all, so ``tree.root_node.has_error`` is
+    False while 87 functions sit merged inside one record. Surfacing these
+    numbers alongside a result turns "zero findings" into a claim a reviewer can
+    check.
+
+    Returns a dict with keys:
+      - error_nodes: int         ERROR nodes anywhere in the tree
+      - missing_nodes: int       nodes tree-sitter inserted to recover
+      - functions: int           functions extract_functions() found
+      - lines_total: int         lines in the file
+      - lines_attributed: int    distinct lines covered by some function
+      - coverage: float          lines_attributed / lines_total, 0.0-1.0
+      - max_function_span: int   longest function in lines
+      - max_function_name: str   the function with that span
+
+    Interpretation: a low ``coverage`` means whole regions are invisible to
+    every per-function scanner. A ``max_function_span`` in the high hundreds or
+    thousands almost always means several functions were merged into one record,
+    so findings inside it will be attributed to the wrong function and the wrong
+    line.
+    """
+    functions = extract_functions(tree, source_bytes)
+
+    error_nodes = 0
+    missing_nodes = 0
+    for node in walk_descendants(tree.root_node):
+        if node.type == "ERROR":
+            error_nodes += 1
+        if node.is_missing:
+            missing_nodes += 1
+
+    lines_total = source_bytes.count(b"\n") + 1 if source_bytes else 0
+
+    attributed: set[int] = set()
+    max_span = 0
+    max_name = ""
+    for func in functions:
+        attributed.update(range(func["start_line"], func["end_line"] + 1))
+        span = func["end_line"] - func["start_line"] + 1
+        if span > max_span:
+            max_span = span
+            max_name = func["name"]
+
+    return {
+        "error_nodes": error_nodes,
+        "missing_nodes": missing_nodes,
+        "functions": len(functions),
+        "lines_total": lines_total,
+        "lines_attributed": len(attributed),
+        "coverage": round(len(attributed) / lines_total, 4) if lines_total else 0.0,
+        "max_function_span": max_span,
+        "max_function_name": max_name,
+    }

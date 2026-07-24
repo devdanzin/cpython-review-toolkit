@@ -129,6 +129,136 @@ class TestCheckKnownIssues(unittest.TestCase):
         self.assertEqual(entry["status"], "line_drifted")
         self.assertIsNotNone(entry["nearest_line"])
 
+    def test_line_drifted_when_the_named_function_is_gone(self):
+        # The catalog names a function that no longer exists in the file, but
+        # the file still has findings of the category: that IS drift.
+        report = self._run(
+            {"Objects/present.c": _PRESENT_DEALLOC},
+            [
+                (
+                    "DRIFT-2",
+                    "Objects/present.c",
+                    0,
+                    "pyerr-clear",
+                    "renamed_away_dealloc",
+                    "function was renamed",
+                )
+            ],
+        )
+        entry = self._result_for(report, "DRIFT-2")
+        self.assertEqual(entry["status"], "line_drifted")
+        self.assertEqual(report["bug_rollup"]["DRIFT-2"], "line_drifted")
+
+    # --- absent_in_function -------------------------------------------------
+
+    def test_absent_in_function_when_named_function_is_clean(self):
+        # Both functions live in one file. The scanner flags present_dealloc;
+        # clean_dealloc is still there and carries nothing. That is absence in
+        # the function, not drift — the distinction TK-6 is about.
+        report = self._run(
+            {"Objects/both.c": _PRESENT_DEALLOC + "\n" + _CLEAN_DEALLOC},
+            [
+                (
+                    "AIF-1",
+                    "Objects/both.c",
+                    0,
+                    "pyerr-clear",
+                    "clean_dealloc",
+                    "possibly fixed here",
+                )
+            ],
+        )
+        entry = self._result_for(report, "AIF-1")
+        self.assertEqual(entry["status"], "absent_in_function")
+        self.assertIsNone(entry["nearest_line"])
+        self.assertEqual(report["bug_rollup"]["AIF-1"], "absent_in_function")
+        # Weaker than a regression signal: it must not become a finding.
+        self.assertFalse(any(f["bug_id"] == "AIF-1" for f in report["findings"]))
+
+    def test_absent_in_function_with_a_known_but_stale_catalog_line(self):
+        report = self._run(
+            {"Objects/both.c": _PRESENT_DEALLOC + "\n" + _CLEAN_DEALLOC},
+            [
+                (
+                    "AIF-2",
+                    "Objects/both.c",
+                    400,
+                    "pyerr-clear",
+                    "clean_dealloc",
+                    "stale line, clean function",
+                )
+            ],
+        )
+        self.assertEqual(
+            self._result_for(report, "AIF-2")["status"],
+            "absent_in_function",
+        )
+
+    def test_named_function_with_a_finding_is_still_present(self):
+        # Guard against over-reaching: absent_in_function must never swallow a
+        # real hit in the named function.
+        report = self._run(
+            {"Objects/both.c": _PRESENT_DEALLOC + "\n" + _CLEAN_DEALLOC},
+            [
+                (
+                    "AIF-3",
+                    "Objects/both.c",
+                    0,
+                    "pyerr-clear",
+                    "present_dealloc",
+                    "still there",
+                )
+            ],
+        )
+        self.assertEqual(self._result_for(report, "AIF-3")["status"], "present")
+
+    def test_absent_in_function_rolls_below_present_and_drift(self):
+        report = self._run(
+            {
+                "Objects/both.c": _PRESENT_DEALLOC + "\n" + _CLEAN_DEALLOC,
+                "Objects/other.c": _PRESENT_DEALLOC,
+            },
+            [
+                ("MULTI-2", "Objects/both.c", 0, "pyerr-clear", "clean_dealloc", "a"),
+                (
+                    "MULTI-2",
+                    "Objects/other.c",
+                    0,
+                    "pyerr-clear",
+                    "present_dealloc",
+                    "b",
+                ),
+            ],
+        )
+        self.assertEqual(report["bug_rollup"]["MULTI-2"], "present")
+
+    def test_absent_in_function_beats_plain_absent_in_the_rollup(self):
+        report = self._run(
+            {
+                "Objects/both.c": _PRESENT_DEALLOC + "\n" + _CLEAN_DEALLOC,
+                "Objects/clean.c": _CLEAN_DEALLOC,
+            },
+            [
+                ("MULTI-3", "Objects/both.c", 0, "pyerr-clear", "clean_dealloc", "a"),
+                ("MULTI-3", "Objects/clean.c", 0, "pyerr-clear", "clean_dealloc", "b"),
+            ],
+        )
+        self.assertEqual(report["bug_rollup"]["MULTI-3"], "absent_in_function")
+
+    def test_status_counts_carry_the_new_bucket(self):
+        report = self._run(
+            {"Objects/both.c": _PRESENT_DEALLOC + "\n" + _CLEAN_DEALLOC},
+            [("AIF-4", "Objects/both.c", 0, "pyerr-clear", "clean_dealloc", "x")],
+        )
+        counts = report["catalog_summary"]["status_counts"]
+        self.assertIn("absent_in_function", counts)
+        self.assertEqual(counts["absent_in_function"], 1)
+        self.assertEqual(report["summary"]["absent_in_function"], 1)
+        self.assertTrue(
+            any("absent_in_function" in n for n in report["notes"]),
+            report["notes"],
+        )
+
     # --- file_missing ------------------------------------------------------
 
     def test_file_missing_when_path_absent(self):

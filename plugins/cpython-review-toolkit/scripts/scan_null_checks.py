@@ -1,8 +1,28 @@
 #!/usr/bin/env python3
 """Scan CPython C source for NULL pointer dereference risks.
 
-Detects dereferences before NULL checks, unchecked allocations,
-and PyArg_Parse* issues.
+Three rules, all reported with exact `file:line` coordinates:
+
+``unchecked_alloc``
+    A fallible allocation / ``PyObject *``-returning API result that is never
+    NULL-checked *and* is then used in a way that dereferences it (``->``,
+    subscript, a ``Py_TYPE``/``Py_SIZE``/``Py*_GET_ITEM``-style unsafe macro,
+    or ``Py_INCREF``/``Py_DECREF``).  A result that is merely returned,
+    ``Py_XDECREF``-ed or fed to ``Py_SETREF``/``Py_CLEAR`` is *not* reported:
+    NULL propagation is the error-handling contract in CPython.
+
+``deref_before_check``
+    Same, except the NULL check does exist but the dereference reaches it
+    first.  Gated on a dominator approximation: the dereference must sit at the
+    same brace depth as the assignment, with no shallower point in between, so
+    it is genuinely reached rather than merely textually earlier.
+
+``decref_of_nulled_outparam``
+    ``Py_DECREF(x)`` inside the failure branch of an API that NULLs its
+    ``PyObject **`` out-parameter on every failure path (``_PyTuple_Resize`` and
+    friends, plus auto-discovered local wrappers such as ``tuple_extend``).
+    Guaranteed ``Py_DECREF(NULL)`` -> SIGSEGV.  This is the shape behind
+    ``Objects/genericaliasobject.c:302``.
 
 Usage:
     python scan_null_checks.py [path]
@@ -14,7 +34,7 @@ import json
 import re
 import sys
 from pathlib import Path
-from typing import Generator
+from typing import Generator, Iterable
 
 
 # ---------------------------------------------------------------------------
@@ -63,11 +83,27 @@ def discover_c_files(
             return
 
 
+def _blank_keep_newlines(m: re.Match) -> str:
+    """Replace a match with a space plus its own newlines.
+
+    Preserving the newline count is what keeps every reported line number
+    correct: a block comment must not shift the code that follows it.
+    """
+    return " " + "\n" * m.group(0).count("\n")
+
+
 def strip_comments_and_strings(source: str) -> str:
-    source = re.sub(r'/\*.*?\*/', ' ', source, flags=re.DOTALL)
-    source = re.sub(r'//[^\n]*', ' ', source)
-    source = re.sub(r'"(?:[^"\\]|\\.)*"', '""', source)
-    source = re.sub(r"'(?:[^'\\]|\\.)*'", "''", source)
+    """Blank out comments and literals *without* changing any line number.
+
+    Every substitution below is newline-preserving, so ``strip(source)`` has
+    exactly as many lines as ``source`` and offsets map 1:1.  String and char
+    literals are matched with newline excluded from the body so that a stray
+    quote (``c == '"'``) can never make the regex swallow the rest of the file.
+    """
+    source = re.sub(r"/\*.*?\*/", _blank_keep_newlines, source, flags=re.DOTALL)
+    source = re.sub(r"//[^\n]*", " ", source)
+    source = re.sub(r'"(?:[^"\\\n]|\\.)*"', '""', source)
+    source = re.sub(r"'(?:[^'\\\n]|\\.)*'", "''", source)
     return source
 
 
@@ -101,29 +137,95 @@ PYOBJ_APIS = frozenset({
     "PyImport_ImportModule",
 })
 
+# APIs that write through a ``PyObject **`` out-parameter and set it to NULL on
+# *every* failure path.  A Py_DECREF of that variable in the failure branch is
+# therefore a guaranteed Py_DECREF(NULL).  Local wrappers (e.g. ``tuple_extend``
+# in Objects/genericaliasobject.c) are discovered automatically; this is only
+# the seed set.
+NULLING_OUTPARAM_APIS = frozenset({
+    "_PyTuple_Resize",
+    "_PyBytes_Resize",
+    "PyUnicode_Resize",
+    "_PyUnicode_Resize",
+})
+
 
 # ---------------------------------------------------------------------------
 # Function detection
 # ---------------------------------------------------------------------------
 
+# A CPython definition may spread its parameter list over several lines:
+#     static PyObject *
+#     subs_tvars(PyObject *obj, PyObject *params,
+#                PyObject **argitems, Py_ssize_t nargs)
+#     {
+_MAX_SIG_LINES = 8
+
+_C_KEYWORDS = frozenset({
+    "if", "for", "while", "switch", "do", "else", "sizeof", "return",
+    "typedef", "struct", "union", "enum", "defined", "case", "default",
+})
+
+
+def _parse_signature(lines: list[str], brace_idx: int) -> dict | None:
+    """Walk back from a column-0 ``{`` and recover the function signature."""
+    collected: list[str] = []
+    for j in range(brace_idx - 1, max(-1, brace_idx - 1 - _MAX_SIG_LINES), -1):
+        line = lines[j]
+        if ";" in line or "}" in line:
+            return None
+        collected.insert(0, line.strip())
+        text = " ".join(collected).strip()
+        if not text.endswith(")"):
+            continue
+        if text.count("(") == 0 or text.count("(") != text.count(")"):
+            continue
+        open_paren = text.index("(")
+        head = text[:open_paren]
+        if "=" in head:
+            return None
+        m = re.search(r"(\w+)\s*$", head)
+        if m is None:
+            return None
+        name = m.group(1)
+        if name in _C_KEYWORDS:
+            return None
+        sig_start = j
+        # A bare return type on its own line above the name.
+        if sig_start > 0 and re.match(
+            r"^[\w\s\*]+$", lines[sig_start - 1].strip()
+        ):
+            sig_start -= 1
+        return {
+            "name": name,
+            "params": text[open_paren + 1:text.rindex(")")],
+            "sig_start": sig_start,
+        }
+    return None
+
+
 def find_functions(source: str) -> list[dict]:
-    lines = source.split('\n')
+    """Locate top-level function definitions.
+
+    ``source`` should already have been passed through
+    :func:`strip_comments_and_strings` so that brace counting is not confused
+    by braces inside comments or string literals.  Because that transform is
+    newline-preserving, every line number recorded here is a real line number
+    in the original file.
+
+    Each entry records ``body_line``: the 1-based line of the first line of the
+    body.  ``line = body_line + line_offset - 1`` is the only correct way to
+    turn an in-body offset into a file line.
+    """
+    lines = source.split("\n")
     functions: list[dict] = []
     for i, line in enumerate(lines):
-        if not line.startswith('{'):
+        if not line.startswith("{"):
             continue
         if i < 1:
             continue
-        prev = lines[i - 1].strip()
-        m = re.match(r'^(\w+)\s*\(([^)]*)\)\s*$', prev)
-        if not m:
-            m = re.match(r'^(?:\w[\w\s\*]*?)\s+(\w+)\s*\(([^)]*)\)\s*$', prev)
-        if not m:
-            continue
-        func_name = m.group(1)
-        if func_name in ('if', 'for', 'while', 'switch', 'do', 'else',
-                         'sizeof', 'return', 'typedef', 'struct', 'union',
-                         'enum', 'defined'):
+        sig = _parse_signature(lines, i)
+        if sig is None:
             continue
 
         depth = 1
@@ -131,9 +233,9 @@ def find_functions(source: str) -> list[dict]:
         body_end = body_start
         for j in range(body_start, len(lines)):
             for ch in lines[j]:
-                if ch == '{':
+                if ch == "{":
                     depth += 1
-                elif ch == '}':
+                elif ch == "}":
                     depth -= 1
                     if depth == 0:
                         body_end = j
@@ -141,17 +243,13 @@ def find_functions(source: str) -> list[dict]:
             if depth == 0:
                 break
 
-        body = '\n'.join(lines[body_start:body_end])
-        sig_start = i - 1
-        if sig_start > 0 and re.match(
-            r'^[\w\s\*]+$', lines[sig_start - 1].strip()
-        ):
-            sig_start -= 1
-
         functions.append({
-            "name": func_name,
-            "body": body,
-            "start_line": sig_start + 1,
+            "name": sig["name"],
+            "params": sig["params"],
+            "body": "\n".join(lines[body_start:body_end]),
+            # 1-based line number of the first body line.
+            "body_line": body_start + 1,
+            "start_line": sig["sig_start"] + 1,
             "end_line": body_end + 1,
         })
     return functions
@@ -161,83 +259,512 @@ def find_functions(source: str) -> list[dict]:
 # NULL safety analysis
 # ---------------------------------------------------------------------------
 
+_LVALUE = r"(?:[A-Za-z_]\w*\s*(?:->|\.)\s*)*[A-Za-z_]\w*"
+
 _ALL_ALLOC_RE = re.compile(
-    r'(\w+)\s*=\s*(?:\([^)]*\)\s*)?(' + '|'.join(
+    r"(?P<lval>" + _LVALUE + r")"
+    r"\s*(?<![=!<>+\-*/%&|^])=(?!=)\s*"
+    r"(?:\([^()]*\)\s*)?"
+    r"(?P<api>" + "|".join(
         re.escape(api) for api in sorted(
             ALLOC_APIS | PYOBJ_APIS, key=len, reverse=True,
         )
-    ) + r')\s*\('
+    ) + r")\s*\("
 )
 
+_EXTRA_TARGET_RE = re.compile(
+    r"(" + _LVALUE + r")\s*(?<![=!<>+\-*/%&|^])=(?!=)"
+)
+
+# How many lines after the assignment to look for the NULL check / the use.
+# A line window, not a byte window: a single CPython error branch routinely
+# exceeds 300 bytes, which used to hide checks that were plainly present.
+_WINDOW_LINES = 12
+
+# Ways of establishing that the value cannot be NULL from here on, or that
+# NULL is handled.  ``{var}`` is substituted with a regex for the full lvalue.
 _NULL_CHECK_TEMPLATE = (
-    r'if\s*\(\s*{var}\s*==\s*NULL\s*\)|'
-    r'if\s*\(\s*!\s*{var}\s*\)|'
-    r'if\s*\(\s*{var}\s*!=\s*NULL\s*\)'
+    # The cast is CPython's `if (list == (PyObject*)NULL)` spelling.
+    r"{var}\s*==\s*(?:\([^()]*\)\s*)?NULL|"
+    r"{var}\s*!=\s*(?:\([^()]*\)\s*)?NULL|"
+    r"NULL\s*==\s*{var}|"
+    r"NULL\s*!=\s*{var}|"
+    r"!\s*{var}\s*[)&|]|"
+    r"if\s*\(\s*{var}\s*\)|"
+    r"while\s*\(\s*{var}\s*\)|"
+    r"assert\s*\(\s*{var}\b"
 )
 
-_DEREF_RE = re.compile(r'(\w+)\s*->')
-_PTR_DEREF_RE = re.compile(r'\*\s*(\w+)')
+# Unsafe macros/uses that dereference their operand without a NULL check.
+# Uses that are *not* here -- `return var;`, `Py_XDECREF(var)`,
+# `Py_SETREF(x, var)`, `Py_CLEAR(var)`, passing var to a NULL-tolerant callee --
+# are deliberately absent: NULL propagation is CPython's error-reporting
+# contract, and those uses are the documented FP classes (9 of the 21
+# false positives in the `Objects/` sample were "result returned directly").
+# Deliberately *not* including ``*var``: in C that spelling is far more often a
+# declaration (``PyObject *tup = ...``) or a ``sizeof *var`` inside the
+# allocation's own argument list than a real dereference.
+_DEREF_TEMPLATE = (
+    r"{var}\s*->|"
+    r"{var}\s*\[|"
+    r"Py_TYPE\s*\(\s*{var}\s*\)|"
+    r"Py_SIZE\s*\(\s*{var}\s*\)|"
+    r"Py_REFCNT\s*\(\s*{var}\s*\)|"
+    r"Py_SET_(?:TYPE|SIZE|REFCNT)\s*\(\s*{var}\b|"
+    r"Py_INCREF\s*\(\s*{var}\s*\)|"
+    r"Py_DECREF\s*\(\s*{var}\s*\)|"
+    r"Py(?:Tuple|List|Bytes|ByteArray|Unicode|Dict|Set|Frame|Function|Cell|"
+    r"Method|Slice|Weakref)_[A-Z][A-Za-z_]*\s*\(\s*{var}\s*[,)]"
+)
+
+
+def _lvalue_regex(lval: str) -> str:
+    """Build a regex that matches ``lval`` tolerating whitespace in ``->``/``.``."""
+    lval = lval.strip()
+    prefix = ""
+    if lval.startswith("*"):
+        prefix = r"\*\s*"
+        lval = lval[1:].strip()
+    out: list[str] = []
+    for tok in re.split(r"(->|\.)", lval):
+        tok = tok.strip()
+        if tok in ("->", "."):
+            out.append(r"\s*" + re.escape(tok) + r"\s*")
+        elif tok:
+            out.append(re.escape(tok))
+    return prefix + r"\b" + "".join(out)
+
+
+def _norm_lvalue(text: str) -> str:
+    return re.sub(r"\s+", "", text)
+
+
+def _statement_start(body: str, pos: int) -> int:
+    """Index just after the nearest preceding statement/block boundary."""
+    return max(
+        body.rfind(";", 0, pos),
+        body.rfind("{", 0, pos),
+        body.rfind("}", 0, pos),
+        -1,
+    ) + 1
+
+
+_CONTROL_KEYWORD_RE = re.compile(r"\b(?:if|while|for|switch)\s*$")
+
+_ENCLOSING_SCAN_LIMIT = 600
+
+
+def _matching_paren(text: str, open_idx: int) -> int:
+    """Index of the ``)`` matching the ``(`` at ``open_idx``, or -1."""
+    depth = 0
+    for i in range(open_idx, len(text)):
+        if text[i] == "(":
+            depth += 1
+        elif text[i] == ")":
+            depth -= 1
+            if depth == 0:
+                return i
+    return -1
+
+
+def _enclosing_paren(body: str, pos: int) -> int:
+    """Index of the innermost unclosed ``(`` to the left of ``pos``."""
+    depth = 0
+    start = max(0, pos - _ENCLOSING_SCAN_LIMIT)
+    for i in range(pos - 1, start - 1, -1):
+        c = body[i]
+        if c == ")":
+            depth += 1
+        elif c == "(":
+            if depth == 0:
+                return i
+            depth -= 1
+        elif c in "{}" and depth == 0:
+            return -1
+    return -1
+
+
+def _in_control_condition(body: str, match_start: int) -> bool:
+    """True when the assignment sits inside an if/while/for controlling test.
+
+    ``while ((pair = PyIter_Next(it)) != NULL)`` self-discharges: the NULL test
+    *is* the loop condition.  Walking the enclosing parentheses outward (rather
+    than scanning the line, or the statement) catches the three real spellings:
+    a nested group (``if (n > 0 && ((iovs = PyMem_New(...)) == NULL || ...))``),
+    a condition split over several lines, and the third clause of a ``for``
+    header, where the nearest ``;`` is *inside* the parentheses.
+    """
+    pos = match_start
+    for _ in range(6):
+        paren = _enclosing_paren(body, pos)
+        if paren == -1:
+            return False
+        if _CONTROL_KEYWORD_RE.search(body[max(0, paren - 24):paren]):
+            return True
+        pos = paren
+    return False
+
+
+def _window(body: str, start: int) -> str:
+    """``_WINDOW_LINES`` lines of body text starting at ``start``."""
+    end = start
+    for _ in range(_WINDOW_LINES + 1):
+        nxt = body.find("\n", end)
+        if nxt == -1:
+            return body[start:]
+        end = nxt + 1
+    return body[start:end]
+
+
+def _assignment_targets(body: str, m: re.Match) -> list[str]:
+    """All lvalues the call's result lands in, innermost first.
+
+    Handles chained assignment: ``args = tuple_args = PySequence_Tuple(args);``
+    assigns to both, and the NULL check may be written against either.  Also
+    recognises a write *through* a pointer (``*result = PyObject_GetItem(...)``,
+    the out-parameter idiom), whose NULL check is spelled ``if (*result)``.
+    """
+    lval = m.group("lval").strip()
+    prefix = body[_statement_start(body, m.start()):m.start()]
+    if prefix.strip() == "*":
+        lval = "*" + lval
+    targets = [lval]
+    for extra in _EXTRA_TARGET_RE.finditer(prefix):
+        cand = extra.group(1).strip()
+        if _norm_lvalue(cand) not in {_norm_lvalue(t) for t in targets}:
+            targets.append(cand)
+    return targets
+
+
+def _truncate_at_reassignment(window: str, targets: list[str]) -> str:
+    """Cut ``window`` at the first re-assignment of any tracked lvalue."""
+    cut = len(window)
+    for target in targets:
+        rea = re.search(
+            _lvalue_regex(target) + r"\s*(?<![=!<>+\-*/%&|^])=(?!=)", window
+        )
+        if rea is not None:
+            cut = min(cut, rea.start())
+    return window[:cut]
+
+
+def _depth_profile(text: str) -> list[int]:
+    """Brace depth *before* each character of ``text``."""
+    depths = []
+    depth = 0
+    for ch in text:
+        depths.append(depth)
+        if ch == "{":
+            depth += 1
+        elif ch == "}":
+            depth -= 1
+    depths.append(depth)
+    return depths
+
+
+_BRACELESS_KEYWORD_RE = re.compile(r"\b(?:if|else|while|for|switch|do)\b")
+_ALT_PATH_RE = re.compile(r"\b(?:goto|return|case|default)\b")
+
+
+def _dominates(body: str, depths: list[int], start: int, end: int) -> bool:
+    """True when ``end`` is on the straight-line path from ``start``.
+
+    Two conditions, both needed:
+
+    1. Same brace depth, with no point in between dropping below it.  That
+       rules out a use nested inside a conditional opened after the assignment
+       and a use after the assignment's own block closed.
+    2. No *brace-less* control flow at that depth in between.  CPython writes
+       ``if (!PyTuple_CheckExact(fnargs)) fnargs = PySequence_Tuple(fnargs);
+       else Py_INCREF(fnargs);`` -- both arms sit at the same brace depth, so
+       depth alone would wrongly call the ``else`` arm dominated.  A structured
+       ``if (...) { ... }`` whose braces balance out is fine and is allowed
+       through.
+    """
+    base = depths[start]
+    if depths[end] != base:
+        return False
+    if min(depths[start:end + 1]) < base:
+        return False
+    between = body[start:end]
+    offset = start
+    for m in _BRACELESS_KEYWORD_RE.finditer(between):
+        pos = offset + m.start()
+        if depths[pos] != base:
+            continue
+        if m.group(0) in ("else", "do"):
+            return False
+        paren = body.find("(", pos)
+        if paren == -1 or paren > end:
+            return False
+        close = _matching_paren(body, paren)
+        if close == -1:
+            return False
+        nxt = close + 1
+        while nxt < len(body) and body[nxt] in " \t\n":
+            nxt += 1
+        if nxt >= len(body) or body[nxt] != "{":
+            return False
+    for m in _ALT_PATH_RE.finditer(between):
+        if depths[offset + m.start()] == base:
+            return False
+    return True
 
 
 def analyze_function_null_safety(func: dict) -> list[dict]:
-    """Analyze NULL safety in a single function."""
-    body = func["body"]
-    clean = strip_comments_and_strings(body)
-    findings: list[dict] = []
+    """Analyze NULL safety in a single function.
 
-    # 1. Unchecked allocations.
-    for m in _ALL_ALLOC_RE.finditer(clean):
-        var = m.group(1)
-        api = m.group(2)
-        line_offset = clean[:m.start()].count('\n') + 1
-        after = clean[m.end():m.end() + 500]
-        check_re = re.compile(
-            _NULL_CHECK_TEMPLATE.format(var=re.escape(var))
+    ``func["body"]`` must already be comment/string-stripped; offsets in it map
+    1:1 onto lines of the original file.
+    """
+    body = func["body"]
+    findings: list[dict] = []
+    depths = _depth_profile(body)
+
+    for m in _ALL_ALLOC_RE.finditer(body):
+        api = m.group("api")
+        targets = _assignment_targets(body, m)
+        primary = targets[0]
+        line_offset = body[:m.start()].count("\n") + 1
+
+        if _in_control_condition(body, m.start()):
+            continue
+
+        # The window starts after the call's own argument list: `sizeof *x`
+        # inside `x = PyMem_Malloc(sizeof *x)` is not a use of the result.
+        call_end = _matching_paren(body, m.end() - 1)
+        window_start = m.end() if call_end == -1 else call_end + 1
+        window = _window(body, window_start)
+        # Stop at a re-assignment of the value: a NULL check past that point
+        # belongs to the *next* value, not this one.
+        window = _truncate_at_reassignment(window, targets)
+
+        checked_at = None
+        for target in targets:
+            var_re = _lvalue_regex(target)
+            check = re.search(_NULL_CHECK_TEMPLATE.format(var=var_re), window)
+            if check is not None and (
+                checked_at is None or check.start() < checked_at
+            ):
+                checked_at = check.start()
+
+        deref = re.search(
+            _DEREF_TEMPLATE.format(var=_lvalue_regex(primary)), window
         )
-        if not check_re.search(after[:300]):
-            # Check if variable is dereferenced before check.
-            deref = re.search(rf'\b{re.escape(var)}\s*->', after[:200])
-            confidence = "high" if deref else "medium"
+
+        if deref is None:
+            # Never dereferenced in the window: NULL just propagates, which is
+            # how CPython reports errors.  Not a finding.
+            continue
+
+        # The dereference must be genuinely reached from the assignment, not
+        # merely textually later -- otherwise the sibling arm of an
+        # `if (...) x = alloc(); else Py_INCREF(x);` reads as a dereference.
+        deref_abs = window_start + deref.start()
+        if not _dominates(body, depths, m.start(), deref_abs):
+            continue
+
+        if checked_at is None:
             findings.append({
                 "type": "unchecked_alloc",
                 "api_call": api,
-                "variable": var,
+                "variable": primary,
                 "line_offset": line_offset,
                 "detail": (
-                    f"Allocation via {api} assigned to '{var}' "
-                    f"is not checked for NULL"
-                    + (" and is dereferenced" if deref else "")
+                    f"Result of {api} assigned to '{primary}' is never checked "
+                    f"for NULL and is dereferenced "
+                    f"({deref.group(0).strip()})"
                 ),
-                "confidence": confidence,
+                "confidence": "medium",
             })
+            continue
 
-    # 2. Dereference before NULL check.
-    # Find all pointer dereferences and check if NULL was tested before.
-    lines = clean.split('\n')
-    ptr_vars_checked: set[str] = set()
-    for i, line in enumerate(lines):
-        # Track NULL checks.
-        null_m = re.search(
-            r'if\s*\(\s*(\w+)\s*==\s*NULL\s*\)|'
-            r'if\s*\(\s*!\s*(\w+)\s*\)|'
-            r'if\s*\(\s*(\w+)\s*!=\s*NULL\s*\)',
-            line,
-        )
-        if null_m:
-            var = null_m.group(1) or null_m.group(2) or null_m.group(3)
-            ptr_vars_checked.add(var)
+        if deref.start() >= checked_at:
+            continue
 
-        # Check dereferences.
-        for dm in _DEREF_RE.finditer(line):
-            var = dm.group(1)
-            # Skip well-known safe pointers.
-            if var in ('self', 'type', 'tp', 'op', 'module',
-                       'Py_TYPE', 'ob_type'):
+        findings.append({
+            "type": "deref_before_check",
+            "api_call": api,
+            "variable": primary,
+            "line_offset": body[:deref_abs].count("\n") + 1,
+            "detail": (
+                f"'{primary}' (from {api}) is dereferenced "
+                f"({deref.group(0).strip()}) before the NULL check that "
+                f"follows it"
+            ),
+            "confidence": "high",
+        })
+
+    return findings
+
+
+# ---------------------------------------------------------------------------
+# Rule 3: Py_DECREF of an out-parameter the callee already NULLed
+# ---------------------------------------------------------------------------
+
+_WRAPPER_DEF_RE = re.compile(
+    r"^(?:[A-Za-z_][\w \t\*]*?[\s\*])?(\w+)\s*\(([^;{]*?)\)\s*\n\{",
+    re.MULTILINE,
+)
+
+_OUTPARAM_RE = re.compile(r"PyObject\s*\*\s*\*\s*(\w+)")
+
+# ``r < 0`` / ``r == -1`` / ``r != 0`` -- the CPython int failure sentinels.
+_FAILURE_TEST = r"(?:<\s*0|==\s*-\s*1|!=\s*0)"
+
+_DECREF_RE_TEMPLATE = r"\bPy_DECREF\s*\(\s*{var}\s*\)"
+
+
+def discover_outparam_wrappers(
+    sources: Iterable[tuple[str, str]],
+) -> dict[str, str]:
+    """Find local functions that forward a ``PyObject **`` to a NULLing API.
+
+    ``Objects/genericaliasobject.c:tuple_extend`` is the motivating case: it
+    takes ``PyObject **dst`` and hands it straight to ``_PyTuple_Resize``, so it
+    inherits the "out-param is NULL on failure" contract.
+    """
+    seed_re = re.compile(
+        r"\b(" + "|".join(re.escape(a) for a in sorted(NULLING_OUTPARAM_APIS))
+        + r")\s*\(\s*(\w+)\s*[,)]"
+    )
+    wrappers: dict[str, str] = {}
+    for rel, source in sources:
+        for m in _WRAPPER_DEF_RE.finditer(source):
+            name, params = m.group(1), m.group(2)
+            outparams = _OUTPARAM_RE.findall(params)
+            if not outparams:
                 continue
-            # If this var is assigned from an allocation and not yet
-            # checked, flag it.
-            # This is a simplified heuristic.
+            body = source[m.end():m.end() + 2500]
+            for sm in seed_re.finditer(body):
+                if sm.group(2) in outparams:
+                    wrappers[name] = rel
+                    break
+    return wrappers
 
+
+def _controlled_block(text: str, close_paren: int) -> tuple[int, int] | None:
+    """Span of the statement/block controlled by a condition ending at ``)``."""
+    i = close_paren + 1
+    while i < len(text) and text[i] in " \t\n":
+        i += 1
+    if i >= len(text):
+        return None
+    if text[i] != "{":
+        end = text.find(";", i)
+        return (i, len(text) if end == -1 else end + 1)
+    depth = 0
+    for j in range(i, len(text)):
+        if text[j] == "{":
+            depth += 1
+        elif text[j] == "}":
+            depth -= 1
+            if depth == 0:
+                return (i, j + 1)
+    return None
+
+
+def _failure_branch(
+    body: str, call_start: int, call_open: int,
+) -> tuple[int, int] | None:
+    """Locate the failure branch guarding an out-param call.
+
+    Form A -- the call is the ``if`` condition::
+
+        if (_PyTuple_Resize(&keys, k) == -1) { ... }
+
+    Form B -- the result is assigned, then tested::
+
+        j = tuple_extend(&subargs, j, ...);
+        if (j < 0) { ... }
+
+    Only the *failure* arm counts.  ``if (!API(&x, ...))`` selects the success
+    arm and is rejected, as is any comparison that is not one of CPython's
+    int failure sentinels.
+    """
+    stmt_start = _statement_start(body, call_start)
+    stmt_prefix = body[stmt_start:call_start]
+    call_close = _matching_paren(body, call_open)
+    if call_close == -1:
+        return None
+
+    # Form A: an unbalanced "if (" before the call on this statement.
+    if stmt_prefix.count("(") > stmt_prefix.count(")"):
+        if_m = None
+        for cand in re.finditer(r"\b(?:if|while)\s*\(", stmt_prefix):
+            if_m = cand
+        if if_m is None:
+            return None
+        open_idx = stmt_start + if_m.end() - 1
+        close_idx = _matching_paren(body, open_idx)
+        if close_idx == -1 or call_close > close_idx:
+            return None
+        if body[open_idx + 1:call_start].rstrip().endswith("!"):
+            return None
+        tail = body[call_close + 1:close_idx]
+        if tail.strip() and not re.search(_FAILURE_TEST, tail):
+            return None
+        return _controlled_block(body, close_idx)
+
+    # Form B: "lhs = call(...);" followed by a test of lhs.
+    m = re.match(r"\s*(\w+)\s*(?<![=!<>+\-*/%&|^])=(?!=)\s*$", stmt_prefix)
+    if m is None:
+        return None
+    lhs = m.group(1)
+    semi = body.find(";", call_close)
+    if semi == -1:
+        return None
+    nxt = re.compile(
+        r"\s*if\s*\(\s*" + re.escape(lhs) + r"\s*" + _FAILURE_TEST
+    ).match(body, semi + 1)
+    if nxt is None:
+        return None
+    open_idx = body.index("(", semi + 1)
+    close_idx = _matching_paren(body, open_idx)
+    if close_idx == -1:
+        return None
+    return _controlled_block(body, close_idx)
+
+
+def analyze_function_outparams(func: dict, apis: Iterable[str]) -> list[dict]:
+    """Find ``Py_DECREF`` of a variable the callee provably NULLed."""
+    body = func["body"]
+    findings: list[dict] = []
+    api_list = sorted(apis, key=len, reverse=True)
+    if not api_list:
+        return findings
+    call_re = re.compile(
+        r"\b(" + "|".join(re.escape(a) for a in api_list)
+        + r")\s*(\()\s*&\s*(" + _LVALUE + r")"
+    )
+    for m in call_re.finditer(body):
+        api, var = m.group(1), m.group(3).strip()
+        branch = _failure_branch(body, m.start(), m.start(2))
+        if branch is None:
+            continue
+        start, end = branch
+        block = body[start:end]
+        dm = re.search(
+            _DECREF_RE_TEMPLATE.format(var=_lvalue_regex(var)), block
+        )
+        if dm is None:
+            continue
+        abs_pos = start + dm.start()
+        findings.append({
+            "type": "decref_of_nulled_outparam",
+            "api_call": api,
+            "variable": var,
+            "line_offset": body[:abs_pos].count("\n") + 1,
+            "detail": (
+                f"Py_DECREF({var}) runs in the failure branch of "
+                f"{api}(&{var}, ...), which NULLs its out-parameter on every "
+                f"failure path -- this is a guaranteed Py_DECREF(NULL). "
+                f"The correct forms in-tree assert it instead "
+                f"(Objects/structseq.c:523, "
+                f"Objects/genericaliasobject.c:555)."
+            ),
+            "confidence": "high",
+        })
     return findings
 
 
@@ -251,40 +778,60 @@ def analyze(target: str, *, max_files: int = 0) -> dict:
     project_root = find_cpython_root(target_path)
     if project_root is None:
         project_root = target_path if target_path.is_dir() else target_path.parent
-    scan_root = target_path if target_path.is_dir() else target_path.parent
+    # scan_root is the target itself: discover_c_files() yields just that file
+    # for a file root. Using .parent here silently widened a single-file scan
+    # to the entire directory.
+    scan_root = target_path
 
-    all_findings: list[dict] = []
-    functions_analyzed = 0
-    files_analyzed = 0
-
+    # Read and strip each file exactly once.
+    sources: list[tuple[str, str]] = []
     for filepath in discover_c_files(scan_root, max_files=max_files):
-        files_analyzed += 1
         try:
             source = filepath.read_text(encoding="utf-8", errors="replace")
         except OSError:
             continue
+        try:
+            rel = str(filepath.relative_to(project_root))
+        except ValueError:
+            rel = str(filepath)
+        sources.append((rel, strip_comments_and_strings(source)))
 
-        rel = str(filepath.relative_to(project_root))
-        functions = find_functions(source)
-        for func in functions:
+    wrappers = discover_outparam_wrappers(sources)
+    outparam_apis = set(NULLING_OUTPARAM_APIS) | set(wrappers)
+
+    all_findings: list[dict] = []
+    functions_analyzed = 0
+
+    for rel, source in sources:
+        for func in find_functions(source):
             functions_analyzed += 1
             func_findings = analyze_function_null_safety(func)
+            func_findings += analyze_function_outparams(func, outparam_apis)
             for finding in func_findings:
                 finding["file"] = rel
                 finding["function"] = func["name"]
-                finding["line"] = func["start_line"] + finding.pop("line_offset")
+                finding["line"] = (
+                    func["body_line"] + finding.pop("line_offset") - 1
+                )
                 all_findings.append(finding)
 
-    unchecked = [f for f in all_findings if f["type"] == "unchecked_alloc"]
+    by_type: dict[str, int] = {}
+    for f in all_findings:
+        by_type[f["type"]] = by_type.get(f["type"], 0) + 1
 
     return {
         "project_root": str(project_root),
         "scan_root": str(scan_root),
-        "files_analyzed": files_analyzed,
+        "files_analyzed": len(sources),
         "functions_analyzed": functions_analyzed,
+        "outparam_wrappers": sorted(wrappers),
         "findings": all_findings,
         "summary": {
-            "unchecked_allocations": len(unchecked),
+            "unchecked_allocations": by_type.get("unchecked_alloc", 0),
+            "deref_before_check": by_type.get("deref_before_check", 0),
+            "decref_of_nulled_outparam": by_type.get(
+                "decref_of_nulled_outparam", 0
+            ),
             "total_findings": len(all_findings),
             "high_confidence": len(
                 [f for f in all_findings if f.get("confidence") == "high"]

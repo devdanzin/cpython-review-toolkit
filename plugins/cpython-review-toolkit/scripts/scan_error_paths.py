@@ -1,8 +1,31 @@
 #!/usr/bin/env python3
 """Scan CPython C source for error handling bugs.
 
-Detects missing NULL checks after API calls, return NULL without
-PyErr_Set*, error path cleanup issues, and inconsistent error returns.
+Rules emitted (``findings[].type``):
+
+``missing_null_check``
+    A fallible API result is dereferenced before any NULL test.
+``unchecked_return``
+    A fallible API result is neither checked nor returned unmodified.
+``alloc_null_no_memerror``
+    A *raw* allocator (``PyMem_Malloc``, ``malloc``, ... — allocators that do
+    **not** set ``MemoryError`` themselves) fails and the guarded branch
+    returns an error sentinel without calling ``PyErr_NoMemory()`` or any
+    other ``PyErr_Set*``.  Replaces the old, unusably broad
+    ``return_null_no_exception`` rule.
+``unconditional_pyerr_clear``
+    ``PyErr_Clear()`` with no ``PyErr_ExceptionMatches`` / save-restore call
+    within the preceding few lines: the clear swallows *whatever* exception is
+    live, including ``KeyboardInterrupt`` and ``MemoryError``.  Destructor-family
+    functions are deliberately skipped — those belong to ``scan_pyerr_clear.py``.
+``unchecked_parse``
+    ``PyArg_ParseTuple*`` result not tested.
+
+Two rules were retired.  ``return_null_no_exception`` was replaced by
+``alloc_null_no_memerror`` (see above).  ``sparse_error_cleanup`` scored 0/6 on
+``Objects/`` and 0/4 after gating — the CPython idiom releases each owned
+reference *before* its ``goto``, leaving nothing at the label, so the rule
+cannot tell correct code from incomplete cleanup.
 
 Usage:
     python scan_error_paths.py [path]
@@ -64,7 +87,17 @@ def discover_c_files(
 
 
 def strip_comments_and_strings(source: str) -> str:
-    source = re.sub(r'/\*.*?\*/', ' ', source, flags=re.DOTALL)
+    """Blank out comments and string literals, preserving line structure.
+
+    Every newline inside a ``/* ... */`` block is preserved so that offsets
+    computed on the stripped text still map onto the original line numbers.
+    """
+    source = re.sub(
+        r'/\*.*?\*/',
+        lambda m: " " + "\n" * m.group(0).count("\n"),
+        source,
+        flags=re.DOTALL,
+    )
     source = re.sub(r'//[^\n]*', ' ', source)
     source = re.sub(r'"(?:[^"\\]|\\.)*"', '""', source)
     source = re.sub(r"'(?:[^'\\]|\\.)*'", "''", source)
@@ -108,6 +141,37 @@ PYERR_SET_APIS = frozenset({
     "PyErr_BadInternalCall", "PyErr_SetFromErrno",
     "PyErr_SetFromErrnoWithFilename",
     "PyErr_SetFromWindowsErr",
+    "PyErr_SetRaisedException", "PyErr_Restore",
+    "_PyErr_SetString", "_PyErr_Format", "_PyErr_SetObject",
+    "_PyErr_NoMemory", "_PyErr_SetRaisedException",
+})
+
+
+# ---------------------------------------------------------------------------
+# Allocators
+# ---------------------------------------------------------------------------
+#
+# RAW_ALLOCATORS return NULL *without* setting MemoryError; the caller owes an
+# explicit PyErr_NoMemory().  Note that PyMem_New / PyMem_Resize are plain
+# macros over PyMem_Malloc / PyMem_Realloc (Include/pymem.h:63,73) and so
+# belong here, not in the exempt set.
+RAW_ALLOCATORS = frozenset({
+    "PyMem_Malloc", "PyMem_Calloc", "PyMem_Realloc",
+    "PyMem_RawMalloc", "PyMem_RawCalloc", "PyMem_RawRealloc",
+    "PyMem_New",
+    "PyObject_Malloc", "PyObject_Calloc", "PyObject_Realloc",
+    "malloc", "calloc", "realloc", "strdup",
+})
+
+# Allocators that set MemoryError themselves — never flagged by
+# alloc_null_no_memerror.  Kept as documentation for triage and for the
+# taxonomy entry in data/cpython_non_bugs.md.
+EXCEPTION_SETTING_ALLOCATORS = frozenset({
+    "PyObject_New", "PyObject_NewVar", "PyObject_GC_New", "PyObject_GC_NewVar",
+    "_PyObject_New", "_PyObject_NewVar", "_PyObject_GC_New",
+    "_PyObject_GC_NewVar", "PyType_GenericAlloc", "_PyType_AllocNoTrack",
+    "PyList_New", "PyTuple_New", "PyDict_New", "PyByteArray_FromObject",
+    "PyBytes_FromStringAndSize", "PyUnicode_New",
 })
 
 
@@ -157,17 +221,21 @@ def find_functions(source: str) -> list[dict]:
         ):
             sig_start -= 1
 
-        # Detect return type to classify error convention.
-        ret_type = ""
-        if sig_start > 0:
-            ret_type = lines[sig_start - 1].strip() if sig_start > 0 else ""
-        if not ret_type:
-            ret_type = prev.split(func_name)[0].strip() if func_name in prev else ""
+        # Detect the return type to classify the error convention.  The type
+        # is built from the signature lines *themselves* (lines[sig_start:i]);
+        # reading lines[sig_start - 1] would pick up the line above the return
+        # type — usually a blank line or the previous function's closing brace.
+        sig_text = " ".join(ln.strip() for ln in lines[sig_start:i])
+        idx = sig_text.find(func_name)
+        ret_type = sig_text[:idx].strip() if idx > 0 else ""
 
         functions.append({
             "name": func_name,
             "body": body,
             "start_line": sig_start + 1,
+            # 1-based line number of the first line of the body, i.e. the line
+            # a zero offset into `body` corresponds to.
+            "body_start_line": body_start + 1,
             "end_line": body_end + 1,
             "return_type": ret_type,
         })
@@ -178,139 +246,458 @@ def find_functions(source: str) -> list[dict]:
 # Error path analysis
 # ---------------------------------------------------------------------------
 
+def _alt(names) -> str:
+    return '|'.join(re.escape(n) for n in sorted(names, key=len, reverse=True))
+
+
+# An lvalue: a bare identifier, or a struct-member chain such as `ub->args`
+# or `self->dict.ob_item` (FP class F — struct-member LHS).
+_LVALUE = r'\w+(?:\s*(?:->|\.)\s*\w+){0,4}'
+# An optional cast, e.g. `(char *)PyMem_Malloc(n)`.
+_CAST = r'(?:\(\s*(?:const\s+|unsigned\s+|struct\s+)*\w+\s*\**\s*\)\s*)?'
+# One or more chained assignment targets: `args = tuple_args = ...`
+# (FP class D — multi-assignment alias).
+_ASSIGN_CHAIN = r'((?:' + _LVALUE + r'\s*=\s*){1,4})'
+
 _ASSIGN_CALL_RE = re.compile(
-    r'(\w+)\s*=\s*(' + '|'.join(
-        re.escape(api) for api in sorted(NULL_RETURN_APIS, key=len, reverse=True)
-    ) + r')\s*\('
+    _ASSIGN_CHAIN + _CAST + r'(' + _alt(NULL_RETURN_APIS) + r')\s*\('
+)
+_ALLOC_CALL_RE = re.compile(
+    _ASSIGN_CHAIN + _CAST + r'(' + _alt(RAW_ALLOCATORS) + r')\s*\('
 )
 
-_NULL_CHECK_RE_TEMPLATE = r'if\s*\(\s*{var}\s*==\s*NULL\s*\)|if\s*\(\s*!\s*{var}\s*\)|if\s*\(\s*{var}\s*==\s*0\s*\)'
-_RETURN_NULL_RE = re.compile(r'\breturn\s+NULL\s*;')
-_RETURN_NEG_RE = re.compile(r'\breturn\s+-1\s*;')
+_ERROR_RETURN_RE = re.compile(r'\breturn\s+(?:NULL|-1|0|false)\s*;')
 _GOTO_RE = re.compile(r'\bgoto\s+(\w+)\s*;')
-_LABEL_RE = re.compile(r'^(\w+)\s*:', re.MULTILINE)
-_PYERR_RE = re.compile(
-    r'\b(' + '|'.join(
-        re.escape(api) for api in sorted(PYERR_SET_APIS, key=len, reverse=True)
-    ) + r')\s*\('
-)
-_DEREF_RE = re.compile(r'(\w+)\s*->')
+_PYERR_RE = re.compile(r'\b(' + _alt(PYERR_SET_APIS) + r')\s*\(')
 _PYARG_PARSE_RE = re.compile(
     r'(\w+)\s*=\s*PyArg_Parse(?:Tuple|TupleAndKeywords)\s*\('
 )
+_SETREF_RE = re.compile(
+    r'\bPy_X?SETREF\s*\(\s*(' + _LVALUE + r')\s*,\s*(' + _LVALUE + r')\s*\)'
+)
+
+# PyErr_Clear rule.
+_PYERR_CLEAR_RE = re.compile(r'\b_?PyErr_Clear\s*\(')
+_PYERR_CLEAR_GUARD_RE = re.compile(
+    r'\b_?PyErr_(?:ExceptionMatches|GivenExceptionMatches|GetRaisedException'
+    r'|Fetch|Occurred|SetRaisedException|Restore|GetHandledException)\s*\('
+)
+# A test whose failure branch the clear sits in — the shape the rule is about.
+_FAILURE_TEST_RE = re.compile(
+    r'(?:==\s*NULL|!=\s*NULL|==\s*-1|<\s*0|!=\s*0|==\s*0|\bif\s*\(\s*!)'
+)
+# Destructor family — owned by scan_pyerr_clear.py, skipped here on purpose.
+_DESTRUCTOR_RE = re.compile(
+    r'(?:dealloc|_free$|finalize|tp_clear|_clear$|__del__)', re.IGNORECASE
+)
+
+# Consumers documented to tolerate NULL and propagate the pending exception:
+# passing an unchecked result to one of these is a CPython idiom, not a bug.
+# (Python/modsupport.c:602 — PyModule_AddObjectRef rejects NULL explicitly.)
+_NULL_TOLERANT_CONSUMER = (
+    r'\b(?:PyModule_Add(?:Object(?:Ref)?|Type)?|Py_XDECREF|Py_CLEAR'
+    r'|Py_XSETREF|Py_XINCREF|Py_XNewRef)\s*\([^;]{0,200}?'
+)
+
+# How far ahead of an assignment to look for an immediate dereference.
+_DEREF_WINDOW = 200
 
 
-def analyze_function_errors(func: dict) -> list[dict]:
-    """Analyze error handling in a single function."""
-    body = func["body"]
-    clean = strip_comments_and_strings(body)
-    findings: list[dict] = []
+def _lvalue_pattern(target: str) -> str:
+    """Turn a captured lvalue into a whitespace-tolerant regex."""
+    parts = [p for p in re.split(r'\s*(?:->|\.)\s*', target.strip()) if p]
+    if not parts:
+        return r'(?!)'
+    return r'\b' + r'\s*(?:->|\.)\s*'.join(re.escape(p) for p in parts) + r'\b'
 
-    # 1. Check for missing NULL checks after API calls.
-    for m in _ASSIGN_CALL_RE.finditer(clean):
-        var = m.group(1)
-        api = m.group(2)
-        line_offset = clean[:m.start()].count('\n') + 1
-        # Look for a NULL check within next ~10 lines.
-        after = clean[m.end():m.end() + 500]
-        null_check_re = re.compile(
-            _NULL_CHECK_RE_TEMPLATE.format(var=re.escape(var))
-        )
-        if not null_check_re.search(after):
-            # Check if variable is used (dereference) before any check.
-            deref = re.search(rf'\b{re.escape(var)}\s*->', after[:200])
-            if deref:
-                findings.append({
-                    "type": "missing_null_check",
-                    "api_call": api,
-                    "variable": var,
-                    "line_offset": line_offset,
-                    "detail": (
-                        f"Return value of {api} assigned to '{var}' "
-                        f"is dereferenced without NULL check"
-                    ),
-                    "confidence": "high",
-                })
+
+def _normalize(target: str) -> str:
+    return re.sub(r'\s+', '', target)
+
+
+def _split_targets(chain: str) -> list[str]:
+    """`'args = tuple_args = '` -> `['args', 'tuple_args']`."""
+    return [t.strip() for t in chain.split('=') if t.strip()]
+
+
+def _check_re(patterns: list[str]) -> re.Pattern:
+    return re.compile('|'.join(patterns))
+
+
+def _null_check_patterns(vp: str) -> list[str]:
+    """Every spelling that counts as "this value was tested".
+
+    Covers FP class B (positive-form checks): `if (v)`, `if (v != NULL)`,
+    `while ((v = f()))`, `v == NULL ? ... : ...`.
+    """
+    pre = r'[!*&(\s]*'
+    return [
+        vp + r'\s*(?:==|!=)\s*(?:NULL|0)\b',
+        r'if\s*\(' + pre + vp + r'\s*[)&|,]',
+        r'while\s*\(' + pre + vp + r'\s*[)&|]',
+        r'while\s*\([^)]*' + vp + r'\s*=[^=]',
+        r'for\s*\([^;]*;[^;]*' + vp + r'\s*[;)&|]',
+        r'assert\s*\(' + pre + vp + r'\s*[)&|]',
+        r'\bif\s*\([^;{}]{0,200}?' + vp + r'\s*(?:==|!=)\s*NULL',
+    ]
+
+
+def _in_condition(clean: str, pos: int) -> bool:
+    """Is `pos` inside an `if (...)` / `while (...)` / `for (...)` header?
+
+    `while ((key = PyIter_Next(it)) != NULL)` and
+    `if ((tmp = PyNumber_Subtract(a, b)) == NULL)` assign *and* test in one
+    expression — FP class B, the positive-form/loop-condition check.
+    """
+    depth = 0
+    semis = 0
+    i = pos - 1
+    limit = max(0, pos - 800)
+    while i >= limit:
+        ch = clean[i]
+        if ch == ')':
+            depth += 1
+        elif ch == '(':
+            if depth == 0:
+                head = clean[max(0, i - 16):i]
+                km = re.search(r'\b(if|while|for|switch)\s*$', head)
+                if km is not None:
+                    # Crossing a ';' is only legitimate inside a for-header.
+                    return semis == 0 or km.group(1) == 'for'
             else:
-                findings.append({
-                    "type": "unchecked_return",
-                    "api_call": api,
-                    "variable": var,
-                    "line_offset": line_offset,
-                    "detail": (
-                        f"Return value of {api} assigned to '{var}' "
-                        f"is not checked for NULL"
-                    ),
-                    "confidence": "medium",
-                })
+                depth -= 1
+        elif depth == 0:
+            if ch in '{}':
+                return False
+            if ch == ';':
+                semis += 1
+                if semis > 2:
+                    return False
+        i -= 1
+    return False
 
-    # 2. Check for return NULL without PyErr_Set*.
-    returns_pyobject = "PyObject" in func.get("return_type", "")
-    if returns_pyobject:
-        for m in _RETURN_NULL_RE.finditer(clean):
-            line_offset = clean[:m.start()].count('\n') + 1
-            # Look backwards for PyErr_Set* or a function call that
-            # sets the error indicator.
-            before = clean[:m.start()]
-            # Check last ~500 chars for PyErr.
-            context = before[-500:]
-            if not _PYERR_RE.search(context):
-                # Check if there's a goto that leads to error setting.
-                goto_m = _GOTO_RE.search(context[-200:])
-                if not goto_m:
-                    findings.append({
-                        "type": "return_null_no_exception",
-                        "line_offset": line_offset,
-                        "detail": (
-                            "return NULL without PyErr_Set* — may cause "
-                            "'SystemError: error return without exception set'"
-                        ),
-                        "confidence": "medium",
-                    })
 
-    # 3. Check for PyArg_ParseTuple without checking return value.
-    for m in _PYARG_PARSE_RE.finditer(clean):
-        var = m.group(1)
-        line_offset = clean[:m.start()].count('\n') + 1
-        after = clean[m.end():m.end() + 300]
-        check_re = re.compile(
-            rf'if\s*\(\s*!{re.escape(var)}\s*\)|'
-            rf'if\s*\(\s*{re.escape(var)}\s*==\s*0\s*\)'
+def _is_out_param_assign(clean: str, start: int) -> bool:
+    """Is this `*out = API(...)` (store through a caller-supplied pointer)?
+
+    Distinguished from the declaration `PyObject *out = API(...)`, where the
+    `*` belongs to the type.  Out-parameter stores hand the NULL check to the
+    caller by contract, so they are not local bugs.
+    """
+    j = start - 1
+    while j >= 0 and clean[j] in ' \t':
+        j -= 1
+    if j < 0 or clean[j] != '*':
+        return False
+    j -= 1
+    while j >= 0 and clean[j] in ' \t':
+        j -= 1
+    return j < 0 or not (clean[j].isalnum() or clean[j] == '_')
+
+
+def _resolve_aliases(targets: list[str], after: str) -> list[str]:
+    """Add `Py_SETREF`/`Py_XSETREF` destinations (FP class C).
+
+    `Py_SETREF(item, tmp); if (item == NULL)` — the value came back in `tmp`
+    but the check is written against `item`.
+    """
+    aliases = list(targets)
+    known = {_normalize(t) for t in targets}
+    for sm in _SETREF_RE.finditer(after):
+        dest, src = sm.group(1), sm.group(2)
+        if _normalize(src) in known and _normalize(dest) not in known:
+            aliases.append(dest)
+            known.add(_normalize(dest))
+    return aliases
+
+
+_RESULT_GUARD_TEMPLATE = (
+    r'if\s*\(\s*(?:!\s*{vp}|{vp}\s*(?:==\s*(?:NULL|0)|<\s*0))\s*\)'
+)
+
+
+def _callers_discharge(
+    name: str, clean_lines: list[str], start_line: int, end_line: int
+) -> bool:
+    """Do all in-file callers of `name` convert its failure into an exception?
+
+    The dominant false positive for `alloc_null_no_memerror` is a thin static
+    allocation helper that returns NULL and lets its caller raise
+    `MemoryError` (`list_allocate_array` / `new_values` in CPython).  If every
+    call site in this file discharges the obligation, the helper is fine.
+    """
+    outside = "\n".join(
+        clean_lines[:max(0, start_line - 1)] + clean_lines[end_line:]
+    )
+    call_re = re.compile(r'\b' + re.escape(name) + r'\s*\(')
+    sites = 0
+    for cm in call_re.finditer(outside):
+        head = outside[max(0, cm.start() - 120):cm.start()]
+        am = re.search(r'(' + _LVALUE + r')\s*=\s*(?:\([^)]*\)\s*)?$', head)
+        if am is not None:
+            after = outside[cm.end():cm.end() + 400]
+            vp = _lvalue_pattern(am.group(1))
+            gm = re.search(_RESULT_GUARD_TEMPLATE.format(vp=vp), after)
+            if gm is None:
+                return False
+            branch = _guarded_branch(after[gm.end():])
+        else:
+            # `if (helper(...) < 0) { ... }` — the call is the condition.
+            om = re.search(r'\bif\s*\(([!(\s]*)$', head)
+            if om is None:
+                return False
+            open_idx = cm.start() - (len(head) - om.start(1))
+            close = _match_paren(outside, open_idx - 1)
+            if close is None:
+                return False
+            branch = _guarded_branch(outside[close + 1:close + 401])
+        if not (_PYERR_RE.search(branch) or _GOTO_RE.search(branch)):
+            return False
+        sites += 1
+    return sites > 0
+
+
+def _match_paren(text: str, open_idx: int) -> int | None:
+    """Index of the `)` matching the `(` at `open_idx`, or None."""
+    if open_idx < 0 or open_idx >= len(text) or text[open_idx] != '(':
+        return None
+    depth = 0
+    for k in range(open_idx, min(len(text), open_idx + 2000)):
+        if text[k] == '(':
+            depth += 1
+        elif text[k] == ')':
+            depth -= 1
+            if depth == 0:
+                return k
+    return None
+
+
+def _guarded_branch(text: str) -> str:
+    """Return the body of the branch starting at `text` (post-`if (...)`)."""
+    stripped = text.lstrip()
+    pad = len(text) - len(stripped)
+    if stripped.startswith('{'):
+        depth = 0
+        for k, ch in enumerate(text[pad:], start=pad):
+            if ch == '{':
+                depth += 1
+            elif ch == '}':
+                depth -= 1
+                if depth == 0:
+                    return text[pad:k + 1]
+        return text[pad:]
+    end = text.find(';')
+    return text[:end + 1] if end != -1 else text[:200]
+
+
+def _check_unchecked_returns(clean: str) -> list[dict]:
+    """Rules `missing_null_check` and `unchecked_return`."""
+    findings: list[dict] = []
+    for m in _ASSIGN_CALL_RE.finditer(clean):
+        targets = _split_targets(m.group(1))
+        if not targets:
+            continue
+        api = m.group(2)
+        var = targets[-1]
+        line_offset = clean[:m.start()].count('\n')
+        # Skip past the call's own argument list; `f = PyMem_Malloc(sizeof
+        # *f->a)` must not count its own arguments as a dereference.
+        call_end = _match_paren(clean, m.end() - 1)
+        after = clean[(call_end + 1) if call_end else m.end():]
+
+        # FP class B: assignment inside a loop/if header is its own test.
+        if _in_condition(clean, m.start()):
+            continue
+
+        aliases = _resolve_aliases(targets, after)
+        patterns: list[str] = []
+        for alias in aliases:
+            patterns.extend(_null_check_patterns(_lvalue_pattern(alias)))
+        check_m = _check_re(patterns).search(after)
+        check_pos = check_m.start() if check_m else len(after)
+
+        # A dereference *before* any test is the crash bug.
+        vp = _lvalue_pattern(var)
+        deref_m = re.search(
+            vp + r'\s*->', after[:min(check_pos, _DEREF_WINDOW)]
         )
-        if not check_re.search(after):
+        if deref_m:
             findings.append({
-                "type": "unchecked_parse",
-                "api_call": "PyArg_ParseTuple",
+                "type": "missing_null_check",
+                "api_call": api,
                 "variable": var,
                 "line_offset": line_offset,
                 "detail": (
-                    "PyArg_ParseTuple return value not checked — "
-                    "extracted arguments may be uninitialized on failure"
+                    f"Return value of {api} assigned to '{var}' "
+                    f"is dereferenced without NULL check"
                 ),
-                "confidence": "medium",
+                "confidence": "high",
             })
+            continue
+        if check_m:
+            continue
+        # FP class A: the value flows straight back to the caller
+        # (`return res;`, `return set_orig_class(obj, self);`), so the
+        # callee's exception propagates untouched.  Not a bug.
+        returned = _check_re([
+            r'return\s+[^;]{0,200}?' + _lvalue_pattern(a) for a in aliases
+        ])
+        if returned.search(after):
+            continue
+        # Out-parameter store: the caller owns the NULL check by contract.
+        if _is_out_param_assign(clean, m.start()):
+            continue
+        # Handed to a NULL-tolerant consumer.
+        consumed = _check_re(
+            [_NULL_TOLERANT_CONSUMER + _lvalue_pattern(a) for a in aliases]
+        )
+        if consumed.search(after):
+            continue
+        findings.append({
+            "type": "unchecked_return",
+            "api_call": api,
+            "variable": var,
+            "line_offset": line_offset,
+            "detail": (
+                f"Return value of {api} assigned to '{var}' "
+                f"is neither checked for NULL nor returned unmodified"
+            ),
+            "confidence": "medium",
+        })
+    return findings
 
-    # 4. Check cleanup labels for completeness (heuristic).
-    labels = set(_LABEL_RE.findall(clean))
-    error_labels = {l for l in labels if l in ('error', 'fail', 'done', 'cleanup', 'exit')}
-    if error_labels and not any(
-        re.search(r'Py_(?:X?DECREF|CLEAR)', clean[clean.find(l + ':'):])
-        for l in error_labels
-        if l + ':' in clean
-    ):
-        # Error labels exist but don't DECREF anything — may be incomplete.
-        # Only flag if function acquires new references.
-        if _ASSIGN_CALL_RE.search(clean):
-            findings.append({
-                "type": "sparse_error_cleanup",
-                "line_offset": 0,
-                "detail": (
-                    f"Error labels ({', '.join(sorted(error_labels))}) "
-                    f"don't appear to DECREF any locally-owned references"
-                ),
-                "confidence": "low",
-            })
 
+def _check_alloc_no_memerror(
+    func: dict, clean: str, clean_lines: list[str] | None = None
+) -> list[dict]:
+    """Rule `alloc_null_no_memerror`.
+
+    Fires only for allocators that do *not* set MemoryError themselves.  The
+    old `return_null_no_exception` rule flagged every `return NULL` with no
+    nearby `PyErr_Set*`, which cannot distinguish "forgot to raise" from
+    "propagating the callee's exception"; this gate can.
+    """
+    findings: list[dict] = []
+    for m in _ALLOC_CALL_RE.finditer(clean):
+        targets = _split_targets(m.group(1))
+        if not targets:
+            continue
+        api = m.group(2)
+        var = targets[-1]
+        call_end = _match_paren(clean, m.end() - 1)
+        base = (call_end + 1) if call_end else m.end()
+        after = clean[base:]
+        vp = _lvalue_pattern(var)
+        guard_re = re.compile(
+            r'if\s*\(\s*(?:!\s*' + vp + r'|' + vp
+            + r'\s*==\s*(?:NULL|0))\s*\)'
+        )
+        gm = guard_re.search(after)
+        if gm is None:
+            continue
+        branch = _guarded_branch(after[gm.end():])
+        if _PYERR_RE.search(branch):
+            continue
+        # A goto hands the obligation to a label we cannot follow cheaply.
+        if _GOTO_RE.search(branch):
+            continue
+        if not _ERROR_RETURN_RE.search(branch):
+            continue
+        # A thin allocation helper may legitimately defer the MemoryError to
+        # its callers; check them before reporting.
+        if clean_lines is not None and _callers_discharge(
+            func["name"], clean_lines, func["start_line"], func["end_line"]
+        ):
+            continue
+        findings.append({
+            "type": "alloc_null_no_memerror",
+            "api_call": api,
+            "variable": var,
+            "line_offset": clean[:m.start()].count('\n'),
+            "guard_line_offset": (clean[:base + gm.start()]).count('\n'),
+            "detail": (
+                f"{api} does not set MemoryError; the failure branch for "
+                f"'{var}' returns an error sentinel without PyErr_NoMemory()"
+            ),
+            "confidence": "high",
+        })
+    return findings
+
+
+def _check_unconditional_pyerr_clear(func: dict, clean: str) -> list[dict]:
+    """Rule `unconditional_pyerr_clear`.
+
+    A `PyErr_Clear()` that is not narrowed by `PyErr_ExceptionMatches` (or a
+    save/restore call) discards *whatever* exception is live — including
+    KeyboardInterrupt and MemoryError raised by user code called a few lines
+    earlier.  See Objects/unionobject.c:172.
+    """
+    if _DESTRUCTOR_RE.search(func["name"]):
+        return []
+    findings: list[dict] = []
+    lines = clean.split('\n')
+    for idx, line in enumerate(lines):
+        if not _PYERR_CLEAR_RE.search(line):
+            continue
+        window = "\n".join(lines[max(0, idx - 3):idx + 1])
+        if _PYERR_CLEAR_GUARD_RE.search(window):
+            continue
+        # Only report clears that sit inside a failure branch: that is the
+        # shape where a user-supplied exception can be the thing discarded.
+        if not _FAILURE_TEST_RE.search(window):
+            continue
+        findings.append({
+            "type": "unconditional_pyerr_clear",
+            "api_call": "PyErr_Clear",
+            "line_offset": idx,
+            "detail": (
+                "PyErr_Clear() with no PyErr_ExceptionMatches within the "
+                "preceding 3 lines — swallows any live exception, including "
+                "KeyboardInterrupt and MemoryError raised by user code"
+            ),
+            "confidence": "medium",
+        })
+    return findings
+
+
+def _check_unchecked_parse(clean: str) -> list[dict]:
+    """Rule `unchecked_parse`."""
+    findings: list[dict] = []
+    for m in _PYARG_PARSE_RE.finditer(clean):
+        var = m.group(1)
+        line_offset = clean[:m.start()].count('\n')
+        after = clean[m.end():m.end() + 300]
+        vp = _lvalue_pattern(var)
+        if _check_re(_null_check_patterns(vp) + [vp + r'\s*<\s*0']).search(after):
+            continue
+        findings.append({
+            "type": "unchecked_parse",
+            "api_call": "PyArg_ParseTuple",
+            "variable": var,
+            "line_offset": line_offset,
+            "detail": (
+                "PyArg_ParseTuple return value not checked — "
+                "extracted arguments may be uninitialized on failure"
+            ),
+            "confidence": "medium",
+        })
+    return findings
+
+
+def analyze_function_errors(
+    func: dict, clean_lines: list[str] | None = None
+) -> list[dict]:
+    """Analyze error handling in a single function.
+
+    `clean_lines` is the comment-stripped enclosing file split into lines; it
+    enables the intra-file caller check used by `alloc_null_no_memerror`.
+    """
+    clean = strip_comments_and_strings(func["body"])
+    findings: list[dict] = []
+    findings.extend(_check_unchecked_returns(clean))
+    findings.extend(_check_alloc_no_memerror(func, clean, clean_lines))
+    findings.extend(_check_unconditional_pyerr_clear(func, clean))
+    findings.extend(_check_unchecked_parse(clean))
     return findings
 
 
@@ -324,7 +711,9 @@ def analyze(target: str, *, max_files: int = 0) -> dict:
     project_root = find_cpython_root(target_path)
     if project_root is None:
         project_root = target_path if target_path.is_dir() else target_path.parent
-    scan_root = target_path if target_path.is_dir() else target_path.parent
+    # discover_c_files() handles a single file itself; passing the parent
+    # here would silently widen a single-file request to its whole directory.
+    scan_root = target_path
 
     all_findings: list[dict] = []
     functions_analyzed = 0
@@ -339,20 +728,27 @@ def analyze(target: str, *, max_files: int = 0) -> dict:
 
         rel = str(filepath.relative_to(project_root))
         functions = find_functions(source)
+        clean_lines = strip_comments_and_strings(source).split('\n')
         for func in functions:
             functions_analyzed += 1
-            func_findings = analyze_function_errors(func)
+            func_findings = analyze_function_errors(func, clean_lines)
             for finding in func_findings:
                 finding["file"] = rel
                 finding["function"] = func["name"]
-                finding["line"] = func["start_line"] + finding.pop("line_offset")
+                # line_offset is 0-based within the function body, and
+                # body_start_line is the 1-based line of the body's first line.
+                finding["line"] = (
+                    func["body_start_line"] + finding.pop("line_offset")
+                )
+                if "guard_line_offset" in finding:
+                    finding["guard_line"] = (
+                        func["body_start_line"]
+                        + finding.pop("guard_line_offset")
+                    )
                 all_findings.append(finding)
 
-    # Categorize.
-    null_checks = [f for f in all_findings if f["type"] == "missing_null_check"]
-    unchecked = [f for f in all_findings if f["type"] == "unchecked_return"]
-    no_exception = [f for f in all_findings if f["type"] == "return_null_no_exception"]
-    parse_issues = [f for f in all_findings if f["type"] == "unchecked_parse"]
+    def count(kind: str) -> int:
+        return sum(1 for f in all_findings if f["type"] == kind)
 
     return {
         "project_root": str(project_root),
@@ -361,10 +757,11 @@ def analyze(target: str, *, max_files: int = 0) -> dict:
         "functions_analyzed": functions_analyzed,
         "findings": all_findings,
         "summary": {
-            "missing_null_checks": len(null_checks),
-            "unchecked_returns": len(unchecked),
-            "return_null_no_exception": len(no_exception),
-            "unchecked_parse_calls": len(parse_issues),
+            "missing_null_checks": count("missing_null_check"),
+            "unchecked_returns": count("unchecked_return"),
+            "alloc_null_no_memerror": count("alloc_null_no_memerror"),
+            "unconditional_pyerr_clear": count("unconditional_pyerr_clear"),
+            "unchecked_parse_calls": count("unchecked_parse"),
             "total_findings": len(all_findings),
         },
     }

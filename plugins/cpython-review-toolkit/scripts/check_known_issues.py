@@ -12,14 +12,21 @@ referenced file and reports, per catalog entry, whether the site is:
                        window of) the catalog line, or — when the catalog line
                        is unknown (0) — a finding in the named function.
   * ``line_drifted`` — the file still has findings of that category, but not at
-                       the catalog line / named function; ``nearest_line``
-                       points at the closest one. The bug likely just moved.
+                       the catalog line, and the catalog's named function is
+                       *gone* (renamed/removed) or unknown; ``nearest_line``
+                       points at the closest finding. The bug likely just moved.
+  * ``absent_in_function``
+                     — the catalog names a function, that function still exists
+                       in the file, and it carries no finding of the category.
+                       The file has findings elsewhere, but not here. This is
+                       absence *in the function*, not drift: drift means "still
+                       there, moved"; this means "possibly fixed".
   * ``absent``       — the file was scanned and has no findings of that
-                       category (likely fixed — but see the caveat below).
+                       category anywhere (likely fixed — but see the caveat).
   * ``file_missing`` — the path no longer exists under the target checkout.
-  * ``no_scanner``   — the category has no scanner in v0.5 (``tsan`` /
-                       ``init-bypass``); carried through so the catalog stays
-                       complete, but not cross-referenced.
+  * ``no_scanner``   — the category has no scanner (as of 0.7, none); carried
+                       through so the catalog stays complete, but not
+                       cross-referenced.
 
 This is a static, drift-tolerant regression baseline — it does NOT run repros.
 
@@ -45,6 +52,11 @@ import scan_pyerr_clear
 import scan_recursion_guards
 import scan_refcounts
 import scan_uninit_dealloc
+
+# Regex-based C function boundaries (no tree-sitter): the tree-sitter chassis
+# silently merges and drops functions on CPython's brace-unbalanced macros,
+# which would make "the function is gone" a false conclusion.
+from analyze_history import get_c_function_boundaries
 from scan_common import build_report, parse_common_args, resolve_roots
 
 _DATA_DIR = Path(__file__).resolve().parent.parent / "data"
@@ -71,6 +83,14 @@ _ABSENCE_CAVEAT = (
     "scannable token at the exact site — a native C-stack overflow (recursion), "
     "a data race (tsan) — so a fresh scan can read a still-unfixed bug as "
     "`absent`. Always read the file before concluding a bug is fixed."
+)
+_ABSENT_IN_FUNCTION_CAVEAT = (
+    "`absent_in_function` is NOT `line_drifted`. It means the catalog's named "
+    "function is still in the file and carries no finding of the category, "
+    'while the file has findings elsewhere. Drift says "still there, moved"; '
+    'this says "possibly fixed in this function" — a materially weaker '
+    "regression signal, so these are reported but do not become findings. "
+    "Read the function before concluding either way."
 )
 _NO_SCANNER_CAVEAT = (
     "Every catalog category now has a scanner (as of 0.7). A category added to "
@@ -154,8 +174,13 @@ def _scan_file(scanner, abs_file: Path, max_files: int) -> list[dict]:
     return report.get("findings", [])
 
 
-def _index_findings(findings: list[dict], rel_file: str) -> dict:
-    """Index a file's findings by line-set and by enclosing function."""
+def _index_findings(findings: list[dict], rel_file: str, abs_file: Path) -> dict:
+    """Index a file's findings by line-set, by function, and by function range.
+
+    ``func_ranges`` records every function the file *defines* (regex-based, so
+    it is independent of the tree-sitter chassis). It answers the question
+    ``line_drifted`` used to conflate: is the catalog's function still here?
+    """
     lines: set[int] = set()
     by_function: dict[str, list[int]] = defaultdict(list)
     for f in findings:
@@ -164,18 +189,51 @@ def _index_findings(findings: list[dict], rel_file: str) -> dict:
         line = int(f.get("line", 0) or 0)
         lines.add(line)
         by_function[f.get("function", "")].append(line)
-    return {"lines": lines, "by_function": dict(by_function)}
+
+    func_ranges: dict[str, tuple[int, int]] = {}
+    for func in get_c_function_boundaries(abs_file):
+        start, end = func["line_start"], func["line_end"]
+        existing = func_ranges.get(func["name"])
+        # Keep the widest span if a name appears more than once (#ifdef arms).
+        if existing is None:
+            func_ranges[func["name"]] = (start, end)
+        else:
+            func_ranges[func["name"]] = (
+                min(existing[0], start),
+                max(existing[1], end),
+            )
+    return {
+        "lines": lines,
+        "by_function": dict(by_function),
+        "func_ranges": func_ranges,
+    }
+
+
+def _function_hits(entry_function: str, index: dict) -> list[int]:
+    """Findings attributable to ``entry_function``, by name *or* by line range.
+
+    Name-matching alone under-reports: the tree-sitter chassis can attribute a
+    finding to a merged/neighbouring function, so a finding physically inside
+    the function body still counts.
+    """
+    hits = list(index["by_function"].get(entry_function, []))
+    span = index["func_ranges"].get(entry_function)
+    if span:
+        start, end = span
+        hits.extend(ln for ln in index["lines"] if start <= ln <= end)
+    return sorted(set(hits))
 
 
 def _classify(entry: dict, index: dict) -> tuple[str, int | None]:
     """Return ``(status, matched_line)`` for a scanned catalog entry."""
     lines: set[int] = index["lines"]
-    by_function: dict[str, list[int]] = index["by_function"]
     if not lines:
         return "absent", None
 
     func = entry["function"]
-    func_hits = by_function.get(func) if func and func != "0" else None
+    named = bool(func) and func != "0"
+    func_hits = _function_hits(func, index) if named else []
+    func_exists = named and func in index["func_ranges"]
     cat_line = entry["line"]
 
     if cat_line > 0:
@@ -184,12 +242,18 @@ def _classify(entry: dict, index: dict) -> tuple[str, int | None]:
             return "present", nearest
         if func_hits:
             return "present", min(func_hits)
+        # The catalog names a function that is still here and clean: that is
+        # absence in the function, not drift.
+        if func_exists:
+            return "absent_in_function", None
         return "line_drifted", nearest
 
     # Catalog line unknown: match by function name when we have one.
-    if func and func != "0":
+    if named:
         if func_hits:
             return "present", min(func_hits)
+        if func_exists:
+            return "absent_in_function", None
         return "line_drifted", min(lines)
     # No line and no function: any finding of the category counts as present.
     return "present", min(lines)
@@ -221,6 +285,7 @@ def analyze(
     status_counts: dict[str, int] = {
         "present": 0,
         "line_drifted": 0,
+        "absent_in_function": 0,
         "absent": 0,
         "file_missing": 0,
         "no_scanner": 0,
@@ -243,7 +308,11 @@ def analyze(
                 key = (category, rel_file)
                 if key not in index_cache:
                     scan_findings = _scan_file(scanner, abs_file, max_files)
-                    index_cache[key] = _index_findings(scan_findings, rel_file)
+                    index_cache[key] = _index_findings(
+                        scan_findings,
+                        rel_file,
+                        abs_file,
+                    )
                     scanned_files.add(rel_file)
                 status, matched_line = _classify(entry, index_cache[key])
 
@@ -302,8 +371,8 @@ def analyze(
                 }
             )
 
-    # Per-bug rollup: a bug is only "likely_fixed" if none of its sites is
-    # present or drifted and at least one scanned/known site is clean or gone.
+    # Per-bug rollup, strongest signal wins: still-there > moved >
+    # gone-from-this-function > gone-from-the-file.
     bug_rollup: dict[str, str] = {}
     for bug_id, statuses in per_bug.items():
         s = set(statuses)
@@ -311,6 +380,8 @@ def analyze(
             bug_rollup[bug_id] = "present"
         elif "line_drifted" in s:
             bug_rollup[bug_id] = "line_drifted"
+        elif "absent_in_function" in s:
+            bug_rollup[bug_id] = "absent_in_function"
         elif s & {"absent", "file_missing"}:
             bug_rollup[bug_id] = "likely_fixed"
         else:
@@ -330,6 +401,7 @@ def analyze(
             "total_findings": len(findings),
             "still_present": status_counts["present"],
             "line_drifted": status_counts["line_drifted"],
+            "absent_in_function": status_counts["absent_in_function"],
             "no_scanner": status_counts["no_scanner"],
             "by_status": dict(status_counts),
         },
@@ -343,7 +415,7 @@ def analyze(
         },
         bug_rollup=dict(sorted(bug_rollup.items())),
         catalog_results=results,
-        notes=[_ABSENCE_CAVEAT, _NO_SCANNER_CAVEAT],
+        notes=[_ABSENCE_CAVEAT, _ABSENT_IN_FUNCTION_CAVEAT, _NO_SCANNER_CAVEAT],
     )
 
 

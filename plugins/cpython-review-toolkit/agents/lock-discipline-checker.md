@@ -32,11 +32,25 @@ Run with a Bash timeout of **300000 ms** on a full checkout, and write JSON to a
 |---|---|---|
 | `critical_section_missing_end` | FIX | A begin with no matching END on any path — lock never released. |
 | `critical_section_end_on_error` | FIX | A `return` / out-of-section `goto` sits between a begin and its END without releasing first. |
+| `mutex_leak_on_error` | FIX | The same shape in the `PyMutex` family (`PyMutex_Lock`, `LOCK_WEAKREFS`). **Strictly worse**: a `PyMutex` is not released by scope exit, so a leaked one stays locked for the process lifetime. |
+| `mutex_missing_unlock` | FIX | A `PyMutex`-family acquire left unpaired in a function that *does* release elsewhere. |
 | `nested_critical_sections` | CONSIDER | Two different objects locked at once via two single-object begins (deadlock risk). |
 
-The scanner recognizes all three begin spellings: `Py_BEGIN_CRITICAL_SECTION`, `Py_BEGIN_CRITICAL_SECTION2`, and the mutex-backed `Py_BEGIN_CRITICAL_SECTION_MUTEX(&m)` (paired with the ordinary `Py_END_CRITICAL_SECTION()`). A `goto` whose target label is *inside* the section (a `retry:` loop) is treated as an internal jump, not an exit. Comment-suppressed sites (`/* intentional ... */`, `safety:` etc.) are dropped.
+**Two lock families are modelled**, both loaded from `data/lock_macros.json` and paired independently so a `PyMutex_Unlock` can never close a `Py_BEGIN_CRITICAL_SECTION`:
+- *scoped* — `Py_BEGIN_CRITICAL_SECTION`, `Py_BEGIN_CRITICAL_SECTION2`, and the mutex-backed `Py_BEGIN_CRITICAL_SECTION_MUTEX(&m)` (closed by the ordinary `Py_END_CRITICAL_SECTION()`);
+- *PyMutex* — `PyMutex_Lock` / `PyMutex_LockFlags` / `PyMutex_Unlock`, plus CPython's `PyMutex`-backed striped weakref macros `LOCK_WEAKREFS` / `LOCK_WEAKREFS_FOR_WR` / `UNLOCK_WEAKREFS*` (`Include/internal/pycore_weakref.h:18-30`). The `PyMutex` family is checked by textual dominance rather than by pairing, because the same mutex is routinely released on several branches.
+
+Silent by design:
+- A `goto` whose target label is *inside* the section (a `retry:` loop) — an internal jump, not an exit.
+- A `goto` whose target label block releases the lock again (`goto error; ... error: PyMutex_Unlock(&self->mutex);`) — the release-then-exit ladder with the release duplicated at the label.
+- An exit that is **unreachable**, i.e. sits directly after an unconditional `goto`/`return`/`break`/`continue` in the same block. `Objects/dictobject.c:4380` is exactly this — a dead `return -1;` left behind by the gh-112075 critical-section retrofit, and formerly this scanner's only `Objects/` finding.
+- A function that acquires a lock and **never** releases it anywhere: CPython's deliberate lock-helper convention (`extensions_lock_acquire`, `_xidregistry_lock`, `stop_the_world`, `_PyCriticalSection_BeginSlow`), the mirror image of the `*_lock_held` callee convention.
+- Comment-suppressed sites (`/* intentional ... */`, `safety:` etc.).
 
 ## Analysis Strategy
+
+### Phase 0: establish the denominator — do this before anything else
+A zero from this scanner is the common case, and "no constructs present" is a different result from "constructs present and all verified clean". The envelope now carries `vocabulary_counts` (raw per-macro counts over the scope), `critical_section_functions` and `mutex_functions`. Compare `grep -c Py_BEGIN_CRITICAL_SECTION <file>` against what the scanner attributes to that file: a gap means the tree-sitter chassis dropped or merged functions, and you must hand-check the difference. On `Objects/dictobject.c` that check is 47 vs 29 and takes ten seconds. **Report the denominator whatever the finding count is.**
 
 ### Phase 1: Triage each leak (FIX candidates)
 For every `critical_section_missing_end` / `critical_section_end_on_error`:
@@ -53,8 +67,9 @@ For each `nested_critical_sections`:
 
 ### Phase 3: Widen manually
 The scanner is intra-function and pattern-based. Also grep for:
-- `Py_BEGIN_CRITICAL_SECTION` counts vs `Py_END_CRITICAL_SECTION` counts per file (gross imbalance hints at a cross-branch leak the LIFO pairing smoothed over).
 - Sections wrapping a call that can itself re-enter Python and drop the lock.
+- `Py_BEGIN_CRITICAL_SECTION(x)` where `x` is a **by-value copy of a `PyObject`** (`odictiterobject tmp = *di;`). On `Py_GIL_DISABLED` the header — including `ob_mutex` — is copied, so a critical section taken on the copy parks on a mutex nothing will ever unlock. One line finds every candidate in the tree: `grep -rnE '^\s*\w+(object|Object)\s+\w+ = \*\w+;'` (3 sites; `dictiter_reduce` and `setiter_reduce` are safe because their `tp_iternext` locks the *container*, `odictiter_reduce` is not because `odictiter_iternext` locks the *iterator*).
+- `_Py_CRITICAL_SECTION_ASSERT_OBJECT_LOCKED(x)` — a free, authoritative, cross-function statement that the caller holds `x`'s lock (11 occurrences in `odictobject.c` alone). Use it to reason past the intra-function limitation.
 
 ## Output Format
 
@@ -62,9 +77,11 @@ The scanner is intra-function and pattern-based. Also grep for:
 ## Critical-Section Discipline Results
 
 ### Summary
-- Functions with critical sections: N
-- FIX (leaked lock — missing/early-exit END): N
+- Vocabulary present in scope: N Py_BEGIN_CRITICAL_SECTION, N PyMutex_Lock, N LOCK_WEAKREFS, ...
+- Functions with critical sections: N · with PyMutex acquires: N
+- FIX (leaked lock — missing/early-exit END, mutex leak): N
 - CONSIDER (nested two-object locking): N
+- Verdict: [no constructs present | constructs present and all verified clean | N leaks]
 
 ### Findings
 
@@ -80,6 +97,7 @@ The scanner is intra-function and pattern-based. Also grep for:
 - **ACCEPTABLE**: the release is present on the path (scanner byte-ordering artifact), or the object is provably uncontended.
 
 ## Important Guidelines
-- **The common correct idiom is not a finding.** Do not flag begin/work/end sections that release on every path.
-- **`Py_END` must come before the exit**, never after via a goto to an external label — that pattern does not even compile for scoped critical sections.
+- **The common correct idiom is not a finding.** Do not flag begin/work/end sections that release on every path. CPython's critical-section usage is overwhelmingly the *trivial wrapper* — `begin; result = helper_lock_held(...); end;` with no branch in between — where both FIX shapes are structurally impossible. That is the dominant reason the count is low, and it is good news.
+- **`Py_END` must come before the exit**, never after via a goto to an external label — that pattern does not even compile for scoped critical sections. `PyMutex` is different: it is *not* scoped, so `goto cleanup; ... cleanup: PyMutex_Unlock(...)` is both legal and idiomatic there.
+- **A zero is only trustworthy with a denominator.** Say explicitly which of the two zeros you found (Phase 0).
 - **Report at most 20 findings**, FIX before CONSIDER. Deduplicated systemic patterns (`duplicate_count`) count as one.

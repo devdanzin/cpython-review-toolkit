@@ -22,23 +22,34 @@ Every allocation in CPython can fail. Those failure paths are almost never exerc
 ```bash
 python <plugin_root>/scripts/run_oom_sweep.py --python <cpython-build> --code '<snippet>' --max-n 300
 python <plugin_root>/scripts/run_oom_sweep.py --python <cpython-build> --script repro.py --stop-after 1
+python <plugin_root>/scripts/run_oom_sweep.py --python <cpython-build> \
+    --setup 'from collections import OrderedDict; od = OrderedDict(a=1); iv = od.items()' \
+    --code 'it = iter(iv)' --max-n 40
 ```
 
-Outcome vocabulary (per index): `segv` / `abort` / `signal_N` = **crash (reproduced)**; `memory_error` = the allocation failure was handled correctly (**the safe, expected outcome**); `completed` = the budget was never exhausted; `other_exception`; `timeout`.
+Outcome vocabulary (per index): `segv` / `abort` / `signal_N` / `sanitizer_error` = **crash (reproduced)**; `memory_error` = the allocation failure was handled correctly (**the safe, expected outcome**); `completed` = the budget was never exhausted; `sanitizer_leak`; `other_exception`; `timeout`.
 
-Key fields: `reproduced`, `summary.crash_indices`, `first_crash.stderr` (the faulthandler traceback tail).
+Key fields: `reproduced`, `summary.crash_indices`, `summary.crash_outcomes`, `first_crash.stderr` (the faulthandler traceback tail).
 
 ## Method
 
 ### Phase 1: Write the smallest payload that reaches the candidate
 Target the specific code path the static finding names. Prefer stdlib-only, deterministic snippets — construct the type, call the method, trigger the slot. Keep it short: the fewer allocations before the interesting one, the smaller the sweep range needs to be.
 
+**Put every allocation you do not want to inject into into `--setup`.** Setup runs *before* `set_nomemory` is armed, in the same namespace as the payload, so imports, object construction, freelist-draining warm-up loops and `gc.collect()` do not consume the injection budget. This is not a nicety: for `Objects/odictobject.c:1945 odictiter_new` the identical code sweeping 0..25 reports `{memory_error: 25}` — the SAFE reading — when the setup is inlined in `--code`, and aborts at K=2 with
+`Objects/odictobject.c: _PyObject_GC_UNTRACK: Assertion "_PyObject_GC_IS_TRACKED" failed ... object type name: odict_iterator`
+when the same setup is moved to `--setup`. Arming first hides the bug entirely.
+
 ### Phase 2: Sweep densely
-Start with `--max-n 200`. **Never sample sparsely** — a crash window is often exactly one allocation wide. If nothing fires and the payload does a lot of setup work, raise `--max-n` (and consider `--start-n` to skip the interpreter-startup allocations). Use `--stop-after 1` when you only need existence proof.
+Start with `--max-n 200`. **Never sample sparsely** — a crash window is often exactly one allocation wide (the odict case is a *single* index). If nothing fires and the payload does a lot of setup work, move that work into `--setup` first, then raise `--max-n`. Use `--stop-after 1` when you only need existence proof.
 
 ### Phase 3: Interpret honestly
-- **All `memory_error`** → the paths you exercised handle failure correctly. This is a *negative* result: report it plainly. It does **not** prove the static finding is wrong (your payload may simply not reach the flagged line) — say which line you were trying to hit and whether you believe you reached it.
+- **All `memory_error`** → the paths you exercised handle failure correctly. This is a *negative* result: report it plainly. It does **not** prove the static finding is wrong — say which line you were trying to hit and whether you believe you reached it. Two specific reasons a clean sweep proves less than it looks:
+  - *You may never have reached the flagged allocation* (see the `--setup` note above).
+  - *For the uninitialized-dealloc / half-built-object shape, a clean run can simply mean the recycled memory block happened to be clean.* The destructor reads garbage members; whether that garbage faults depends on what the allocator last put there. Also record which untrack variant the destructor uses: `_PyObject_GC_UNTRACK` (unchecked) faults deterministically on a never-tracked object, while `PyObject_GC_UnTrack` (checked) is a no-op there — which is exactly why those instances stay latent and often do not reproduce. **A 60/60 `MemoryError` result does not exonerate that bug class.**
 - **A crash** → capture `first_crash.stderr` (the faulthandler traceback), note the index, and re-run to confirm determinism. Then minimize the payload.
+- **`sanitizer_error`** → a sanitizer-instrumented build reported a fatal error. Note that ASan exits **1** on a fatal SEGV, the same code the harness uses for a clean `MemoryError`; the classifier reads stderr precisely so that this is not silently inverted into the safe outcome. Never override it back.
+- **`sanitizer_leak`** → LeakSanitizer only. OOM injection strands allocations by construction, so this is expected noise, not a crash.
 - **`timeout`** → the child hung; usually the payload waits on something. Simplify it.
 
 ### Phase 4: Record
@@ -54,7 +65,7 @@ For a reproduced crash, write the record into the `cpython-review-findings` repo
 - Interpreter: [path] ([debug/ASan/release], version)
 
 ### Sweep
-- Range swept: 0..N (dense)
+- Range swept: 0..N (dense) · setup phase: [none | <what runs unarmed>]
 - Outcomes: {memory_error: N, segv: N, ...}
 - **Verdict**: REPRODUCED at index K / not reproduced in this range
 
@@ -68,6 +79,7 @@ For a reproduced crash, write the record into the `cpython-review-findings` repo
 ## Important Guidelines
 - **A negative result is a real result.** "All allocation failures on this path were handled cleanly" is useful and must be reported as such — never inflate it into a bug, and never quietly drop it.
 - **Never claim a crash you did not observe.** Paste the actual exit code and traceback.
-- **A `MemoryError` is the success case for CPython**, not a bug. Only a segv/abort is the defect.
+- **A `MemoryError` is the success case for CPython**, not a bug. Only a segv/abort/sanitizer report is the defect.
+- **A clean sweep is not an exoneration.** It bounds what you exercised, nothing more. Always report the range swept, whether setup was armed or unarmed, and your confidence that the payload reached the flagged line.
 - **Debug builds turn silent corruption into loud assertions** — prefer them; an `abort` on a debug build is a real finding even if the release build merely limps.
 - **Reproduction confirms, it does not refute.** Failing to reproduce does not close a static finding; it lowers priority pending a better payload.

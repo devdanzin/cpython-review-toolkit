@@ -1,13 +1,120 @@
 """Tests for scan_init_bypass.py — __init__-bypass NULL dereferences.
 
-Grounded in two confirmed CPython crashes:
+Grounded in confirmed CPython crashes:
   - gh-152954: sqlite3.Connection.__new__ bypass -> NULL row_factory -> Py_INCREF
   - gh-152817: del cursor.row_factory -> NULL -> PyObject_Vectorcall
+  - bytearray (main, 3.16.0a0): tp_init + PyType_GenericNew leaves
+    ob_bytes_object NULL -> _PyBytes_Resize(&obj->ob_bytes_object, ...) derefs
+    *pv unguarded -> SIGSEGV (exit 139, reproduced on a debug+ASan build).
 """
 
 import unittest
 
 from helpers import TempProject, import_script
+
+# The bytearray shape, reduced: a positional static PyTypeObject whose tp_init
+# establishes the "buffer is always non-NULL" invariant and whose tp_new is
+# PyType_GenericNew, plus the unguarded _PyBytes_Resize(&self->field, n) sink.
+_POSITIONAL_BYTEARRAY_SHAPE = """\
+#include "Python.h"
+
+typedef struct {
+    PyObject_HEAD
+    PyObject *ob_bytes_object;
+    Py_ssize_t ob_alloc;
+} ThingObject;
+
+static int
+thing___init___impl(ThingObject *self, PyObject *arg)
+{
+    /* First __init__; set ob_bytes_object so the buffer is always non-null. */
+    if (self->ob_bytes_object == NULL) {
+        self->ob_bytes_object = Py_GetConstant(Py_CONSTANT_EMPTY_BYTES);
+    }
+    return 0;
+}
+
+static int
+thing_resize(PyObject *self, Py_ssize_t requested_size)
+{
+    ThingObject *obj = ((ThingObject *)self);
+    size_t alloc = (size_t)obj->ob_alloc;
+    int ret = _PyBytes_Resize(&obj->ob_bytes_object, alloc);
+    return ret;
+}
+
+PyTypeObject Thing_Type = {
+    PyVarObject_HEAD_INIT(NULL, 0)
+    "thing",
+    sizeof(ThingObject),
+    0,
+    0,                                  /* tp_dealloc */
+    0,                                  /* tp_repr */
+    thing___init__,                     /* tp_init */
+    PyType_GenericAlloc,                /* tp_alloc */
+    PyType_GenericNew,                  /* tp_new */
+    PyObject_Free,                      /* tp_free */
+};
+"""
+
+# The property shape: same positional bypass, but every read is truthiness- or
+# NULL-guarded, so the scanner must stay silent *after* seeing the fields.
+_POSITIONAL_PROPERTY_SHAPE = """\
+#include "Python.h"
+
+typedef struct {
+    PyObject_HEAD
+    PyObject *prop_get;
+    PyObject *prop_set;
+    PyObject *prop_del;
+} PropObject;
+
+static int
+property_init_impl(PropObject *self, PyObject *get, PyObject *set, PyObject *del)
+{
+    self->prop_get = Py_XNewRef(get);
+    self->prop_set = Py_XNewRef(set);
+    self->prop_del = Py_XNewRef(del);
+    return 0;
+}
+
+static PyObject *
+property_descr_get(PyObject *op, PyObject *obj)
+{
+    PropObject *self = (PropObject *)op;
+    if (self->prop_get == NULL) {
+        PyErr_SetString(PyExc_AttributeError, "unreadable attribute");
+        return NULL;
+    }
+    return PyObject_CallOneArg(self->prop_get, obj);
+}
+
+static PyObject *
+property_copy(PyObject *op)
+{
+    PropObject *self = (PropObject *)op;
+    PyObject *get = self->prop_get ? self->prop_get : Py_None;
+    if (self->prop_set) {
+        Py_INCREF(self->prop_set);
+    }
+    if (self->prop_del != NULL) {
+        Py_INCREF(self->prop_del);
+    }
+    return Py_NewRef(get);
+}
+
+PyTypeObject Prop_Type = {
+    PyVarObject_HEAD_INIT(NULL, 0)
+    "property",
+    sizeof(PropObject),
+    0,
+    0,                                  /* tp_dealloc */
+    0,                                  /* tp_repr */
+    property_init,                      /* tp_init */
+    PyType_GenericAlloc,                /* tp_alloc */
+    PyType_GenericNew,                  /* tp_new */
+};
+"""
 
 
 class TestScanInitBypass(unittest.TestCase):
@@ -123,7 +230,309 @@ class TestScanInitBypass(unittest.TestCase):
         self.assertEqual(f["reason"], "new_bypass")
         self.assertEqual(f["confidence"], "medium")
 
+    def test_pytype_spec_form_still_reports_both_reasons(self):
+        # Modules/_sqlite/cursor.c (gh-152817): the field carries BOTH a
+        # deletable member entry and a tp_init assignment, wired via PyType_Spec.
+        # This is the calibration corpus — guard it against regression.
+        result = self._findings(
+            {
+                "Modules/cur.c": (
+                    "typedef struct { PyObject_HEAD PyObject *row_factory; } CurObject;\n"
+                    "static int\n"
+                    "cursor_init_impl(CurObject *self, PyObject *conn)\n"
+                    "{\n"
+                    "    self->row_factory = Py_NewRef(Py_None);\n"
+                    "    return 0;\n"
+                    "}\n"
+                    "static PyObject *\n"
+                    "cursor_iternext(PyObject *op)\n"
+                    "{\n"
+                    "    CurObject *self = (CurObject *)op;\n"
+                    "    if (!Py_IsNone(self->row_factory)) {\n"
+                    "        PyObject *args[] = { op };\n"
+                    "        return PyObject_Vectorcall(self->row_factory, args, 1, NULL);\n"
+                    "    }\n"
+                    "    Py_RETURN_NONE;\n"
+                    "}\n"
+                    "static PyMemberDef cursor_members[] = {\n"
+                    '    {"row_factory", _Py_T_OBJECT, offsetof(CurObject, row_factory), 0},\n'
+                    "    {NULL}\n"
+                    "};\n"
+                    "static PyType_Slot cursor_slots[] = {\n"
+                    "    {Py_tp_init, cursor_init_impl},\n"
+                    "    {0, NULL},\n"
+                    "};\n"
+                )
+            }
+        )
+        f = next((f for f in result["findings"] if f["field"] == "row_factory"), None)
+        self.assertIsNotNone(f)
+        self.assertEqual(f["reason"], "deletable_member,new_bypass")
+        self.assertEqual(f["confidence"], "high")
+        self.assertEqual(f["sink"], "PyObject_Vectorcall")
+
+    def test_init_that_downcasts_self_is_understood(self):
+        # gh-144330's cm_init/sm_init: the tp_init takes `PyObject *self` and
+        # re-casts it before storing, so receiver-anchored matching alone finds
+        # no fields at all. This is the shape that provably had the bug.
+        result = self._findings(
+            {
+                "Objects/funcy.c": (
+                    "typedef struct { PyObject_HEAD PyObject *sm_callable; } staticmethod;\n"
+                    "static int\n"
+                    "sm_init(PyObject *self, PyObject *args, PyObject *kwds)\n"
+                    "{\n"
+                    "    staticmethod *sm = (staticmethod *)self;\n"
+                    "    PyObject *callable;\n"
+                    '    if (!PyArg_UnpackTuple(args, "staticmethod", 1, 1, &callable))\n'
+                    "        return -1;\n"
+                    "    Py_XSETREF(sm->sm_callable, Py_NewRef(callable));\n"
+                    "    return 0;\n"
+                    "}\n"
+                    "static PyObject *\n"
+                    "sm_call(PyObject *callable, PyObject *args, PyObject *kwargs)\n"
+                    "{\n"
+                    "    staticmethod *sm = (staticmethod *)callable;\n"
+                    "    return PyObject_Call(sm->sm_callable, args, kwargs);\n"
+                    "}\n"
+                    "PyTypeObject PyStaticMethod_Type = {\n"
+                    "    PyVarObject_HEAD_INIT(&PyType_Type, 0)\n"
+                    '    "staticmethod",\n'
+                    "    sm_init,                            /* tp_init */\n"
+                    "    PyType_GenericAlloc,                /* tp_alloc */\n"
+                    "    PyType_GenericNew,                  /* tp_new */\n"
+                    "};\n"
+                )
+            }
+        )
+        f = next((f for f in result["findings"] if f["field"] == "sm_callable"), None)
+        self.assertIsNotNone(f)
+        self.assertEqual(f["function"], "sm_call")
+        self.assertEqual(f["sink"], "PyObject_Call")
+        self.assertEqual(f["reason"], "new_bypass")
+
+    def test_field_read_off_a_later_parameter_is_not_flagged(self):
+        # Field names collide across structs: Py_buffer also has an `obj` field,
+        # so Py_TYPE(buffer->obj) must not read as the receiver's `obj`.
+        result = self._findings(
+            {
+                "Objects/coll.c": (
+                    "typedef struct { PyObject_HEAD PyObject *obj; } SuObject;\n"
+                    "static int\n"
+                    "su_init(PyObject *self, PyObject *args, PyObject *kwds)\n"
+                    "{\n"
+                    "    SuObject *su = (SuObject *)self;\n"
+                    "    su->obj = Py_NewRef(args);\n"
+                    "    return 0;\n"
+                    "}\n"
+                    "static void\n"
+                    "releasebuffer_call_python(PyObject *self, Py_buffer *buffer)\n"
+                    "{\n"
+                    "    bool wrapped = Py_TYPE(buffer->obj) == &_PyBufferWrapper_Type;\n"
+                    "    (void)wrapped;\n"
+                    "}\n"
+                    "PyTypeObject Su_Type = {\n"
+                    "    PyVarObject_HEAD_INIT(&PyType_Type, 0)\n"
+                    '    "su",\n'
+                    "    su_init,                            /* tp_init */\n"
+                    "    PyType_GenericAlloc,                /* tp_alloc */\n"
+                    "    PyType_GenericNew,                  /* tp_new */\n"
+                    "};\n"
+                )
+            }
+        )
+        # The field is still visible as nullable — only the collision is dropped.
+        self.assertGreater(result["total_nullable_fields"], 0)
+        self.assertEqual(result["findings"], [])
+
+    # --- positional slot tables (the Objects/ form) ------------------------
+
+    def test_positional_slot_table_is_parsed(self):
+        # Objects/ declares types with the positional static PyTypeObject form,
+        # whose ONLY marker is the trailing /* tp_init */ comment. Matching it
+        # requires running against the raw source: strip_comments() deletes it.
+        result = self._findings({"Objects/thing.c": _POSITIONAL_BYTEARRAY_SHAPE})
+        self.assertGreater(result["total_nullable_fields"], 0)
+        self.assertIn("new_bypass", result["nullable_fields_by_reason"])
+
+    def test_bytearray_shape_addr_deref_is_flagged(self):
+        # The live SIGSEGV: tp_init sets the field, tp_new is PyType_GenericNew,
+        # and _PyBytes_Resize(&self->field, n) dereferences *pv unguarded.
+        result = self._findings({"Objects/thing.c": _POSITIONAL_BYTEARRAY_SHAPE})
+        f = next(
+            (f for f in result["findings"] if f["field"] == "ob_bytes_object"), None
+        )
+        self.assertIsNotNone(f)
+        self.assertEqual(f["function"], "thing_resize")
+        self.assertEqual(f["sink"], "_PyBytes_Resize")
+        self.assertEqual(f["reason"], "new_bypass")
+        self.assertIn("derefs *pv", f["detail"])
+
+    def test_positional_real_tp_new_blocks_bypass(self):
+        # Same shape, but the block wires a real tp_new that initializes the
+        # field — T.__new__(T) can no longer produce a NULL.
+        source = _POSITIONAL_BYTEARRAY_SHAPE.replace(
+            "    PyType_GenericNew,                  /* tp_new */",
+            "    thing_new,                          /* tp_new */",
+        )
+        result = self._findings({"Objects/thing.c": source})
+        self.assertEqual(result["findings"], [])
+        self.assertEqual(result["total_nullable_fields"], 0)
+
+    def test_positional_pairing_is_per_type_block(self):
+        # A second type in the same file with a real tp_new must not hide the
+        # first type's bypass (descrobject.c's mappingproxy_new vs property).
+        source = _POSITIONAL_BYTEARRAY_SHAPE + (
+            "static PyObject *other_new(PyTypeObject *t, PyObject *a, PyObject *k);\n"
+            "PyTypeObject Other_Type = {\n"
+            "    PyVarObject_HEAD_INIT(NULL, 0)\n"
+            '    "other",\n'
+            "    0,                                  /* tp_init */\n"
+            "    other_new,                          /* tp_new */\n"
+            "};\n"
+        )
+        result = self._findings({"Objects/thing.c": source})
+        f = next(
+            (f for f in result["findings"] if f["field"] == "ob_bytes_object"), None
+        )
+        self.assertIsNotNone(f)
+
+    def test_macro_wrapped_member_offset_is_parsed(self):
+        # funcobject.c / methodobject.c wrap offsetof in a file-local macro:
+        #     #define OFF(x) offsetof(PyFunctionObject, x)
+        result = self._findings(
+            {
+                "Objects/funcy.c": (
+                    "typedef struct { PyObject_HEAD PyObject *func_doc; } FuncObject;\n"
+                    "#define OFF(x) offsetof(FuncObject, x)\n"
+                    "static void\n"
+                    "funcy_use(PyObject *op)\n"
+                    "{\n"
+                    "    FuncObject *self = (FuncObject *)op;\n"
+                    "    Py_INCREF(self->func_doc);\n"
+                    "}\n"
+                    "static PyMemberDef funcy_members[] = {\n"
+                    '    {"__doc__", _Py_T_OBJECT, OFF(func_doc), 0},\n'
+                    "    {NULL}\n"
+                    "};\n"
+                )
+            }
+        )
+        f = next((f for f in result["findings"] if f["field"] == "func_doc"), None)
+        self.assertIsNotNone(f)
+        self.assertEqual(f["reason"], "deletable_member")
+        self.assertEqual(f["confidence"], "high")
+
+    # --- getset setters as a nullability source ---------------------------
+
+    def test_null_accepting_getset_setter_is_a_nullability_source(self):
+        # typealias_set_module (Objects/typevarobject.c): stores Py_XNewRef(value)
+        # with no rejection, so `del ta.__module__` leaves the field NULL.
+        result = self._findings(
+            {
+                "Objects/alias.c": (
+                    "typedef struct { PyObject_HEAD PyObject *module; } AliasObject;\n"
+                    "static int\n"
+                    "alias_set_module(PyObject *self, PyObject *value, void *unused)\n"
+                    "{\n"
+                    "    AliasObject *ta = (AliasObject *)self;\n"
+                    "    Py_XSETREF(ta->module, Py_XNewRef(value));\n"
+                    "    return 0;\n"
+                    "}\n"
+                    "static PyObject *\n"
+                    "alias_use(PyObject *self)\n"
+                    "{\n"
+                    "    AliasObject *ta = (AliasObject *)self;\n"
+                    "    return Py_NewRef(ta->module);\n"
+                    "}\n"
+                    "static PyGetSetDef alias_getset[] = {\n"
+                    '    {"__module__", alias_module, alias_set_module, NULL, NULL},\n'
+                    "    {NULL}\n"
+                    "};\n"
+                )
+            }
+        )
+        f = next((f for f in result["findings"] if f["field"] == "module"), None)
+        self.assertIsNotNone(f)
+        self.assertEqual(f["reason"], "deletable_getset")
+        self.assertEqual(f["confidence"], "high")
+
+    def test_delete_rejecting_getset_setter_is_not_a_source(self):
+        result = self._findings(
+            {
+                "Objects/alias.c": (
+                    "typedef struct { PyObject_HEAD PyObject *module; } AliasObject;\n"
+                    "static int\n"
+                    "alias_set_module(PyObject *self, PyObject *value, void *unused)\n"
+                    "{\n"
+                    "    AliasObject *ta = (AliasObject *)self;\n"
+                    "    if (value == NULL) {\n"
+                    '        PyErr_SetString(PyExc_AttributeError, "cannot delete");\n'
+                    "        return -1;\n"
+                    "    }\n"
+                    "    Py_XSETREF(ta->module, Py_NewRef(value));\n"
+                    "    return 0;\n"
+                    "}\n"
+                    "static PyObject *\n"
+                    "alias_use(PyObject *self)\n"
+                    "{\n"
+                    "    AliasObject *ta = (AliasObject *)self;\n"
+                    "    return Py_NewRef(ta->module);\n"
+                    "}\n"
+                    "static PyGetSetDef alias_getset[] = {\n"
+                    '    {"__module__", alias_module, alias_set_module, NULL, NULL},\n'
+                    "    {NULL}\n"
+                    "};\n"
+                )
+            }
+        )
+        self.assertEqual(result["findings"], [])
+
+    def test_getset_setter_validating_via_helper_is_not_a_source(self):
+        # element_tag_setter (Modules/_elementtree.c) rejects deletion inside the
+        # _VALIDATE_ATTR_VALUE macro; type_set_qualname does it inside
+        # check_set_special_type_attr. Unresolved indirection over the value
+        # parameter must be treated as a rejection.
+        result = self._findings(
+            {
+                "Modules/et.c": (
+                    "typedef struct { PyObject_HEAD PyObject *tag; } ElemObject;\n"
+                    "static int\n"
+                    "elem_tag_setter(PyObject *op, PyObject *value, void *closure)\n"
+                    "{\n"
+                    "    _VALIDATE_ATTR_VALUE(value);\n"
+                    "    ElemObject *self = (ElemObject *)op;\n"
+                    "    Py_SETREF(self->tag, Py_NewRef(value));\n"
+                    "    return 0;\n"
+                    "}\n"
+                    "static PyObject *\n"
+                    "elem_use(PyObject *op)\n"
+                    "{\n"
+                    "    ElemObject *self = (ElemObject *)op;\n"
+                    "    return Py_NewRef(self->tag);\n"
+                    "}\n"
+                    "static PyGetSetDef elem_getset[] = {\n"
+                    '    {"tag", elem_tag_getter, elem_tag_setter, NULL, NULL},\n'
+                    "    {NULL}\n"
+                    "};\n"
+                )
+            }
+        )
+        self.assertEqual(result["findings"], [])
+
     # --- true negatives ----------------------------------------------------
+
+    def test_positional_truthiness_guards_suppress(self):
+        # property (Objects/descrobject.c) has exactly the bypass shape and is
+        # fully defended: every read is behind `field == NULL` / `if (field)` /
+        # `field ?`. P1 makes the fields visible; the zero must stay EARNED.
+        result = self._findings({"Objects/prop.c": _POSITIONAL_PROPERTY_SHAPE})
+        self.assertEqual(result["findings"], [])
+        # ...but the rule DID fire — that is what makes the zero meaningful.
+        self.assertGreaterEqual(result["total_nullable_fields"], 3)
+        self.assertGreaterEqual(
+            result["nullable_fields_by_reason"].get("new_bypass", 0), 3
+        )
 
     def test_explicit_null_guard_is_suppressed(self):
         result = self._findings(
@@ -259,8 +668,26 @@ class TestScanInitBypass(unittest.TestCase):
             "functions_analyzed",
             "findings",
             "summary",
+            # Recall canary — see the module docstring.
+            "total_nullable_fields",
+            "files_with_nullable_fields",
+            "nullable_fields_by_reason",
         ):
             self.assertIn(key, result)
+
+    def test_recall_canary_distinguishes_silence_from_safety(self):
+        # A scope with nothing to see reports zero nullable fields; a scope with
+        # a guarded candidate reports zero findings but NON-zero nullable
+        # fields. Consumers must check the latter before calling a scope clean.
+        silent = self._findings(
+            {"Modules/foo.c": "static void foo(PyObject *self) { }\n"}
+        )
+        self.assertEqual(silent["total_nullable_fields"], 0)
+        self.assertEqual(silent["findings"], [])
+
+        earned = self._findings({"Objects/prop.c": _POSITIONAL_PROPERTY_SHAPE})
+        self.assertGreater(earned["total_nullable_fields"], 0)
+        self.assertEqual(earned["findings"], [])
 
 
 if __name__ == "__main__":

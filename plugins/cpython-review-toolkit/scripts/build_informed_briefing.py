@@ -68,21 +68,54 @@ def _load_non_bugs(non_bugs_path: str | None = None) -> str:
         return ""
 
 
+_MAX_SITES = 4
+
+
+def _format_site(site: object) -> str:
+    """Render one site entry as ``path:line (function)``.
+
+    Findings-repo ``sites`` entries are dicts (``path`` / ``line`` / ``function``
+    / ``note``); stringifying one directly leaks a raw Python dict repr into the
+    briefing, which is what every agent then reads. Line 0 means "unknown line,
+    match by function" and is omitted rather than printed as ``:0``.
+    """
+    if isinstance(site, dict):
+        path = str(site.get("path") or "?")
+        line = site.get("line")
+        func = site.get("function")
+        text = f"{path}:{line}" if isinstance(line, int) and line > 0 else path
+        if func and str(func) != "0":
+            text += f" ({func})"
+        return text
+    return str(site)
+
+
 def _first_site(meta: dict) -> str:
-    """Best-effort single-site string from a findings-repo ``meta.json``.
+    """Best-effort site string from a findings-repo ``meta.json``.
 
     Tolerates the two documented layouts (``sites`` list / ``signature``) plus
     the ``signatures`` list some repos use, and a dict-shaped ``signature``.
+
+    Renders **every** site (up to ``_MAX_SITES``), not just the first: a
+    multi-site finding is precisely the sibling-hunt lead an informed run exists
+    to propagate, and truncating it to one site hides the siblings from the
+    agents that would chase them.
     """
     sites = meta.get("sites")
     if isinstance(sites, list) and sites:
-        return str(sites[0])
+        shown = [_format_site(s) for s in sites[:_MAX_SITES]]
+        if len(sites) > _MAX_SITES:
+            shown.append(f"(+{len(sites) - _MAX_SITES} more)")
+        return "; ".join(shown)
     sigs = meta.get("signatures")
     if isinstance(sigs, list) and sigs:
-        return str(sigs[0])
+        shown = [_format_site(s) for s in sigs[:_MAX_SITES]]
+        if len(sigs) > _MAX_SITES:
+            shown.append(f"(+{len(sigs) - _MAX_SITES} more)")
+        return "; ".join(shown)
     sig = meta.get("signature")
     if isinstance(sig, dict):
-        return str(sig.get("site_frame") or next(iter(sig.values()), "-"))
+        return _format_site(sig.get("site_frame") or sig)
     if isinstance(sig, str) and sig:
         return sig
     return "-"

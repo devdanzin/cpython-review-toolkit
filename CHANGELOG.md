@@ -3,6 +3,139 @@
 All notable changes to this project will be documented in this file.
 Format loosely follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.8.0] - 2026-07-24
+
+The **correctness release**. A full `informed-explore` run over a 14-file
+`Objects/` sample was used to audit the toolkit against real CPython source. It
+found 15 FIX-class bugs — but it also found that **0 of 69 candidates from the
+three largest scanners were real**, that three headline rules were dead code,
+and that two entries in the false-positive taxonomy were factually wrong about
+CPython. This release fixes 23 toolkit defects found that way.
+
+Every number below was measured on CPython main @ `4f3be1b5777` (3.16.0a0).
+Tests: **243 → 556**.
+
+### Fixed — the chassis (shared; fixed upstream in cext-review-toolkit and synced)
+- **`extract_functions()` silently dropped and merged functions.** CPython's
+  brace-unbalanced macros (`Py_BEGIN_ALLOW_THREADS`, `Py_BEGIN_CRITICAL_SECTION`),
+  the 48-name `PyObject_HEAD` punctuation family, and the `_Py_COMP_DIAG_*`
+  pragma family desynchronize `tree-sitter-c`. Worst case was **misattribution,
+  not omission**: `Objects/object.c` returned one record spanning **lines
+  1267–3521 (2,254 lines, ~91 functions)**, so findings were confidently
+  reported against the wrong function. Now: max span **126**; `dictobject.c`
+  **187 → 292** functions reaching line 8569 of 8598; `Py_BEGIN_CRITICAL_SECTION`
+  outside any function **19/187 → 3/187**; 3,559 → 3,751 functions tree-wide with
+  **no per-file regression** and all byte offsets verified.
+  New `scrub_macros()` / `parse_health()` primitives; `scrub=` on all `parse_*`.
+  *Measured and rejected*: Argument Clinic substitution (would take `dictobject.c`
+  to **72** functions) and ERROR-node recovery (all candidates garbage).
+- **`strip_comments()` destroyed line numbers** by collapsing block comments
+  without their newlines — 14 lines of drift in a single 1,070-line file. Now
+  line-count-preserving, verified across all 50 `Objects/*.c`.
+
+### Fixed — dead or structurally disabled rules
+- **`scan_refcounts.py`: `borrowed-ref-across-call` did not exist.** The
+  toolkit's flagship analysis was dead code (`BORROWED_REF_APIS` fed an unused
+  regex). Implemented as `stale_slot_decref` + `owner_freed_before_use` with a
+  `PYTHON_REACHING_APIS` table (122 → 226 entries incl. private `_Py*` aliases).
+  Whole-tree volume **639 → 7**; on the sample where the old scanner scored
+  **0/19** it now emits **2 findings, both ASan-confirmed bugs**.
+- **`scan_error_paths.py`: an off-by-one read the return type from the line
+  *above* it**, so 82% of functions had an empty type and `return_null_no_exception`
+  had been evaluating ~1% of its population. `PyObject`-returning **22 → 1045**.
+  Rule re-scoped to gated `alloc_null_no_memerror`; new `unconditional_pyerr_clear`.
+  `Objects/` **148 → 33**, `Modules/` **458 → 61**.
+- **`scan_null_checks.py`: `deref-before-check` appended nothing**, so
+  `high_confidence` was permanently 0 while the agent prompt told agents to
+  prioritize that empty set. Implemented properly — and it finds **exactly zero**
+  on CPython main, a fact now recorded in the docstring and prompt so the zero is
+  never read as an audit result. `Objects/` **113 → 1**, `Modules/` **311 → 13**.
+- **`scan_init_bypass.py` saw 2 of 44 slot declarations.** `Objects/` uses the
+  positional `X, /* tp_init */` form, and the marker lives in a *comment* that
+  `strip_comments()` deleted. Now parsed on raw source; nullable fields
+  **24 → 38**; new `addr_deref` sink; getset setters modeled.
+- **`scan_memory_patterns.py` could not express its own bug shape** — no
+  var-object allocator entry, and the multiply lives inside `_PyObject_VAR_SIZE`.
+  New `varobject_nitems_unguarded`; GC gate made type-level; taint table split.
+- **`scan_lock_discipline.py` discarded half its data file**, filtering out the
+  `PyMutex` family and going blind to `weakrefobject.c`'s 16-site `LOCK_WEAKREFS`
+  scheme. Both families now load and pair independently.
+
+### Fixed — factual errors in the shipped knowledge base
+- **`PyObject_Hash` was listed as recursion-guarded. It is not**
+  (`Objects/object.c:1158`, unlike `PyObject_Repr` :759 / `PyObject_Str` :800 /
+  `PyObject_RichCompare` :1099). An agent trusting the taxonomy would have
+  dismissed the entire confirmed recursion class, both catalogued findings
+  included. Corrected in `cpython_non_bugs.md` and `recursion-guard-auditor.md`.
+- **The `Py_TRASHCAN` entry told agents to look for a marker that no longer
+  exists** — the macros are empty backwards-compat shims with zero call sites in
+  `Objects/`/`Modules/`; the live mechanism is automatic in `_Py_Dealloc`. The
+  stale test biased toward *false positives*.
+- **Catalog entry `OOM-0023` was mis-catalogued**, not fixed: `subtype_dealloc`
+  has zero `PyErr_*` calls in 167 lines and no commit ever removed one. Removed
+  with a tombstone; it was also the worked example in an agent prompt.
+
+### Fixed — silent-wrongness in shared helpers
+- `deduplicate_findings()` keyed on a *normalized* detail string that erased
+  quoted names and line numbers, collapsing distinct bugs in the same file and
+  hiding the second in `duplicate_locations`. Now exact on `(type, file, line)`.
+- `resolve_roots()` set `scan_root = target.parent` for a file target, so
+  **scanning one file silently scanned the whole directory**. Fixed there and in
+  the four scanners carrying a local copy.
+- `parse_common_args()` silently swallowed unknown flags; now warns on stderr.
+
+### Fixed — history and regression tooling
+- `analyze_history.py` **died on any window longer than ~10 years**
+  (`text=True` with no `errors=`; one non-UTF-8 commit aborted everything). Full
+  9,203-commit `Objects/` history now analyses in ~11 s. **The identical defect
+  was propagated to all five sibling toolkits.**
+- Unknown flags are now a hard error (`--months 420` used to run silently at the
+  default 90-day window); `--max-commits` 2000 → 50000 with the cap surfaced in
+  `notes[]`; `.py` dropped from discovery in a C-source toolkit.
+- New `--introduced-by FILE:LINE` (validated: `genericaliasobject.c:542` →
+  `1da989be74e`); crash-weighted `fix_confidence`/`crash_class` (the `fix` bucket
+  was **44.9%** of commits, now 26.0%); per-file crash-fix density with
+  `--follow` (ranks `genericaliasobject.c` **#1** where raw churn ranked it 36th);
+  shallow-clone detection.
+- `known-issues` gains **`absent_in_function`** — "the named function still
+  exists and is clean" is a different signal from "the bug moved". 4 of 5
+  `line_drifted` rows reclassify; `no_scanner: 0` preserved.
+
+### Added
+- **`tools/validate_precision.py`** — measures scanner volume and **line
+  accuracy** (does the reported line actually carry the construct the finding
+  describes?) across `Objects/`, `Modules/` and `Python/`, with baseline diffing.
+- **`scan_deprecated_apis.py`** + `data/deprecated_c_apis.json` (66 verified
+  entries) replacing a 2021-era pattern list that scored **0/13**; includes the
+  `_Py_DEPRECATED_EXTERNALLY` tier the compiler never warns on under
+  `Py_BUILD_CORE`. New `gc-untrack-macro-form` rule (2 hits tree-wide, both real).
+- New FT rules `iternext_setref_null_decref` and `lazy_init_partial_guard`
+  (gated on ≥2 accessors with ≥1 guarded); `Py_GIL_DISABLED` region modeling;
+  positional `tp_iternext` detection. Sample precision **3/6 → 5/5**.
+- `run_oom_sweep.py` gains `--setup` (arming before setup burned the budget) and
+  sanitizer-aware classification — ASan's exit 1 was being read as the *safe*
+  `memory_error` outcome.
+- `analyze_includes.py`: directives resolved to real paths before tiering, so
+  `api_tiers` and `cycles` stop being tautologies (`Objects/` internal
+  **0 → 87**; edge targets matching a node key **5/1110 → 669/670**; the tree's
+  one real cycle surfaced). Symbol-based fan-in alongside include fan-in.
+
+### Changed
+- `check_pep7.py`: **5,736 → 64** findings on `Objects/`. `func-call-space`
+  deleted (it fired on `#define X (…)`, where removing the space changes an
+  object-like macro into a function-like one); `missing-braces` and
+  `line-too-long` gated behind `--diff-only` (PEP 7 says braces are required
+  *"but do not add them to code you are not otherwise modifying"*); generated and
+  `stringlib` headers excluded from `header-guard`. Envelope normalized to
+  `findings[]`.
+- `measure_c_complexity.py`: multi-line signatures and Clinic `_impl` functions
+  were dropped (**+35.7%** functions recovered); hotspot threshold made relative
+  (absolute `5.0` flagged **3 functions in all of `Objects/`**, max score 6.5);
+  new `manual_cleanup_ladder` metric — **24 of 25 defect functions have zero
+  gotos**, so in CPython a `goto` cleanup ladder is a *positive* signal.
+  Documented that complexity **inverts** for the recursion class: the guard is a
+  branch, so the correct twin outscores the buggy sibling.
+
 ## [0.7.0] - 2026-07-24
 
 The dynamic-verification release. Adds the harness that turns a *static*

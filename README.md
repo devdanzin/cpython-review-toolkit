@@ -29,6 +29,10 @@ git clone https://github.com/devdanzin/cpython-review-toolkit.git
 claude --plugin-dir cpython-review-toolkit/plugins/cpython-review-toolkit
 ```
 
+### After upgrading the plugin
+
+**Run `/reload-plugins` before `explore` or `informed-explore`.** A Claude Code session registers dispatchable agents when the plugin is *loaded*; agents added by a version installed mid-session stay invisible until you reload, and those commands then run silently with the older, smaller agent set.
+
 ## Quick Start
 
 Navigate to a CPython source checkout, then:
