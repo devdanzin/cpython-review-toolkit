@@ -34,11 +34,17 @@ Parse arguments into three categories:
 - `recursion` → recursion-guard-auditor
 - `pyerr-clear` → pyerr-clear-auditor
 - `uninit-dealloc` → uninitialized-dealloc-auditor
+- `ft-races` → ft-race-scanner
+- `stw-safety` → stw-safety-checker
+- `lock-discipline` → lock-discipline-checker
 - `history` → git-history-analyzer
 - `all` → all agents (default)
 
-Note: `recursion`, `pyerr-clear`, and `uninit-dealloc` are the tree-sitter-based
-crash-class detectors (require `pip install tree-sitter tree-sitter-c`).
+Note: `recursion`, `pyerr-clear`, `uninit-dealloc`, `ft-races`, `stw-safety`, and
+`lock-discipline` are the tree-sitter-based detectors (require `pip install
+tree-sitter tree-sitter-c`). The `tsan-report-analyzer` and `tsan-stress-generator`
+agents are on-demand tools (they consume/produce a ThreadSanitizer run on a
+`--disable-gil` build), not part of the static explore pipeline.
 
 **Options**:
 - `deep` → full detail, no output truncation
@@ -85,6 +91,11 @@ Based on the requested aspects (default: all), launch the appropriate agents. Ea
 **Group B — Memory safety**:
 3. null-safety-scanner
 4. gil-discipline-checker
+
+**Group B2 — Free-threading / data races (PEP 703, `Py_GIL_DISABLED`)**:
+- ft-race-scanner — iterator double-DECREF, lazy-init w/o critical section, atomic/plain asymmetry (gh-154130, TSAN-0043)
+- stw-safety-checker — unsafe calls inside a `_PyEval_StopTheWorld` region
+- lock-discipline-checker — critical-section acquire/release pairing
 
 **Group C — Code quality**:
 5. c-complexity-analyzer

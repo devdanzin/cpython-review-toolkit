@@ -27,6 +27,9 @@ Run all agents in summary mode to produce a quick health dashboard. Each agent r
 | Recursion Guards   | 🟢/🟡/🔴  | X/10  | N   | [1-line summary]               |
 | Destructor PyErr   | 🟢/🟡/🔴  | X/10  | N   | [1-line summary]               |
 | Uninit Dealloc     | 🟢/🟡/🔴  | X/10  | N   | [1-line summary]               |
+| FT Data Races      | 🟢/🟡/🔴  | X/10  | N   | [1-line summary]               |
+| STW Safety         | 🟢/🟡/🔴  | X/10  | N   | [1-line summary]               |
+| Lock Discipline    | 🟢/🟡/🔴  | X/10  | N   | [1-line summary]               |
 | Error Handling     | 🟢/🟡/🔴  | X/10  | N   | [1-line summary]               |
 | GIL Discipline     | 🟢/🟡/🔴  | X/10  | N   | [1-line summary]               |
 | Complexity         | 🟢/🟡/🔴  | X/10  | N   | [1-line summary]               |

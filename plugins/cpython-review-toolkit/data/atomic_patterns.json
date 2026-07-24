@@ -1,0 +1,88 @@
+{
+  "atomic_type_mappings": {
+    "bool": {
+      "cpython": "_Py_atomic_int",
+      "c11": "_Atomic(int)",
+      "cpp": "std::atomic<bool>",
+      "load": "_Py_atomic_load_int_relaxed",
+      "store": "_Py_atomic_store_int_relaxed",
+      "note": "CPython uses int for bools in atomic context"
+    },
+    "int": {
+      "cpython": "_Py_atomic_int",
+      "c11": "_Atomic(int)",
+      "cpp": "std::atomic<int>",
+      "load": "_Py_atomic_load_int",
+      "store": "_Py_atomic_store_int",
+      "add": "_Py_atomic_add_int",
+      "note": "Use relaxed ordering for counters, acquire/release for flags"
+    },
+    "unsigned int": {
+      "cpython": "_Py_atomic_uint",
+      "c11": "_Atomic(unsigned int)",
+      "cpp": "std::atomic<unsigned int>",
+      "load": "_Py_atomic_load_uint",
+      "store": "_Py_atomic_store_uint"
+    },
+    "Py_ssize_t": {
+      "cpython": "_Py_atomic_Py_ssize_t",
+      "c11": "_Atomic(Py_ssize_t)",
+      "cpp": "std::atomic<Py_ssize_t>",
+      "load": "_Py_atomic_load_ssize",
+      "store": "_Py_atomic_store_ssize"
+    },
+    "void *": {
+      "cpython": "_Py_atomic_address",
+      "c11": "_Atomic(void *)",
+      "cpp": "std::atomic<void *>",
+      "load": "_Py_atomic_load_ptr",
+      "store": "_Py_atomic_store_ptr",
+      "note": "Also usable for function pointers"
+    },
+    "uintptr_t": {
+      "cpython": "_Py_atomic_uintptr_t",
+      "c11": "_Atomic(uintptr_t)",
+      "cpp": "std::atomic<uintptr_t>"
+    }
+  },
+  "memory_ordering": {
+    "relaxed": {
+      "use_case": "Counters, statistics — no ordering guarantees needed",
+      "cpython_suffix": "_relaxed",
+      "c11": "memory_order_relaxed",
+      "cpp": "std::memory_order_relaxed"
+    },
+    "acquire_release": {
+      "use_case": "Flags that gate data access — reader sees all writes before flag was set",
+      "cpython_suffix": "",
+      "c11": "memory_order_acquire / memory_order_release",
+      "cpp": "std::memory_order_acquire / std::memory_order_release"
+    },
+    "seq_cst": {
+      "use_case": "Full synchronization — rarely needed in extensions",
+      "cpython_suffix": null,
+      "c11": "memory_order_seq_cst",
+      "cpp": "std::memory_order_seq_cst"
+    }
+  },
+  "compound_operations": {
+    "increment": {
+      "wrong": "var++",
+      "cpython": "_Py_atomic_add_int(&var, 1)",
+      "c11": "atomic_fetch_add(&var, 1)",
+      "cpp": "var.fetch_add(1)"
+    },
+    "decrement": {
+      "wrong": "var--",
+      "cpython": "_Py_atomic_add_int(&var, -1)",
+      "c11": "atomic_fetch_sub(&var, 1)",
+      "cpp": "var.fetch_sub(1)"
+    },
+    "compare_exchange": {
+      "use_case": "Lazy initialization, lock-free algorithms",
+      "cpython": "_Py_atomic_compare_exchange_ptr(&var, &expected, desired)",
+      "c11": "atomic_compare_exchange_strong(&var, &expected, desired)",
+      "cpp": "var.compare_exchange_strong(expected, desired)"
+    }
+  }
+}

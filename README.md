@@ -45,7 +45,7 @@ Start with `map` to understand the include graph, then `hotspots` to find the hi
 
 ## What's Included
 
-- **15 analysis agents** covering reference counting, error handling, GIL discipline, complexity, NULL safety, PEP 7 style, include dependencies, API deprecation, macro hygiene, memory patterns, and temporal history — plus tree-sitter-based **crash-class detectors** for recursion-guard gaps, destructor exception-clobber, and uninitialized-dealloc.
+- **20 analysis agents** covering reference counting, error handling, GIL discipline, complexity, NULL safety, PEP 7 style, include dependencies, API deprecation, macro hygiene, memory patterns, and temporal history — plus tree-sitter-based **crash-class detectors** (recursion-guard gaps, destructor exception-clobber, uninitialized-dealloc) and **free-threading / data-race detectors** (iterator double-DECREF, stop-the-world safety, lock discipline, TSan triage).
 - **6 commands** (`explore`, `informed-explore`, `known-issues`, `map`, `hotspots`, `health`) for different analysis workflows.
 - **Analysis scripts** — stdlib-only regex scanners for the legacy dimensions, plus tree-sitter crash-class detectors, a `known-issues` regression checker, and an `informed-explore` briefing generator.
 

@@ -3,6 +3,36 @@
 All notable changes to this project will be documented in this file.
 Format loosely follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.6.0] - 2026-07-24
+
+The free-threading release. Uses the v0.5 tree-sitter chassis to add data-race
+detectors for CPython's own free-threaded (`Py_GIL_DISABLED`, PEP 703) code,
+grounded in the fusil `cpython-tsan-findings` catalog.
+
+### Added
+- **ft-race-scanner** + `scan_ft_races.py`: three TSan-grounded race classes —
+  T3 iterator-exhaustion double-DECREF (gh-154130 / gh-144357 / gh-153296), T2
+  lazy-init cache without a critical section (TSAN-0043 `descr_get_qualname`),
+  T1 atomic/plain access asymmetry (TSAN-0006 `count_repr`). Suppresses the
+  `*_lock_held` / `*_locked` caller-holds-the-lock convention.
+- **stw-safety-checker** + `scan_stw_safety.py` (ported from ft-review-toolkit):
+  flags calls inside a `_PyEval_StopTheWorld` region that can invoke Python / GC
+  / set an exception, via an intra-file call graph (now possible on the chassis).
+- **lock-discipline-checker** + `scan_lock_discipline.py` (ported): critical-
+  section acquire/release pairing, including the `Py_BEGIN_CRITICAL_SECTION_MUTEX`
+  spelling.
+- **tsan-report-analyzer** + `parse_tsan_report.py` and **tsan-stress-generator**
+  (ported, inverted for CPython: races in CPython's own frames ARE the target,
+  not noise to filter).
+- FT data files: `stw_safe_apis.json`, `lock_macros.json`,
+  `critical_section_apis.json`, `atomic_patterns.json`.
+
+### Changed
+- `known-issues`: the `tsan` catalog category is now scanned by `scan_ft_races`
+  (was `no_scanner` in v0.5). Only `init-bypass` remains scanner-less.
+- `explore` / `hotspots` / `health` wire the free-threading agents.
+- Version → 0.6.0 (both manifests).
+
 ## [0.5.0] - 2026-07-24
 
 The chassis-and-crash-classes release. Adopts a tree-sitter-C parsing chassis
