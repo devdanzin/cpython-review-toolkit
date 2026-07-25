@@ -189,6 +189,55 @@ _MACRO_IDENT_RE = re.compile(rb"[A-Za-z_][A-Za-z0-9_]*")
 # is the one being #define'd. Used to leave a macro's own definition alone.
 _DEFINE_PREFIX_RE = re.compile(rb"^[ \t]*#[ \t]*define[ \t]+$")
 
+# Macros whose expansion is an ENTIRE FUNCTION DEFINITION, invoked at file
+# scope. The value is the index of the argument holding the generated function's
+# name.
+#
+# These are the most destructive macros in the tree, and not for the obvious
+# reason. The generated function is of course invisible -- tree-sitter cannot
+# expand a macro. The real damage is that the unparseable invocation corrupts the
+# parse of the REAL, hand-written functions that follow it. Measured on
+# Objects/typeobject.c: 35 invocations produced 47 ERROR nodes, and the wreckage
+# swallowed `slot_tp_hash`, `slot_tp_call`, `_Py_slot_tp_getattro`,
+# `slot_tp_repr`, `slot_tp_str` and `call_attribute` -- ordinary functions that
+# dispatch into user Python, i.e. exactly the population every crash-class rule
+# is meant to police. Substituting a byte-length-preserving `int NAME(){}` stub
+# takes that file from 417 functions / 47 errors to 459 / 5, losing nothing.
+#
+# The stub deliberately carries no body: the body lives in the #define, not
+# here, so a rule that inspects it correctly finds nothing rather than something
+# wrong. What the stub restores is the NAME and the LINE, and the parse of
+# everything after it.
+_FUNCTION_MACROS = {
+    "SLOT0": 0,
+    "SLOT1": 0,
+    "SLOT1BIN": 0,
+    "SLOT1BINFULL": 0,
+}
+
+
+def _split_macro_args(text: bytes) -> list[bytes]:
+    """Split a macro argument list's interior on top-level commas."""
+    args: list[bytes] = []
+    depth = 0
+    current = bytearray()
+    for byte in text:
+        char = bytes([byte])
+        if char in b"([":
+            depth += 1
+        elif char in b")]":
+            depth -= 1
+        if char == b"," and depth == 0:
+            args.append(bytes(current).strip())
+            current = bytearray()
+        else:
+            current += char
+    args.append(bytes(current).strip())
+    return args
+
+
+_MACRO_NAME_RE = re.compile(rb"^[A-Za-z_]\w*$")
+
 
 def _macro_arg_end(source_bytes: bytes, pos: int) -> int:
     """Return the index just past the "(...)" beginning at/after ``pos``.
@@ -279,6 +328,8 @@ def scrub_macros(source_bytes: bytes) -> bytes:
             kind = "element"
         elif name in _ERASE_MACROS:
             kind = "erase"
+        elif name in _FUNCTION_MACROS:
+            kind = "function"
         else:
             continue
 
@@ -290,6 +341,41 @@ def scrub_macros(source_bytes: bytes) -> bytes:
         # Leave the macro's own "#define NAME ..." line intact.
         line_start = source_bytes.rfind(b"\n", 0, start) + 1
         if _DEFINE_PREFIX_RE.match(source_bytes[line_start:start]):
+            continue
+
+        if kind == "function":
+            # Only a FILE-SCOPE invocation defines a function. The same name
+            # appearing mid-expression is something else and must be left alone.
+            if source_bytes[line_start:start].strip():
+                continue
+            inner = source_bytes[match.end() : end].strip()
+            if not (inner.startswith(b"(") and inner.endswith(b")")):
+                continue
+            args = _split_macro_args(inner[1:-1])
+            index = _FUNCTION_MACROS[name]
+            if index >= len(args) or not _MACRO_NAME_RE.match(args[index]):
+                continue
+            region = source_bytes[start:end]
+            # The generated name must stay at its ORIGINAL byte offset. Callers
+            # pass the unscrubbed source to get_node_text, so a stub that shifts
+            # the identifier (e.g. a plain "int NAME(){}" prefix) makes every
+            # consumer read the wrong bytes and yields a garbled function name.
+            # Overlay in place instead: "int" + filler, the untouched name, then
+            # "(){}".
+            name_at = region.find(args[index])
+            if name_at < 3:
+                continue
+            stub = (
+                b"int"
+                + b" " * (name_at - 3)
+                + args[index]
+                + b"(){}"
+            )
+            padded = _pad_replacement(stub, region)
+            if padded is None:
+                continue
+            out[start:end] = padded
+            changed = True
             continue
 
         if kind == "open":
