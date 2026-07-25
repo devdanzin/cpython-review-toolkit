@@ -5,6 +5,37 @@ Format loosely follows [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+### Fixed — three scanners that reported a structural zero or a false positive
+
+- **`scan_stw_safety` resolves file-local stop-the-world wrappers (D-2).** The
+  rule keyed on the literal `_PyEval_StopTheWorld` token, and nine of
+  `Objects/typeobject.c`'s eleven regions are opened through
+  `types_stop_world()`. It therefore saw **2 real regions out of 11 — 18%
+  recall** — and reported the zero as a clean bill; **both** of that file's
+  reproduced STW findings were in the 82% it never opened. A function whose
+  body, after dropping `assert(...)`, calls nothing but the stop primitive (or
+  nothing but the start primitive) is now a region delimiter. Measured:
+  typeobject.c `stw_functions` **3 → 11**, findings **0 → 8** including both
+  high-confidence real ones; `Objects/` 8 → 16 and 13 → 21; **`Modules/` and
+  `Python/` unchanged, zero spurious wrapper detections**. `stw_wrapper_count`
+  is now in the envelope so the denominator is visible.
+  Note `resolve_local_lock_macros` could not have done this: in the
+  free-threaded build the wrapper is a static *function*, and in the GIL build a
+  `#define` with an empty body that the resolver deliberately skips.
+- **`check_pep7`'s `missing-braces` walks to the end of the condition (D-1).**
+  It looked ahead a **fixed 2 lines** from the control keyword, assuming the
+  condition ended there. It does not when the condition spans lines and the
+  brace sits on its own — this codebase's deliberate Allman sub-convention. It
+  now tracks paren balance to the true end. Measured on `Objects/typeobject.c`:
+  **153 → 149**, removing exactly the four known false positives (`:1676`,
+  `:5449`, `:7655`, `:7660`) and adding none — **97.4% → 100%** precision. The
+  FPs skew 2024–2026, so the cost was growing.
+- **`scan_deprecated_apis` no longer reports a meaningless zero denominator.**
+  `functions_analyzed` was hard-coded to `0`, which reads as "no functions
+  analysed" — a claim this line-based rule never makes. It is now `-1` (N/A)
+  with a `denominator_note` naming the real denominator,
+  `files_analyzed × apis_in_vocabulary`.
+
 ### Added — `GRAPH_FIELDS`, and one of three proposed widenings (D-13)
 
 Three scanners went blind for one reason: each keyed on the *name of an accessor

@@ -224,15 +224,107 @@ def _get_unsafe_reason(func_name: str, unsafe_categories: dict[str, set[str]]) -
 # ---------------------------------------------------------------------------
 
 
-def _find_stw_regions(body_text: str) -> list[tuple[int, int]]:
+# A file-local wrapper hides the token this rule keys on. On
+# ``Objects/typeobject.c`` nine of the eleven stop-the-world regions go through
+# ``types_stop_world()``, so the scanner saw 2 real regions out of 11 -- 18%
+# recall -- and reported a structural zero as a clean bill. Both of that file's
+# reproduced STW findings were in the 82% it never opened.
+#
+# ``resolve_local_lock_macros`` cannot do this job: in the free-threaded build
+# the wrapper is a static *function*, and in the GIL build it is a ``#define``
+# with an empty body, which that resolver deliberately skips. What is needed is
+# trivial-static-wrapper resolution, which is what this is.
+_STW_ASSERT_RE = re.compile(r"\bassert\s*\([^;]*\)\s*;")
+_STW_CALL_RE = re.compile(r"\b([A-Za-z_][A-Za-z0-9_]*)\s*\(")
+
+# Control flow and state getters are not "work": a wrapper may read the
+# interpreter state to pass it to the primitive and still be trivial.
+_STW_WRAPPER_ALLOW = frozenset(
+    {
+        "sizeof",
+        "if",
+        "while",
+        "for",
+        "switch",
+        "return",
+        "_PyInterpreterState_GET",
+        "_PyRuntimeState_GET",
+        "_PyThreadState_GET",
+    }
+)
+_STOP_PRIMITIVES = frozenset({"_PyEval_StopTheWorld", "_PyEval_StopTheWorldAll"})
+_START_PRIMITIVES = frozenset({"_PyEval_StartTheWorld", "_PyEval_StartTheWorldAll"})
+
+
+def stw_wrapper_kind(body: str) -> str | None:
+    """``'stop'`` / ``'start'`` if ``body`` is a trivial wrapper, else None.
+
+    Trivial means: after dropping ``assert(...)`` statements, every call it makes
+    is either the stop primitive or the start primitive (never both), modulo
+    control-flow keywords and state getters. A wrapper that does any other work
+    is not a bare delimiter and is left alone.
+    """
+    stripped = _STW_ASSERT_RE.sub("", body)
+    names = set(_STW_CALL_RE.findall(stripped)) - _STW_WRAPPER_ALLOW
+    if names and names <= _STOP_PRIMITIVES:
+        return "stop"
+    if names and names <= _START_PRIMITIVES:
+        return "start"
+    return None
+
+
+def discover_stw_wrappers(functions: list[dict]) -> dict[str, str]:
+    """Map ``function name -> 'stop' | 'start'`` for this file's wrappers."""
+    found: dict[str, str] = {}
+    for func in functions:
+        kind = stw_wrapper_kind(func.get("body") or "")
+        if kind is not None:
+            found[func["name"]] = kind
+    return found
+
+
+def _delimiter_regexes(
+    wrappers: dict[str, str],
+) -> tuple[re.Pattern, re.Pattern]:
+    """``(stop_re, start_re)`` widened with any file-local wrapper aliases."""
+    if not wrappers:
+        return _STOP_RE, _START_RE
+    stops = sorted(n for n, k in wrappers.items() if k == "stop")
+    starts = sorted(n for n, k in wrappers.items() if k == "start")
+    stop_re = (
+        re.compile(
+            r"(?:_PyEval_StopTheWorld(?:All)?|"
+            + "|".join(re.escape(n) for n in stops)
+            + r")\s*\("
+        )
+        if stops
+        else _STOP_RE
+    )
+    start_re = (
+        re.compile(
+            r"(?:_PyEval_StartTheWorld(?:All)?|"
+            + "|".join(re.escape(n) for n in starts)
+            + r")\s*\("
+        )
+        if starts
+        else _START_RE
+    )
+    return stop_re, start_re
+
+
+def _find_stw_regions(
+    body_text: str,
+    stop_re: re.Pattern | None = None,
+    start_re: re.Pattern | None = None,
+) -> list[tuple[int, int]]:
     """Byte-offset ranges between StopTheWorld and the next StartTheWorld.
 
     Offsets are relative to ``body_text``. Each Stop is paired with the first
     Start that follows it.
     """
     regions: list[tuple[int, int]] = []
-    stops = list(_STOP_RE.finditer(body_text))
-    starts = list(_START_RE.finditer(body_text))
+    stops = list((stop_re or _STOP_RE).finditer(body_text))
+    starts = list((start_re or _START_RE).finditer(body_text))
     for s in stops:
         for st in starts:
             if st.start() > s.end():
@@ -307,18 +399,23 @@ def _check_stw_regions(
     safe_apis: set[str],
     unsafe_apis: set[str],
     unsafe_categories: dict[str, set[str]],
+    wrappers: dict[str, str] | None = None,
 ) -> list[dict]:
     """Flag unsafe / unclassified calls inside this function's STW regions."""
     findings: list[dict] = []
+    wrappers = wrappers or {}
     body_node = func["body_node"]
     body_text = get_node_text(body_node, source_bytes)
-    regions = _find_stw_regions(body_text)
+    stop_re, start_re = _delimiter_regexes(wrappers)
+    regions = _find_stw_regions(body_text, stop_re, start_re)
     if not regions:
         return findings
 
+    # The wrapper itself delimits the region; it is not work done inside it.
+    control = _STW_CONTROL | set(wrappers)
     for call in find_calls_in_scope(body_node, source_bytes):
         call_name = call["function_name"]
-        if call_name in _STW_CONTROL:
+        if call_name in control:
             continue
         # Offset of the call relative to the body node (same frame as regions).
         call_offset = call["start_byte"] - body_node.start_byte
@@ -411,6 +508,7 @@ def analyze(target: str, *, max_files: int = 0) -> dict:
     skipped: list[dict] = []
     all_classifications: dict[str, dict[str, str]] = {}
     stw_functions: list[dict] = []
+    wrapper_names: list[dict] = []
 
     for filepath in discover_c_files(scan_root, max_files=max_files):
         try:
@@ -437,11 +535,22 @@ def analyze(target: str, *, max_files: int = 0) -> dict:
         if "_PyEval_StopTheWorld" not in source_text:
             continue
 
+        # Resolve file-local trivial wrappers before looking for regions: nine
+        # of typeobject.c's eleven regions are opened through one, and keying on
+        # the bare token found 2 of 11.
+        wrappers = discover_stw_wrappers(functions)
+        if wrappers:
+            wrapper_names.extend(
+                {"file": relpath(filepath, project_root), "function": n, "kind": k}
+                for n, k in sorted(wrappers.items())
+            )
+
         rel = relpath(filepath, project_root)
         graph = _build_call_graph(functions, source_bytes)
         classifications = _propagate_stw_safety(graph, safe_apis, unsafe_apis_for_prop)
         all_classifications[rel] = classifications
 
+        stop_re, _start_re = _delimiter_regexes(wrappers)
         for func in functions:
             for f in _check_stw_regions(
                 func,
@@ -451,11 +560,15 @@ def analyze(target: str, *, max_files: int = 0) -> dict:
                 safe_apis,
                 unsafe_apis,
                 unsafe_categories,
+                wrappers,
             ):
                 f["file"] = rel
                 findings.append(f)
 
-            if "_PyEval_StopTheWorld" in func["body"]:
+            # A region opened through a wrapper counts. Keying the census on the
+            # bare token is what made `stw_functions` report the wrapper's own
+            # definition plus the two raw callers and nothing else.
+            if stop_re.search(func["body"]) or "_PyEval_StopTheWorld" in func["body"]:
                 stw_functions.append(
                     {
                         "file": rel,
@@ -482,8 +595,14 @@ def analyze(target: str, *, max_files: int = 0) -> dict:
             "by_type": dict(by_type),
             "by_confidence": dict(by_confidence),
             "stw_function_count": len(stw_functions),
+            # The denominator that makes this rule's zero readable. It was 3 on
+            # Objects/typeobject.c against 11 real regions, because a file-local
+            # wrapper hid the token; both of that file's reproduced STW findings
+            # were in the 8 it never opened.
+            "stw_wrapper_count": len(wrapper_names),
         },
         stw_functions=stw_functions,
+        stw_wrappers=wrapper_names,
         function_classifications=all_classifications,
         skipped_files=skipped,
     )
