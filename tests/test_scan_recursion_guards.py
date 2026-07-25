@@ -476,5 +476,170 @@ class TestHelpers(unittest.TestCase):
         )
 
 
+class TestHashAliasAndOneHop(unittest.TestCase):
+    """`_PyObject_HashDictKey` is PyObject_Hash under another name, and a
+    `*_getstate` helper hides the fresh container one call away."""
+
+    def setUp(self):
+        self.mod = import_script("scan_recursion_guards")
+
+    def _findings(self, files):
+        with TempProject(files) as root:
+            return self.mod.analyze(str(root))
+
+    def _get(self, result, name):
+        return next((f for f in result["findings"] if f["function"] == name), None)
+
+    def test_hash_dict_key_alias_is_in_the_vocabulary(self):
+        """Modules/_collectionsmodule.c:2592 _count_elements — confirmed stack
+        overflow under ASan via collections.Counter. The alias is a
+        Py_ALWAYS_INLINE wrapper whose tail is `return PyObject_Hash(op);`, so
+        27 sites tree-wide (8+ in Objects/dictobject.c) were invisible."""
+        result = self._findings(
+            {
+                "Modules/_collectionsmodule.c": (
+                    "static PyObject *\n"
+                    "_collections__count_elements_impl(PyObject *m, PyObject *k)\n"
+                    "{\n"
+                    "    Py_hash_t hash = _PyObject_HashDictKey(k);\n"
+                    "    if (hash == -1) {\n"
+                    "        return NULL;\n"
+                    "    }\n"
+                    "    return NULL;\n"
+                    "}\n"
+                )
+            }
+        )
+        f = self._get(result, "_collections__count_elements_impl")
+        self.assertIsNotNone(f)
+        self.assertEqual(f["element_op"], "_PyObject_HashDictKey")
+        # A caller-supplied value adds exactly one frame: correctly `low`.
+        self.assertEqual(f["confidence"], "low")
+        self.assertEqual(f["shape"], "hash_entry_point")
+
+    def test_bound_zero_hash_spellings_stay_excluded(self):
+        """Modules/_decimal/_decimal.c:5846 PyObject_GenericHash — an identity
+        hash never descends. Excluded deliberately, and the envelope says so."""
+        result = self._findings(
+            {
+                "Modules/d.c": (
+                    "static Py_hash_t\n"
+                    "dec_hash(PyObject *op)\n"
+                    "{\n"
+                    "    return PyObject_GenericHash(op);\n"
+                    "}\n"
+                )
+            }
+        )
+        self.assertIsNone(self._get(result, "dec_hash"))
+        self.assertIn(
+            "PyObject_GenericHash",
+            result["dispatcher_guard_model"]["bound_zero_excluded"],
+        )
+
+    def test_getstate_helper_bounds_the_descent(self):
+        """Modules/_datetimemodule.c:2568 delta_hash — the worst-rated finding
+        in the informed Modules/ sample, and a bound-1 false positive.
+        `delta_getstate` is `return Py_BuildValue("iii", ...)`, i.e. a tuple of
+        three C ints: nothing in it is a user object."""
+        result = self._findings(
+            {
+                "Modules/_datetimemodule.c": (
+                    "static PyObject *\n"
+                    "delta_getstate(PyDateTime_Delta *self)\n"
+                    "{\n"
+                    '    return Py_BuildValue("iii", GET_TD_DAYS(self),\n'
+                    "                         GET_TD_SECONDS(self),\n"
+                    "                         GET_TD_MICROSECONDS(self));\n"
+                    "}\n"
+                    "\n"
+                    "static Py_hash_t\n"
+                    "delta_hash(PyObject *op)\n"
+                    "{\n"
+                    "    PyDateTime_Delta *self = PyDelta_CAST(op);\n"
+                    "    if (self->hashcode == -1) {\n"
+                    "        PyObject *temp = delta_getstate(self);\n"
+                    "        if (temp != NULL) {\n"
+                    "            self->hashcode = PyObject_Hash(temp);\n"
+                    "            Py_DECREF(temp);\n"
+                    "        }\n"
+                    "    }\n"
+                    "    return self->hashcode;\n"
+                    "}\n"
+                    "\n"
+                    "static PyTypeObject D = { .tp_hash = delta_hash };\n"
+                )
+            }
+        )
+        self.assertIsNone(self._get(result, "delta_hash"))
+
+    def test_getstate_helper_returning_a_field_tuple_still_reports(self):
+        """The guarded twin of the previous test: a helper that packs receiver
+        *fields* (not C scalars) is a real one-level descent, so the site
+        survives — at `medium`, as temporary_container_descent."""
+        result = self._findings(
+            {
+                "Modules/r.c": (
+                    "static PyObject *\n"
+                    "range_getstate(rangeobject *self)\n"
+                    "{\n"
+                    "    return PyTuple_Pack(3, self->start, self->stop,\n"
+                    "                        self->step);\n"
+                    "}\n"
+                    "\n"
+                    "static Py_hash_t\n"
+                    "range_hash(PyObject *op)\n"
+                    "{\n"
+                    "    rangeobject *self = (rangeobject *)op;\n"
+                    "    PyObject *temp = range_getstate(self);\n"
+                    "    Py_hash_t h = PyObject_Hash(temp);\n"
+                    "    Py_DECREF(temp);\n"
+                    "    return h;\n"
+                    "}\n"
+                    "\n"
+                    "static PyTypeObject R = { .tp_hash = range_hash };\n"
+                )
+            }
+        )
+        f = self._get(result, "range_hash")
+        self.assertIsNotNone(f)
+        self.assertEqual(f["shape"], "temporary_container_descent")
+        self.assertEqual(f["confidence"], "medium")
+
+    def test_one_hop_never_crosses_a_fat_helper(self):
+        """Conservative by construction: a helper that does real work is not
+        followed, so its receiver scope can never be misread in the caller."""
+        result = self._findings(
+            {
+                "Modules/f.c": (
+                    "static PyObject *\n"
+                    "fat_getstate(FatObject *self)\n"
+                    "{\n"
+                    "    PyObject *a = build_a(self);\n"
+                    "    PyObject *b = build_b(self);\n"
+                    "    PyObject *c = build_c(self);\n"
+                    "    PyObject *d = build_d(self);\n"
+                    "    PyObject *e = build_e(self);\n"
+                    "    PyObject *g = build_g(self);\n"
+                    "    return PyTuple_Pack(2, a, b);\n"
+                    "}\n"
+                    "\n"
+                    "static Py_hash_t\n"
+                    "fat_hash(PyObject *op)\n"
+                    "{\n"
+                    "    FatObject *self = (FatObject *)op;\n"
+                    "    PyObject *temp = fat_getstate(self);\n"
+                    "    return PyObject_Hash(temp);\n"
+                    "}\n"
+                    "\n"
+                    "static PyTypeObject F = { .tp_hash = fat_hash };\n"
+                )
+            }
+        )
+        f = self._get(result, "fat_hash")
+        self.assertIsNotNone(f)
+        self.assertNotEqual(f["shape"], "temporary_container_descent")
+
+
 if __name__ == "__main__":
     unittest.main()

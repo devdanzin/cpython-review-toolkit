@@ -194,6 +194,7 @@ class TestScanFtRaces(unittest.TestCase):
                     "count_next(CountObject *lz)\n"
                     "{\n"
                     "    Py_ssize_t c = FT_ATOMIC_LOAD_SSIZE_RELAXED(lz->cnt);\n"
+                    "    FT_ATOMIC_STORE_SSIZE_RELAXED(lz->cnt, c + 1);\n"
                     "    return PyLong_FromSsize_t(c);\n"
                     "}\n"
                     "static PyObject *\n"
@@ -210,7 +211,237 @@ class TestScanFtRaces(unittest.TestCase):
         )
         self.assertIsNotNone(f)
         self.assertEqual(f["ft_class"], "T1")
-        self.assertEqual(f["member"], "cnt")
+        # The member is qualified by the receiver's declared struct type, so a
+        # same-named field on an unrelated struct cannot pair with it.
+        self.assertEqual(f["member"], "CountObject.cnt")
+        self.assertEqual(f["function"], "count_repr")
+
+    def test_t1_needs_a_synchronised_write_not_just_a_read(self):
+        # Everything only ever *reads* the field under synchronisation: nothing
+        # stores to it, so there is no race to report.
+        result = self._findings(
+            {
+                "Modules/counter.c": (
+                    "static PyObject *\n"
+                    "count_next(CountObject *lz)\n"
+                    "{\n"
+                    "    Py_ssize_t c = FT_ATOMIC_LOAD_SSIZE_RELAXED(lz->cnt);\n"
+                    "    return PyLong_FromSsize_t(c);\n"
+                    "}\n"
+                    "static PyObject *\n"
+                    "count_repr(CountObject *lz)\n"
+                    "{\n"
+                    '    return PyUnicode_FromFormat("count(%zd)", lz->cnt);\n'
+                    "}\n"
+                )
+            }
+        )
+        self.assertEqual([f for f in result["findings"] if f["ft_class"] == "T1"], [])
+
+    # --- T1 retarget: guarded writer / unguarded reader ---------------------
+
+    # Modules/itertoolsmodule.c count_nextlong / count_repr, the gh-153908
+    # incomplete fix: the writer runs under a critical section its *caller*
+    # takes, the reader takes nothing, and the field is a pointer handed to
+    # PyObject_Repr — so the writer can free it under the reader.
+    COUNT_SHAPE = (
+        "typedef struct {\n"
+        "    PyObject_HEAD\n"
+        "    Py_ssize_t cnt;\n"
+        "    PyObject *long_cnt;\n"
+        "    PyObject *long_step;\n"
+        "} countobject;\n"
+        "\n"
+        "static PyObject *\n"
+        "count_nextlong(countobject *lz)\n"
+        "{\n"
+        "    PyObject *result = lz->long_cnt;\n"
+        "    PyObject *stepped_up = PyNumber_Add(result, lz->long_step);\n"
+        "    if (stepped_up == NULL) {\n"
+        "        return NULL;\n"
+        "    }\n"
+        "    lz->long_cnt = stepped_up;\n"
+        "    return result;\n"
+        "}\n"
+        "\n"
+        "static PyObject *\n"
+        "count_next(PyObject *op)\n"
+        "{\n"
+        "    countobject *lz = countobject_CAST(op);\n"
+        "    PyObject *returned;\n"
+        "    Py_BEGIN_CRITICAL_SECTION(lz);\n"
+        "    returned = count_nextlong(lz);\n"
+        "    Py_END_CRITICAL_SECTION();\n"
+        "    return returned;\n"
+        "}\n"
+        "\n"
+        "static PyObject *\n"
+        "count_repr(PyObject *op)\n"
+        "{\n"
+        "    countobject *lz = countobject_CAST(op);\n"
+        '    return PyUnicode_FromFormat("%R", lz->long_cnt);\n'
+        "}\n"
+    )
+
+    def test_t1_guarded_writer_unguarded_reader_is_flagged(self):
+        result = self._findings({"Modules/itertoolsmodule.c": self.COUNT_SHAPE})
+        hits = [
+            f
+            for f in result["findings"]
+            if f["type"] == "guarded_writer_unguarded_reader"
+        ]
+        self.assertEqual(len(hits), 1)
+        self.assertEqual(hits[0]["function"], "count_repr")
+        self.assertEqual(hits[0]["member"], "countobject.long_cnt")
+        # The writer holds no lock itself: only its caller does. Without the
+        # one-hop caller check there is no guarded twin and no finding.
+        self.assertTrue(hits[0]["guarded_twin"].startswith("count_nextlong:"))
+        # A pointer field outranks a scalar one — a stale pointer is a UAF.
+        self.assertEqual(hits[0]["confidence"], "medium")
+
+    def test_t1_lock_held_reader_is_the_guarded_twin_not_a_finding(self):
+        guarded = self.COUNT_SHAPE.replace(
+            "count_repr(PyObject *op)", "count_repr_lock_held(PyObject *op)"
+        )
+        result = self._findings({"Modules/itertoolsmodule.c": guarded})
+        self.assertEqual([f for f in result["findings"] if f["ft_class"] == "T1"], [])
+
+    def test_t1_emits_one_finding_per_site_not_per_field(self):
+        # The collapse this replaces reported one finding per field name per
+        # file, so the second and third reader sites vanished.
+        three_reads = self.COUNT_SHAPE.replace(
+            '    return PyUnicode_FromFormat("%R", lz->long_cnt);\n',
+            "    if (lz->long_cnt == NULL)\n"
+            '        return PyUnicode_FromFormat("count()");\n'
+            '    return PyUnicode_FromFormat("%R", lz->long_cnt);\n',
+        )
+        result = self._findings({"Modules/itertoolsmodule.c": three_reads})
+        lines = sorted(
+            f["line"]
+            for f in result["findings"]
+            if f["type"] == "guarded_writer_unguarded_reader"
+        )
+        self.assertEqual(len(lines), 2)
+        self.assertEqual(len(set(lines)), 2)
+
+    def test_t1_pairs_by_receiver_type_not_by_member_name(self):
+        # isliceobject.cnt and countobject.cnt are different fields that happen
+        # to share a name; islice's is never touched atomically.
+        islice = (
+            "static PyObject *\n"
+            "islice_next(PyObject *op)\n"
+            "{\n"
+            "    isliceobject *lz = (isliceobject *)op;\n"
+            "    while (lz->cnt < lz->next) {\n"
+            "        lz->cnt++;\n"
+            "    }\n"
+            "    return NULL;\n"
+            "}\n"
+        )
+        result = self._findings(
+            {"Modules/itertoolsmodule.c": islice + self.COUNT_SHAPE}
+        )
+        members = {f["member"] for f in result["findings"] if f["ft_class"] == "T1"}
+        self.assertNotIn("isliceobject.cnt", members)
+
+    def test_t1_clinic_critical_section_wrapper_counts_as_a_lock(self):
+        # The lock lives in the generated wrapper, not in the _impl body.
+        src = (
+            "/*[clinic input]\n"
+            "@critical_section\n"
+            "_io.BytesIO.read\n"
+            "[clinic start generated code]*/\n"
+            "static PyObject *\n"
+            "_io_BytesIO_read_impl(bytesio *self)\n"
+            "{\n"
+            "    self->pos += 1;\n"
+            "    return PyLong_FromSsize_t(self->pos);\n"
+            "}\n"
+            "static PyObject *\n"
+            "write_bytes_lock_held(bytesio *self)\n"
+            "{\n"
+            "    self->pos = 0;\n"
+            "    return NULL;\n"
+            "}\n"
+        )
+        result = self._findings({"Modules/_io/bytesio.c": src})
+        self.assertEqual([f for f in result["findings"] if f["ft_class"] == "T1"], [])
+
+    def test_t1_pre_publication_write_in_a_constructor_is_not_a_race(self):
+        src = (
+            "static PyObject *\n"
+            "dequeiter_new(PyTypeObject *type, dequeobject *deque)\n"
+            "{\n"
+            "    dequeiterobject *it = (dequeiterobject *)type->tp_alloc(type, 0);\n"
+            "    it->counter = deque->state;\n"
+            "    return (PyObject *)it;\n"
+            "}\n"
+            "static PyObject *\n"
+            "dequeiter_next_lock_held(dequeiterobject *it)\n"
+            "{\n"
+            "    it->counter--;\n"
+            "    return NULL;\n"
+            "}\n"
+        )
+        result = self._findings({"Modules/_collectionsmodule.c": src})
+        self.assertEqual(
+            [
+                f
+                for f in result["findings"]
+                if f["ft_class"] == "T1" and f["function"] == "dequeiter_new"
+            ],
+            [],
+        )
+
+    def test_t1_atomic_reader_outside_the_lock_races_the_plain_writer(self):
+        # _collectionsmodule.c CON-1, reproduced under TSan: the two
+        # synchronisation disciplines do not compose.
+        src = (
+            "static PyObject *\n"
+            "dequeiter_next_lock_held(dequeiterobject *it)\n"
+            "{\n"
+            "    it->counter--;\n"
+            "    return NULL;\n"
+            "}\n"
+            "static PyObject *\n"
+            "dequeiter_len(PyObject *op)\n"
+            "{\n"
+            "    dequeiterobject *it = (dequeiterobject *)op;\n"
+            "    return PyLong_FromSsize_t(FT_ATOMIC_LOAD_SSIZE(it->counter));\n"
+            "}\n"
+        )
+        result = self._findings({"Modules/_collectionsmodule.c": src})
+        hits = [
+            f
+            for f in result["findings"]
+            if f["ft_class"] == "T1" and "do not compose" in f["detail"]
+        ]
+        self.assertEqual(len(hits), 1)
+        self.assertEqual(hits[0]["function"], "dequeiter_next_lock_held")
+
+    def test_t1_stack_local_aggregate_is_never_shared(self):
+        src = (
+            "static void\n"
+            "w_reserve(WFILE *p)\n"
+            "{\n"
+            "    Py_BEGIN_CRITICAL_SECTION(p);\n"
+            "    p->buf = grow(p->buf);\n"
+            "    Py_END_CRITICAL_SECTION();\n"
+            "}\n"
+            "static void\n"
+            "w_flush(WFILE *p)\n"
+            "{\n"
+            "    flush(p->buf);\n"
+            "}\n"
+            "static void\n"
+            "marshal(void)\n"
+            "{\n"
+            "    WFILE wf;\n"
+            "    w_reserve(&wf);\n"
+            "}\n"
+        )
+        result = self._findings({"Python/marshal.c": src})
+        self.assertEqual([f for f in result["findings"] if f["ft_class"] == "T1"], [])
 
     def test_t1_all_atomic_is_not_flagged(self):
         result = self._findings(

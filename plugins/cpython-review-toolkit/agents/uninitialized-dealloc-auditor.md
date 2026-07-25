@@ -38,12 +38,16 @@ Key fields: `allocator`, `variable`, `function`, `line` (the allocation), `free_
 `unset_members` pre-answers most of this; verify it. The finding is real only if the destructor **reads a member the constructor had not yet initialized** at the point of the early free:
 - Does `tp_dealloc` do `Py_XDECREF(self->member)` / deref `self->member` / `switch` on an enum member / use it as a loop bound over an array it decrefs?
 - Was that member still uninitialized when the early `Py_DECREF` ran? The scanner's dominance analysis says yes; confirm against `goto` flow, which it does not model.
-- **ACCEPTABLE** if the destructor only touches members always set before any early free, or if `tp_alloc` (a zeroing allocator) is actually used.
+- **ACCEPTABLE** if the destructor only touches members always set before any early free, or if a genuinely zeroing allocator is used. **Do not dismiss on the spelling `tp_alloc` alone** — see Phase 2.
 
 **Record which untrack variant the destructor uses — it is both a severity multiplier and a reproducibility predictor.** `_PyObject_GC_UNTRACK` (the unchecked *macro*) on a never-tracked object faults **before** any member is read, so those instances crash deterministically (this is why `odictiter_new` reproduced at `K=1` while gh-151815 does not). `PyObject_GC_UnTrack` (the *function*) is untracked-tolerant — note *untracked*-tolerant, **not** NULL-safe: `_PyObject_GC_IS_TRACKED` dereferences its argument unconditionally — so those instances are latent and often do not reproduce.
 
 ### Phase 2: Verify the allocator really doesn't zero
-`PyObject_GC_New` etc. do not zero. But confirm the object isn't zeroed by a **project-local wrapper macro** or a following `memset` the scanner may have missed, and that construction doesn't go through `tp_alloc`/`PyType_GenericAlloc` (which zero). Do this check **last** — it is the least likely to change the verdict.
+`PyObject_GC_New` etc. do not zero. But confirm the object isn't zeroed by a **project-local wrapper macro** or a following `memset` the scanner may have missed.
+
+**`type->tp_alloc(type, n)` is not unconditionally zeroing — resolve the slot.** A type may install its own `allocfunc`. `Modules/_datetimemodule.c` installs two: `time_alloc` (`:879`, wired at `:5382`) and `datetime_alloc` (`:891`, at `:7349`), both `PyObject_Malloc` + `_PyObject_Init` with no `memset`, and the file's own comment (`:861-862`) says *"All data members remain uninitialized trash."* Their destructors then `switch` on the scalar `hastzinfo` to decide whether to `Py_XDECREF(self->tzinfo)` — the blake2 `impl` shape exactly. There is no live bug there today (every call site sets `hastzinfo` in the next statement), but the assumption is wrong and the FP taxonomy has been corrected. The scanner detects this shape mechanically and reports `allocator: "tp_alloc"` when it fires; tree-wide at 3.16.0a0 those two are the only non-zeroing `tp_alloc`s — `PyType_GenericAlloc`, `_PyType_AllocNoTrack` and `bytes_alloc` all zero.
+
+Do this check **last** — it is the least likely to change the verdict.
 
 ### Phase 3: Differential / OOM reproduction (high-value)
 Reproduce on a debug/ASan CPython using `_testcapi.set_nomemory(n, 0)` to fail the exact allocation on the error path, then trigger the constructor from Python. A crash in `tp_dealloc` confirms it. Record confirmed crashes in the findings repo (this is OOM class O5 / bug class B).

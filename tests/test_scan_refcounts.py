@@ -175,7 +175,7 @@ class TestOwnerFreedBeforeUse(unittest.TestCase):
             "    if (!PyTuple_Check(arg)) {\n"
             "        Py_XDECREF(tuple_args);\n"
             "        PyObject *original = PyTuple_GET_ITEM(args, iarg);\n"
-            "        PyErr_Format(PyExc_TypeError, \"bad %T\", original);\n"
+            '        PyErr_Format(PyExc_TypeError, "bad %T", original);\n'
             "        return NULL;\n"
             "    }\n"
             "    return NULL;\n"
@@ -335,7 +335,7 @@ class TestBorrowedRefAcrossCall(unittest.TestCase):
             "    PyObject *fromlist = NULL;\n"
             "    Py_INCREF(lz->lz_attr);\n"
             "    fromlist = lz->lz_attr;\n"
-            "    PyObject *r = PyObject_CallMethod(mod, \"x\", NULL);\n"
+            '    PyObject *r = PyObject_CallMethod(mod, "x", NULL);\n'
             "    Py_XDECREF(fromlist);\n"
             "    return r;\n"
             "}\n"
@@ -364,6 +364,212 @@ class TestBorrowedRefAcrossCall(unittest.TestCase):
         lines = {f["line"] for f in _types(result, "stale_slot_decref")}
         for f in _types(result, "borrowed_ref_across_call"):
             self.assertNotIn(f["line"], lines)
+        for f in _types(result, "stale_slot_use"):
+            self.assertNotIn(f["line"], lines)
+
+
+# ---------------------------------------------------------------------------
+# slot_transfer_across_call -- the escape hazard
+# ---------------------------------------------------------------------------
+
+
+# Modules/itertoolsmodule.c count_nextlong, an ASan-confirmed heap-use-after-
+# free: the borrowed slot value is handed to PyNumber_Add (which dispatches to
+# an arbitrary user __radd__ through the untyped step), the slot is then
+# overwritten, and the stale local is *returned* -- so a re-entrant call that
+# performed the same transfer leaves two owners for one reference.
+COUNT_NEXTLONG_SHAPE = (
+    "static PyObject *\n"
+    "count_nextlong(countobject *lz)\n"
+    "{\n"
+    "    PyObject *result = lz->long_cnt;\n"
+    "    PyObject *stepped_up = PyNumber_Add(result, lz->long_step);\n"
+    "    if (stepped_up == NULL) {\n"
+    "        return NULL;\n"
+    "    }\n"
+    "    lz->long_cnt = stepped_up;\n"
+    "    return result;\n"
+    "}\n"
+)
+
+# Objects/enumobject.c increment_longindex_lock_held: a structural clone of
+# count_nextlong, comment text and all, that is SAFE because both PyNumber_Add
+# operands are provably PyLong -- `en->one` is `_PyLong_GetOne()` -- so the
+# dispatch resolves to long_add and no user code runs.
+ENUM_LONGINDEX_SHAPE = (
+    "static PyObject *\n"
+    "enum_new_impl(PyTypeObject *type, PyObject *iterable, PyObject *start)\n"
+    "{\n"
+    "    enumobject *en = (enumobject *)type->tp_alloc(type, 0);\n"
+    "    start = PyNumber_Index(start);\n"
+    "    en->en_longindex = start;\n"
+    "    en->one = _PyLong_GetOne();\n"
+    "    return (PyObject *)en;\n"
+    "}\n"
+    "\n"
+    "static PyObject *\n"
+    "increment_longindex_lock_held(enumobject *en)\n"
+    "{\n"
+    "    PyObject *next_index = en->en_longindex;\n"
+    "    PyObject *stepped_up = PyNumber_Add(next_index, en->one);\n"
+    "    if (stepped_up == NULL) {\n"
+    "        return NULL;\n"
+    "    }\n"
+    "    en->en_longindex = stepped_up;\n"
+    "    return next_index;\n"
+    "}\n"
+)
+
+
+class TestSlotTransferAcrossCall(unittest.TestCase):
+    """The transfer idiom performed across a re-entrancy window."""
+
+    def test_true_positive_count_nextlong(self):
+        findings = _types(_scan(COUNT_NEXTLONG_SHAPE), "slot_transfer_across_call")
+        self.assertEqual(len(findings), 1)
+        self.assertEqual(findings[0]["variable"], "result")
+        self.assertEqual(findings[0]["source"], "lz->long_cnt")
+        self.assertEqual(findings[0]["api_call"], "PyNumber_Add")
+        # Reported on the borrowed *load*, which is the line to change.
+        self.assertEqual(findings[0]["line"], 4)
+        self.assertEqual(findings[0]["escape_line"], 10)
+
+    def test_true_negative_type_constrained_operand(self):
+        """Objects/enumobject.c:196 -- the guarded twin, and it must stay silent."""
+        self.assertEqual(
+            _types(_scan(ENUM_LONGINDEX_SHAPE), "slot_transfer_across_call"), []
+        )
+
+    def test_both_shapes_in_one_tree_flags_only_the_bug(self):
+        with TempProject(
+            {
+                "Modules/itertoolsmodule.c": COUNT_NEXTLONG_SHAPE,
+                "Objects/enumobject.c": ENUM_LONGINDEX_SHAPE,
+            }
+        ) as root:
+            result = mod.analyze(str(root))
+        findings = _types(result, "slot_transfer_across_call")
+        self.assertEqual([f["function"] for f in findings], ["count_nextlong"])
+
+    def test_overwrite_before_the_call_is_a_completed_transfer(self):
+        """Modules/_tkinter.c TimerHandler: the slot is cleared while we are
+        still alone, so the local is the legitimate sole owner."""
+        c_code = (
+            "static void\n"
+            "TimerHandler(ClientData clientData)\n"
+            "{\n"
+            "    PyObject *func = v->func;\n"
+            "    v->func = NULL;\n"
+            "    PyObject *res = PyObject_CallNoArgs(func);\n"
+            "    Py_DECREF(func);\n"
+            "}\n"
+        )
+        self.assertEqual(_types(_scan(c_code), "slot_transfer_across_call"), [])
+
+    def test_incref_on_the_slot_makes_the_local_an_owner(self):
+        owned = COUNT_NEXTLONG_SHAPE.replace(
+            "    PyObject *result = lz->long_cnt;\n",
+            "    PyObject *result = lz->long_cnt;\n    Py_INCREF(result);\n",
+        )
+        self.assertEqual(_types(_scan(owned), "slot_transfer_across_call"), [])
+
+
+# ---------------------------------------------------------------------------
+# stale_slot_use -- the deref / call hazard
+# ---------------------------------------------------------------------------
+
+
+# Modules/itertoolsmodule.c batched_next, an ASan-confirmed heap-use-after-free.
+# Three things have to line up for this to be visible: the borrowed slot load,
+# a Python-reaching call spelled as a *runtime slot dispatch* through a cached
+# function pointer, and loop-carried exposure -- the local is used exactly once
+# textually, and the danger is that iteration N+1's use follows iteration N's
+# call.
+BATCHED_NEXT_SHAPE = (
+    "static PyObject *\n"
+    "batched_next(PyObject *op)\n"
+    "{\n"
+    "    batchedobject *bo = batchedobject_CAST(op);\n"
+    "    PyObject *it = bo->it;\n"
+    "    Py_ssize_t i;\n"
+    "    iternextfunc iternext = *Py_TYPE(it)->tp_iternext;\n"
+    "    for (i = 0; i < n; i++) {\n"
+    "        PyObject *item = iternext(it);\n"
+    "        if (item == NULL) {\n"
+    "            goto null_item;\n"
+    "        }\n"
+    "    }\n"
+    "    return result;\n"
+    " null_item:\n"
+    "    Py_CLEAR(bo->it);\n"
+    "    return NULL;\n"
+    "}\n"
+)
+
+
+class TestStaleSlotUse(unittest.TestCase):
+    """A cached slot value dereferenced or called after a re-entrant clear."""
+
+    def test_true_positive_batched_next(self):
+        findings = _types(_scan(BATCHED_NEXT_SHAPE), "stale_slot_use")
+        self.assertEqual(len(findings), 1)
+        self.assertEqual(findings[0]["variable"], "it")
+        self.assertEqual(findings[0]["source"], "bo->it")
+        self.assertEqual(findings[0]["confidence"], "high")
+        # The use is the indirect call, not the load.
+        self.assertEqual(findings[0]["line"], 9)
+        self.assertEqual(findings[0]["load_line"], 5)
+
+    def test_runtime_slot_dispatch_is_python_reaching(self):
+        findings = _types(_scan(BATCHED_NEXT_SHAPE), "stale_slot_use")
+        self.assertIn("tp_iternext", findings[0]["api_call"])
+
+    def test_statically_named_type_slot_is_not_python_reaching(self):
+        """PyUnicode_Type.tp_hash is known at compile time -- not user code."""
+        self.assertEqual(
+            mod.reaching_calls_with_slots("x = PyUnicode_Type.tp_hash(s);", 0, 30),
+            [],
+        )
+
+    def test_true_negative_slot_is_re_read_after_the_call(self):
+        """Modules/itertoolsmodule.c pairwise_next -- the guarded twin."""
+        c_code = (
+            "static PyObject *\n"
+            "pairwise_next(PyObject *op)\n"
+            "{\n"
+            "    pairwiseobject *po = pairwiseobject_CAST(op);\n"
+            "    PyObject *it = po->it;\n"
+            "    PyObject *new_item = (*Py_TYPE(it)->tp_iternext)(it);\n"
+            "    it = po->it;\n"
+            "    if (it == NULL) {\n"
+            "        return NULL;\n"
+            "    }\n"
+            "    Py_CLEAR(po->it);\n"
+            "    return new_item;\n"
+            "}\n"
+        )
+        self.assertEqual(_types(_scan(c_code), "stale_slot_use"), [])
+
+    def test_true_negative_clear_before_any_python_reaching_call(self):
+        c_code = (
+            "static PyObject *\n"
+            "elementiter_next(PyObject *op)\n"
+            "{\n"
+            "    ElementIterObject *it = (ElementIterObject *)op;\n"
+            "    PyObject *elem = it->root_element;\n"
+            "    it->root_element = NULL;\n"
+            "    PyObject *res = PyObject_CallOneArg(cb, elem);\n"
+            "    return res;\n"
+            "}\n"
+        )
+        self.assertEqual(_types(_scan(c_code), "stale_slot_use"), [])
+
+    def test_incref_on_the_local_is_not_a_stale_use(self):
+        owned = BATCHED_NEXT_SHAPE.replace(
+            "    PyObject *it = bo->it;\n",
+            "    PyObject *it = bo->it;\n    Py_INCREF(it);\n",
+        )
+        self.assertEqual(_types(_scan(owned), "stale_slot_use"), [])
 
 
 # ---------------------------------------------------------------------------
@@ -508,17 +714,26 @@ class TestSlotRegistration(unittest.TestCase):
         self.assertEqual(_types(_scan(c_code), "init_not_reinit_safe"), [])
 
     def test_clinic_impl_suffix_matches_the_registered_wrapper(self):
-        c_code = (
+        slots = mod.collect_slot_registrations(
             "static PyTypeObject T = { .tp_init = MyObj_init };\n"
-            "\n"
-            "static int\n"
-            "MyObj_init_impl(MyObj *self, int x)\n"
-            "{\n"
-            "    self->data = PyList_New(0);\n"
-            "    return 0;\n"
-            "}\n"
         )
-        self.assertEqual(len(_types(_scan(c_code), "init_not_reinit_safe")), 1)
+        self.assertTrue(
+            mod._registered_as({"name": "MyObj_init_impl"}, slots, "tp_init")
+        )
+        self.assertFalse(
+            mod._registered_as({"name": "Other_init_impl"}, slots, "tp_init")
+        )
+
+    def test_clinic_dunder_init_name_is_proof_of_tp_init(self):
+        """Argument Clinic emits `<Type>___init___impl` for `Type.__init__`,
+        and the registered slot is the generated wrapper in `clinic/*.c.h` —
+        often with a further hand-written wrapper in between
+        (Modules/_struct.c registers `s_init` -> `Struct___init__` ->
+        `Struct___init___impl`). Requiring registration of the *impl* made the
+        rule fire zero times over Objects/, Modules/ and Python/."""
+        self.assertTrue(mod._is_tp_init({"name": "Struct___init___impl"}, {}))
+        self.assertFalse(mod._is_tp_init({"name": "unionbuilder_init"}, {}))
+        self.assertFalse(mod._is_tp_init({"name": "Struct_impl"}, {}))
 
 
 # ---------------------------------------------------------------------------
@@ -527,74 +742,161 @@ class TestSlotRegistration(unittest.TestCase):
 
 
 class TestInitReinitSafety(unittest.TestCase):
-    """A registered tp_init that leaks on a second __init__()."""
+    """A re-callable __init__ that invalidates an outstanding view.
 
-    REGISTERED = "static PyTypeObject T = { .tp_init = MyObj_init };\n\n"
+    Exemplar, live at 3.16.0a0 and reproduced on both a release and a debug
+    build (Modules/_struct.c)::
 
-    def _init(self, body):
-        return self.REGISTERED + (
-            "static int\n"
-            "MyObj_init(MyObj *self, PyObject *args, PyObject *kwds)\n"
-            "{\n" + body + "}\n"
-        )
+        s = struct.Struct("i"); it = s.iter_unpack(b"\\0" * 8); next(it)
+        s.__init__("100i"); next(it)
 
-    def test_true_positive_unguarded_alloc(self):
-        code = self._init(
-            "    self->data = PyList_New(0);\n"
-            "    self->buffer = PyMem_Malloc(1024);\n"
-            "    return 0;\n"
-        )
-        found = _types(_scan(code), "init_not_reinit_safe")
+    prepare_s frees s_codes and resets s_size, and unpackiter_iternext keeps
+    reading through its stored ``self->so`` — 100 ints out of an 8-byte
+    buffer on release (73 of 100 words were live heap), and the
+    ``assert(self->index + self->so->s_size <= self->buf.len)`` at
+    _struct.c:2274 on debug.
+
+    Note the polarity flip: Py_XSETREF / Py_CLEAR / free-then-assign used to
+    *suppress* this rule as evidence of re-init safety. They are the opposite
+    — they prove the second call destroys what the first one published.
+    """
+
+    # The _struct.c chain, reduced: clinic __init__ -> set_format -> prepare_s,
+    # where only prepare_s frees and replaces, and set_format never
+    # dereferences its receiver at all.
+    STRUCT_SHAPE = """\
+static int
+prepare_s(PyStructObject *self, PyObject *format)
+{
+    formatcode *codes0 = PyMem_Malloc(64);
+    if (self->s_codes != NULL) {
+        PyMem_Free(self->s_codes);
+    }
+    self->s_codes = codes0;
+    self->s_size = size;
+    self->s_len = len;
+    return 0;
+}
+
+static int
+set_format(PyStructObject *self, PyObject *format)
+{
+    if (prepare_s(self, format)) {
+        return -1;
+    }
+    return 0;
+}
+
+static int
+Struct___init___impl(PyStructObject *self, PyObject *format)
+{
+    if (set_format(self, format) < 0) {
+        return -1;
+    }
+    return 0;
+}
+
+static PyObject *
+unpackiter_iternext(PyObject *op)
+{
+    unpackiterobject *self = (unpackiterobject *)op;
+    assert(self->index + self->so->s_size <= self->buf.len);
+    self->index += self->so->s_size;
+    return NULL;
+}
+"""
+
+    def test_true_positive_reinit_invalidates_a_view(self):
+        found = _types(_scan(self.STRUCT_SHAPE), "init_not_reinit_safe")
         self.assertEqual(len(found), 1)
-        self.assertIn("MyObj_init", found[0]["detail"])
+        f = found[0]
+        self.assertEqual(f["function"], "Struct___init___impl")
+        self.assertEqual(f["replaced_members"], ["s_codes"])
+        self.assertEqual(f["stale_members"], ["s_size"])
+        self.assertEqual(f["confidence"], "high")
+        self.assertEqual(f["readers"][0]["function"], "unpackiter_iternext")
+        self.assertEqual(f["readers"][0]["expression"], "self->so->s_size")
 
-    def test_true_negative_flag_guard(self):
-        code = self._init(
+    def test_true_negative_second_call_is_rejected(self):
+        """The guarded twin: an __init__ that raises on re-entry."""
+        code = self.STRUCT_SHAPE.replace(
+            "    if (set_format(self, format) < 0) {",
             "    if (self->initialized) {\n"
             '        PyErr_SetString(PyExc_RuntimeError, "already initialized");\n'
             "        return -1;\n"
             "    }\n"
-            "    self->data = PyList_New(0);\n"
-            "    return 0;\n"
+            "    if (set_format(self, format) < 0) {",
         )
         self.assertEqual(_types(_scan(code), "init_not_reinit_safe"), [])
 
-    def test_guard_message_lives_in_a_string_literal(self):
-        """_ctypes' StgInfo guard is only visible in the raw body.
+    def test_true_negative_no_outstanding_view(self):
+        """Only the owner's own methods read the state, one level deep — they
+        see the new values, which is correct."""
+        code = self.STRUCT_SHAPE.replace(
+            "    assert(self->index + self->so->s_size <= self->buf.len);\n"
+            "    self->index += self->so->s_size;\n",
+            "    assert(self->s_size > 0);\n    self->index += self->s_size;\n",
+        )
+        self.assertEqual(_types(_scan(code), "init_not_reinit_safe"), [])
 
-        strip_comments_and_strings() blanks string literals, so the guard
-        check has to run against the unstripped source too.
-        """
-        code = self._init(
-            '    PyErr_Format(PyExc_SystemError, "StgInfo of %s is already '
-            'initialized.", n);\n'
-            "    self->data = PyList_New(0);\n"
-            "    return 0;\n"
+    def test_true_negative_init_only_fills_never_replaces(self):
+        """An __init__ that assigns without releasing prior state publishes
+        nothing a view could already be holding."""
+        code = self.STRUCT_SHAPE.replace(
+            "    if (self->s_codes != NULL) {\n"
+            "        PyMem_Free(self->s_codes);\n"
+            "    }\n",
+            "",
         )
         self.assertEqual(_types(_scan(code), "init_not_reinit_safe"), [])
 
     def test_initialiser_helper_owns_the_reinit_decision(self):
-        code = self._init(
+        """Modules/_ctypes/_ctypes.c PyCPointerType_init: PyStgInfo_Init raises
+        "StgInfo of '%s' is already initialized." on the second call
+        (Modules/_ctypes/ctypes.h:639), so the type is protected in a callee
+        the scanner cannot see."""
+        code = (
+            "static int\n"
+            "PyCPointerType_init(PyObject *self, PyObject *args, PyObject *k)\n"
+            "{\n"
             "    StgInfo *stginfo = PyStgInfo_Init(st, (PyTypeObject *)self);\n"
-            "    if (stginfo == NULL) {\n"
+            "    if (!stginfo) {\n"
             "        return -1;\n"
             "    }\n"
+            "    PyMem_Free(stginfo->format);\n"
             "    stginfo->format = PyMem_Malloc(16);\n"
             "    return 0;\n"
+            "}\n"
+            "\n"
+            "static PyTypeObject T = { .tp_init = PyCPointerType_init };\n"
+            "\n"
+            "static PyObject *\n"
+            "reader_iternext(PyObject *op)\n"
+            "{\n"
+            "    view *self = (view *)op;\n"
+            "    return use(self->owner->format);\n"
+            "}\n"
         )
         self.assertEqual(_types(_scan(code), "init_not_reinit_safe"), [])
 
-    def test_save_old_then_release_is_reinit_safe(self):
-        code = self._init(
-            "    PyObject *olddefault = self->factory;\n"
-            "    self->factory = PyList_New(0);\n"
-            "    Py_XDECREF(olddefault);\n"
+    def test_helper_named_init_is_still_not_a_tp_init(self):
+        """unionbuilder_init initialises a stack struct, not an instance."""
+        code = (
+            "static int\n"
+            "unionbuilder_init(unionbuilder *ub, bool is_builtin)\n"
+            "{\n"
+            "    Py_CLEAR(ub->args);\n"
+            "    ub->args = PyList_New(0);\n"
             "    return 0;\n"
+            "}\n"
+            "\n"
+            "static PyObject *\n"
+            "reader_iternext(PyObject *op)\n"
+            "{\n"
+            "    view *self = (view *)op;\n"
+            "    return use(self->owner->args);\n"
+            "}\n"
         )
-        self.assertEqual(_types(_scan(code), "init_not_reinit_safe"), [])
-
-    def test_no_alloc_no_finding(self):
-        code = self._init("    self->count = 0;\n    return 0;\n")
         self.assertEqual(_types(_scan(code), "init_not_reinit_safe"), [])
 
 
@@ -751,7 +1053,7 @@ class TestLeakDetection(unittest.TestCase):
             "reduce(PyObject *self)\n"
             "{\n"
             "    PyObject *list = PyList_New(0);\n"
-            "    return Py_BuildValue(\"N(N)\", iter, list);\n"
+            '    return Py_BuildValue("N(N)", iter, list);\n'
             "}\n"
         )
         self.assertEqual(_types(_scan(c_code), "potential_leak"), [])
@@ -764,7 +1066,7 @@ class TestLeakDetection(unittest.TestCase):
             "static int\n"
             "exec_module(PyObject *m)\n"
             "{\n"
-            "    Struct = PyUnicode_FromString(\"Struct\");\n"
+            '    Struct = PyUnicode_FromString("Struct");\n'
             "    if (Struct == NULL) {\n"
             "        return -1;\n"
             "    }\n"
@@ -885,9 +1187,9 @@ class TestDoubleFree(unittest.TestCase):
             "static int\n"
             "xx_modexec(PyObject *m)\n"
             "{\n"
-            "    PyObject *ErrorObject = PyErr_NewException(\"xx.error\", NULL, NULL);\n"
+            '    PyObject *ErrorObject = PyErr_NewException("xx.error", NULL, NULL);\n'
             "    Py_INCREF(ErrorObject);\n"
-            "    if (PyModule_AddObject(m, \"error\", ErrorObject) < 0) {\n"
+            '    if (PyModule_AddObject(m, "error", ErrorObject) < 0) {\n'
             "        Py_DECREF(ErrorObject);\n"
             "        return -1;\n"
             "    }\n"
@@ -914,10 +1216,16 @@ class TestAnalyze(unittest.TestCase):
             "static PyObject *\ntest(PyObject *self)\n{\n    return Py_None;\n}\n"
         )
         for key in (
-            "potential_leaks", "potential_double_frees", "stale_slot_decref",
-            "owner_freed_before_use", "borrowed_ref_across_call",
-            "init_not_reinit_safe", "new_missing_member_init",
-            "total_findings", "high_confidence", "medium_confidence",
+            "potential_leaks",
+            "potential_double_frees",
+            "stale_slot_decref",
+            "owner_freed_before_use",
+            "borrowed_ref_across_call",
+            "init_not_reinit_safe",
+            "new_missing_member_init",
+            "total_findings",
+            "high_confidence",
+            "medium_confidence",
             "low_confidence",
         ):
             self.assertIn(key, result["summary"])

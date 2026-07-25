@@ -34,10 +34,23 @@ are not this bug shape.
 
 Known false-positive classes this scanner deliberately stays silent on:
 
-* **Zeroing allocators.** ``tp_alloc(type, n)`` / ``PyType_GenericAlloc`` /
+* **Zeroing allocators.** ``PyType_GenericAlloc`` / ``_PyType_AllocNoTrack`` /
   ``*_GC_Calloc`` zero the object, so a following early free is safe. They are
   simply absent from the allocator list — but a project-local *wrapper macro*
   can hide one, so an agent must still confirm the allocator on each finding.
+  ``type->tp_alloc(type, n)`` is **not** unconditionally zeroing: a type may
+  install its own ``allocfunc``. ``Modules/_datetimemodule.c`` does exactly
+  that — ``time_alloc`` (:879) and ``datetime_alloc`` (:891) are
+  ``PyObject_Malloc`` + ``_PyObject_Init`` with no ``memset``, and the file's
+  own comment says "All data members remain uninitialized trash". The scanner
+  therefore *resolves* the slot: :func:`_nonzeroing_tp_allocs` finds file-local
+  ``tp_alloc`` implementations of that shape and, when a file has one, treats
+  ``->tp_alloc(...)`` in that file as non-zeroing. (Those are the only two
+  in-tree at 3.16.0a0; ``bytes_alloc``, ``_PyType_AllocNoTrack`` and
+  ``PyType_GenericAlloc`` all zero. There is no live bug behind them today —
+  every call site sets ``hastzinfo`` in the next statement — but the
+  ``time_dealloc``/``datetime_dealloc`` switch on that scalar is the blake2
+  ``impl`` shape exactly, so the assumption had to go.)
 * **``Py_XDECREF``-guarded destructor + members already NULL.**
   ``Py_XDECREF(NULL)`` is a no-op; only a member left as *garbage* (not NULL)
   at the free point is a bug. That is exactly what the dominance test measures.
@@ -106,6 +119,27 @@ _NON_ZEROING_ALLOCATORS = (
 _NON_ZEROING_RE = re.compile(
     r"^\s*(?:\(\s*[\w\s\*]+\)\s*)?(" + "|".join(_NON_ZEROING_ALLOCATORS) + r")\s*\("
 )
+
+# A file-local ``allocfunc`` is non-zeroing when it hands back raw storage from
+# one of these and never memsets it. ``PyObject_Calloc`` / ``PyMem_Calloc`` are
+# absent on purpose: they zero.
+_RAW_STORAGE_RE = re.compile(
+    r"\b(?:PyObject_Malloc|PyObject_Realloc|PyMem_Malloc|PyMem_Realloc"
+    r"|PyMem_RawMalloc|malloc|realloc)\s*\("
+)
+_ZEROES_RE = re.compile(r"\bmemset\s*\(|\bPyObject_Calloc\s*\(|\bPyMem_Calloc\s*\(")
+# Slot registration for tp_alloc, all three CPython spellings. The positional
+# form's only marker is the trailing comment, so this runs on raw source.
+_TP_ALLOC_SLOT_RE = re.compile(
+    r"^[ \t]*(?:\(\s*allocfunc\s*\)\s*)?(\w+)\s*,\s*/\*\s*tp_alloc\s*\*/"
+    r"|\.tp_alloc\s*=\s*(?:\(\s*allocfunc\s*\)\s*)?(\w+)"
+    r"|\{\s*Py_tp_alloc\s*,\s*(?:\(\s*allocfunc\s*\)\s*)?(\w+)",
+    re.MULTILINE,
+)
+# `x->tp_alloc(...)` / `x.tp_alloc(...)` — the virtual call.
+_TP_ALLOC_CALL_RE = re.compile(r"(?:->|\.)\s*tp_alloc\s*\(")
+# Leading casts and redundant parens in front of the allocating call.
+_LEAD_NOISE_RE = re.compile(r"^\s*(?:\(\s*(?:const\s+|struct\s+)*[\w\s\*]+\)\s*|\(\s*)")
 
 _EARLY_FREE_NAMES: set[str] = {"Py_DECREF", "Py_XDECREF", "Py_CLEAR"}
 
@@ -282,8 +316,67 @@ def _dominates(write_node, free_node) -> bool:
     return node is not None
 
 
+def _nonzeroing_tp_allocs(source: str, functions: list[dict]) -> set[str]:
+    """File-local ``tp_alloc`` implementations that leave members as garbage.
+
+    Resolve the slot rather than trusting the name: ``type->tp_alloc(type, n)``
+    is only zeroing when it resolves to ``PyType_GenericAlloc`` (or another
+    zeroing allocator).  A type that installs its own ``allocfunc`` built from
+    ``PyObject_Malloc`` + ``_PyObject_Init`` hands back uninitialized storage —
+    ``Modules/_datetimemodule.c`` ``time_alloc`` / ``datetime_alloc`` are the
+    two in-tree instances at 3.16.0a0.
+    """
+    registered = {
+        name
+        for m in _TP_ALLOC_SLOT_RE.finditer(source)
+        for name in m.groups()
+        if name and name not in ("0", "NULL")
+    }
+    if not registered:
+        return set()
+    out: set[str] = set()
+    for func in functions:
+        if func["name"] not in registered:
+            continue
+        body = func.get("body", "")
+        if _RAW_STORAGE_RE.search(body) and not _ZEROES_RE.search(body):
+            out.add(func["name"])
+    return out
+
+
+def _strip_lead(text: str) -> str:
+    """Drop leading casts and redundant parens: ``(T *) (x->tp_alloc(...))``."""
+    prev = None
+    while prev != text:
+        prev = text
+        text = _LEAD_NOISE_RE.sub("", text, count=1)
+    return text
+
+
+def _matched_allocator(value_text: str, local_nonzeroing: set[str]) -> str | None:
+    """Name the non-zeroing allocator this initializer calls, if any."""
+    m = _NON_ZEROING_RE.match(value_text)
+    if m is not None:
+        return m.group(1)
+    head = _strip_lead(value_text)
+    for name in local_nonzeroing:
+        if re.match(r"\b" + re.escape(name) + r"\s*\(", head):
+            return name
+    # `<type>->tp_alloc(...)` in a file that installs a non-zeroing allocfunc:
+    # the slot may resolve to it, so it is no longer assumed to zero.
+    if local_nonzeroing and re.match(
+        r"\w+\s*(?:->|\.)\s*tp_alloc\s*\(", head
+    ):
+        return "tp_alloc"
+    return None
+
+
 def _check_function(
-    func: dict, source_bytes: bytes, tree, evidence: dict[str, tuple[str, int]]
+    func: dict,
+    source_bytes: bytes,
+    tree,
+    evidence: dict[str, tuple[str, int]],
+    local_nonzeroing: set[str] | None = None,
 ) -> list[dict]:
     """Flag non-zeroing constructors that free an object with garbage members."""
     findings: list[dict] = []
@@ -300,10 +393,9 @@ def _check_function(
         var = assign["variable"]
         if not var.isidentifier():
             continue
-        allocator_match = _NON_ZEROING_RE.match(assign["value_text"])
-        if not allocator_match:
+        api = _matched_allocator(assign["value_text"], local_nonzeroing or set())
+        if api is None:
             continue
-        api = allocator_match.group(1)
         alloc_end = assign["value_node"].end_byte
 
         # First early free of this object after the allocation. Only the first
@@ -428,10 +520,15 @@ def analyze(target: str, *, max_files: int = 0) -> dict:
         files_analyzed += 1
         rel = relpath(filepath, project_root)
         evidence = _member_evidence(source_bytes, functions)
+        local_nonzeroing = _nonzeroing_tp_allocs(
+            source_bytes.decode("utf-8", "replace"), functions
+        )
 
         for func in functions:
             total_functions += 1
-            for f in _check_function(func, source_bytes, tree, evidence):
+            for f in _check_function(
+                func, source_bytes, tree, evidence, local_nonzeroing
+            ):
                 f["file"] = rel
                 findings.append(f)
 

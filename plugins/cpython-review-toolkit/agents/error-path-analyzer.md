@@ -30,13 +30,16 @@ Parse the JSON. `findings[].type` is one of:
 
 | type | what it means | typical volume |
 |---|---|---|
-| `unconditional_pyerr_clear` | `PyErr_Clear()` inside a failure branch with no `PyErr_ExceptionMatches` / save-restore in the preceding 3 lines | ~24 in `Objects/`, ~40 in `Modules/` |
+| `unconditional_pyerr_clear` | `PyErr_Clear()` inside a failure branch with no `PyErr_ExceptionMatches` / save-restore in the preceding 3 lines | ~27 in `Objects/`, ~44 in `Modules/`, ~70 in `Python/` |
+| `pylong_sentinel_no_errcheck` | `PyLong_As*` compared `== -1` with **no** `PyErr_Occurred()` narrowing | 4 tree-wide (all `Modules/_zoneinfo.c`) |
 | `alloc_null_no_memerror` | a **raw** allocator (one that does not raise) fails and the branch returns a sentinel with no `PyErr_NoMemory()` | ~10 in `Objects/`, ~8 in `Modules/` |
 | `missing_null_check` | fallible result dereferenced before any test | rare (0 in `Objects/`) |
 | `unchecked_return` | fallible result neither tested, returned, nor handed to a NULL-tolerant consumer | 0 in `Objects/`, ~14 in `Modules/` |
 | `unchecked_parse` | `PyArg_ParseTuple*` result not tested | ~0 (Argument Clinic) |
 
-`alloc_null_no_memerror` findings carry both `line` (the allocation) and `guard_line` (the `if (x == NULL)`).
+`alloc_null_no_memerror` findings carry both `line` (the allocation) and `guard_line` (the `if (x == NULL)`). `pylong_sentinel_no_errcheck` carries `line` (the `== -1` guard) and `assign_line` (the conversion).
+
+**`PyErr_Occurred()` is the failure test, not a narrowing.** It answers "is *something* pending", never "is it the exception I expected", so it is deliberately **not** in the guard alternation. Treating it as one silently suppressed every `if (x == -1 && PyErr_Occurred()) PyErr_Clear();` — the single most common written form of the bug — and hid all four true positives in `Modules/itertoolsmodule.c` `islice_new`. If you are reading by hand, apply the same rule.
 
 **Deliberate non-overlap.** `scan_pyerr_clear.py` owns the *destructor family* (`tp_dealloc` / `tp_finalize` / `tp_clear` / `tp_traverse`); this scanner skips those function names so the two do not double-report. Dedupe any cross-scanner report by `(file, line)`.
 
@@ -53,7 +56,23 @@ For each candidate, the question is **what raised**:
 3. **Find the guarded twins.** Count the other `PyErr_Clear()` sites in the same file. If most narrow with `PyErr_ExceptionMatches` and this one does not, the house rule is established and the outlier is the bug. In the 14-file `Objects/` sample this was 7 guarded vs 1 unguarded, and the 1 was real.
 4. **Try to reach it from Python.** A short script that raises `KeyboardInterrupt` from a user `__hash__`/`__eq__`/`__index__` and observes the exception vanish converts a CONSIDER into a FIX.
 
-Known `ACCEPTABLE` shapes here: a clear in a callback with no error channel (`_Py_hashtable` callbacks returning `Py_uhash_t`); a clear that is deliberately resetting state before a retry; a clear whose branch immediately re-raises something more specific.
+Known `ACCEPTABLE` shapes here: a clear in a callback with no error channel (`_Py_hashtable` callbacks returning `Py_uhash_t`); a clear that is deliberately resetting state before a retry.
+
+**Not** on that list: *"the branch immediately re-raises something more specific."* Substituting a fixed `ValueError` about the *shape* of an argument for whatever `KeyboardInterrupt` / `MemoryError` / `RecursionError` the user's `__index__` raised is strictly *less* specific, and it drops the `__context__` chain too. That substitution **is** the bug (`itertoolsmodule.c` `islice_new`, `Objects/unionobject.c:172`). Only a re-raise that carries the discarded exception forward — restore, chain, or errno-derived — exonerates.
+
+Residual FP classes measured over the whole tree after the widening (11 net-new candidates, 5 true positives):
+
+- **`PyLong_As*` on a `PyLong_Check`-ed operand.** Those converters short-circuit on `PyLong_Check`, so not even an int subclass runs user code; only `OverflowError` can be pending. **The scanner now suppresses this class** (`Modules/itertoolsmodule.c` `count_repr`, `Modules/_sqlite/blob.c` `ass_subscript_index`, `Python/pythonrun.c` `parse_exit_code`).
+- **Provenance-checked operands the scanner cannot see.** `Objects/rangeobject.c` `range_iter` converts `r->start`/`stop`/`step`, which `range_from_array` already forced through `PyNumber_Index`; the `goto long_range` fallback is a correct alternate implementation, not a substituted error. Same for `Modules/_remote_debugging/frame_cache.c` (an int the module itself built). **ACCEPTABLE — 4 of the 6 residual FPs.**
+- **`PyUnicode_Check` is not `CheckExact`.** A `str` *subclass* passes `PyUnicode_Check` and its `__hash__`/`__eq__` runs — `Modules/_struct.c:2667` was dismissed on exactly that faulty reasoning and is a reproduced swallow (`struct.pack(S("<i"), 1)` returns with a `KeyboardInterrupt` gone). Only `CheckExact`, or a dispatcher that tested `type == &PyXxx_Type`, proves no user code runs.
+
+### Phase 1b: Triage `pylong_sentinel_no_errcheck`
+
+`PyLong_As*` returns `-1` both as its error sentinel *and* as the honest conversion of the integer `-1`, so `if (x == -1) return -1;` makes an ordinary input take the failure branch **with no exception set**. The caller propagates NULL to Python, `_Py_CheckFunctionResult` raises `SystemError` on a release build and aborts a debug build.
+
+Measured over `Modules/` + `Objects/` + `Python/`: **4 candidates, 4 true positives, 0 false positives** — the tightest signal-to-noise in this scanner. All four are in `Modules/_zoneinfo.c` (`:1073`, `:2314`, `:2324`, `:2334`), and the guarded twin is `:2304`, ten lines above one of them, in the same function: `if (ord == -1 && PyErr_Occurred())`. The rest of CPython gets this right everywhere.
+
+To confirm: check whether an input whose value really *is* `-1` (or the type's max, for the unsigned converters) is reachable, and whether the failure branch reaches Python. To dismiss: the enclosing function must be using the sentinel as a **non-error** signal — `Python/flowgraph.c`'s `const_folding_safe_*` return NULL to mean "not foldable" and `fold_const_binop:1957` narrows to `KeyboardInterrupt` then clears. The scanner suppresses that class via the `PyLong_Check`-ed operand.
 
 ### Phase 2: Triage `alloc_null_no_memerror`
 

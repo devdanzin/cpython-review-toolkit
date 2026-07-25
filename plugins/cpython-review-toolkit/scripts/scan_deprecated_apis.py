@@ -130,6 +130,15 @@ def _is_declaration_line(line: str, name: str) -> bool:
         return True
     if re.match(r"^\s*extern\b", line):
         return True
+    # Column-0 definition of a deprecated *variable*: `int Py_DebugFlag = 0;`,
+    # `const char *Py_FileSystemDefaultEncoding = NULL;`. This is the data half
+    # of the same problem the function definition-site rule solves; without it
+    # every one of the 21 Py_*Flag globals reports its own definition in
+    # Python/initconfig.c as a use. The leading type tokens are what
+    # distinguish it from an assignment (which is never at column 0 in C), and
+    # `[\w\s\*]` cannot match a `(`, so a call cannot sneak in.
+    if re.match(rf"^[A-Za-z_][\w\s\*]*\b{re.escape(name)}\s*(?:\[[^\]]*\])?\s*=", line):
+        return True
     # Forward declaration: `static PyObject *name(args);`
     #
     # This must NOT swallow a statement-form call -- `_PyUnicodeWriter_Init(&w);`
@@ -184,7 +193,9 @@ _GC_NEW_ASSIGN_RE = re.compile(
     r"(\w+)\s*=\s*(?:\([^)]*\)\s*)?"
     r"(?:PyObject_GC_New|PyObject_GC_NewVar|_PyObject_GC_New|_PyObject_GC_NewVar)\s*\("
 )
-_GC_TRACK_RE = re.compile(r"\b(?:_PyObject_GC_TRACK|PyObject_GC_Track)\s*\(\s*\(?\s*(\w+)")
+_GC_TRACK_RE = re.compile(
+    r"\b(?:_PyObject_GC_TRACK|PyObject_GC_Track)\s*\(\s*\(?\s*(\w+)"
+)
 _UNTRACK_MACRO_RE = re.compile(r"\b_PyObject_GC_UNTRACK\s*\(")
 _FREE_CALL_RE = re.compile(
     r"\b(?:Py_DECREF|Py_XDECREF|Py_CLEAR|PyObject_GC_Del|PyObject_Free)\s*\(\s*\(?\s*(\w+)"
@@ -359,19 +370,44 @@ def _severity(api: dict) -> str:
     return "FIX" if api.get("removed_in") else "CONSIDER"
 
 
+def _normalize_path(path: str) -> str:
+    return path.replace("\\", "/")
+
+
+def is_compat_shim(api: dict, rel: str) -> bool:
+    """True if a use of ``api`` in ``rel`` is the API's own compat machinery.
+
+    The 21 ``Py_*Flag`` globals are read ~60 times in ``Python/initconfig.c``
+    and ``Python/preconfig.c`` -- but every one of those is the variable's own
+    definition or the bridge that copies it into ``PyConfig``, i.e. the
+    deprecated API's backwards-compatibility implementation. Reporting them
+    would look exactly like the definition-site noise the 2021 scanner was
+    rewritten to eliminate, and would bury the one genuine consumer read.
+    """
+    shims = api.get("compat_shim_files") or []
+    if not shims:
+        return False
+    rel = _normalize_path(rel)
+    return any(
+        rel == _normalize_path(s) or rel.endswith("/" + _normalize_path(s))
+        for s in shims
+    )
+
+
 def analyze(target: str, *, max_files: int = 0) -> dict:
     """Scan for deprecated CPython C API usage under ``target``."""
     project_root, scan_root = resolve_roots(target)
     apis = load_deprecated_apis()
-    patterns = [
-        (api, re.compile(rf"\b{re.escape(api['name'])}\b")) for api in apis
-    ]
+    patterns = [(api, re.compile(rf"\b{re.escape(api['name'])}\b")) for api in apis]
 
     findings: list[dict] = []
     files_analyzed = 0
     by_api: dict[str, int] = defaultdict(int)
     by_tier: dict[str, int] = defaultdict(int)
     by_severity: dict[str, int] = defaultdict(int)
+    by_removal: dict[str, int] = defaultdict(int)
+    suppressed_compat_shim = 0
+    not_drop_in = 0
 
     for filepath in discover_c_files(scan_root, max_files=max_files):
         try:
@@ -388,6 +424,9 @@ def analyze(target: str, *, max_files: int = 0) -> dict:
             name = api["name"]
             if name not in clean:
                 continue
+            if is_compat_shim(api, rel):
+                suppressed_compat_shim += 1
+                continue
             def_ranges = find_definition_ranges(lines, name)
             for i, line in enumerate(lines):
                 if not pattern.search(line):
@@ -397,6 +436,7 @@ def analyze(target: str, *, max_files: int = 0) -> dict:
                 if _is_declaration_line(line, name):
                     continue
                 severity = _severity(api)
+                drop_in = bool(api.get("drop_in", True))
                 findings.append(
                     {
                         "type": "deprecated-api",
@@ -408,15 +448,22 @@ def analyze(target: str, *, max_files: int = 0) -> dict:
                         "deprecated_in": api.get("deprecated_in", ""),
                         "removed_in": api.get("removed_in", ""),
                         "replacement": api.get("replacement", ""),
+                        "drop_in": drop_in,
+                        "caveat": api.get("caveat", ""),
                         "severity": severity,
                         "confidence": "high",
-                        "code": raw_lines[i].strip()[:160] if i < len(raw_lines) else "",
+                        "code": raw_lines[i].strip()[:160]
+                        if i < len(raw_lines)
+                        else "",
                         "detail": _describe(api),
                     }
                 )
                 by_api[name] += 1
                 by_tier[api.get("tier", "soft")] += 1
                 by_severity[severity] += 1
+                by_removal[api.get("removed_in") or "none"] += 1
+                if not drop_in:
+                    not_drop_in += 1
 
         for finding in scan_gc_untrack(raw, lines, rel):
             findings.append(finding)
@@ -437,6 +484,11 @@ def analyze(target: str, *, max_files: int = 0) -> dict:
             "by_api": dict(sorted(by_api.items(), key=lambda x: -x[1])),
             "by_tier": dict(by_tier),
             "by_severity": dict(by_severity),
+            # Sorted soonest-first: report by removal deadline, not by the age
+            # of the deprecation. 3.16 outranks 3.18 outranks "none".
+            "by_removal": dict(sorted(by_removal.items())),
+            "findings_needing_a_caveat": not_drop_in,
+            "suppressed_compat_shim": suppressed_compat_shim,
             "apis_in_vocabulary": len(apis),
             "apis_with_hits": len(by_api),
         },
@@ -453,7 +505,18 @@ def _describe(api: dict) -> str:
         bits.append(f"and is scheduled for removal in {api['removed_in']}")
     text = " ".join(bits) + "."
     if api.get("replacement"):
-        text += f" Use {api['replacement']} instead."
+        if api.get("drop_in", True):
+            text += f" Use {api['replacement']} instead (drop-in)."
+        else:
+            text += (
+                f" The named replacement is {api['replacement']}, but it is"
+                " NOT a drop-in."
+            )
+    if api.get("caveat"):
+        # The load-bearing half of the finding. Without it an agent applies the
+        # `replacement` field verbatim -- which, for _PyUnicodeWriter_WriteStr,
+        # reintroduces gh-148241.
+        text += f" CAVEAT: {api['caveat']}"
     if api.get("tier") == "hard-internal":
         text += (
             " Marked _Py_DEPRECATED_EXTERNALLY, which expands to nothing under"

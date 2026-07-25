@@ -32,12 +32,17 @@ This is a **discovery** script, not a bug scanner. It emits every C-accelerator 
 - `python_impl` — the pure-Python implementation path (the twin file, or the public module that holds the inline fallback).
 - `python_twin_module` — the importable pure-Python module, e.g. `_pydecimal` (null when there is no dedicated `_py*` file).
 - `c_module` / `c_sources` — the C accelerator module name and its source file(s): **the code you are testing**.
-- `detection` — `explicit_py_twin`, `accelerator_import`, or `both`.
+- `detection` — `explicit_py_twin` (`Lib/_pydecimal.py`), `package_twin` (`Lib/zoneinfo/_zoneinfo.py`), `accelerator_import`, or `both`.
 - `import_style` — `star` (full replacement) / `named` (partial acceleration) / `none`.
-- `force_python_hint` — how to force the pure-Python backend for this pair (see Step 3).
-- `confidence` — `high` (a dedicated `_py*` twin exists: `decimal`, `io`, `datetime`, `abc`, `warnings`, `long`), `medium` (full `import *` accelerator), `low` (partial acceleration).
+- `force_python_hint` / `force_c_hint` — **exact code** that binds the module as `m` on each side.
+- `backend_assertion` — `probes` (attribute paths whose *type* differs between the backends), `method`, and `trap`. Read this before writing any prelude.
+- `differentiable` — **false means there is no oracle**: either the module has no pure-Python symbol at all (`struct`), or its accelerator import is unconditional so blocking the C module breaks `import <mod>` outright (`csv`, `weakref`, `random`, `tracemalloc`). These are inventory, not leads. Do not spend a budget on them and do not report "clean" for them — report "no differential possible".
+- `dual_bindings` — symbols the dispatcher binds twice (`py_make_scanner`/`c_make_scanner`, `_Pickler`/`Pickler`). A pair with dual bindings has a real side-by-side dual path even though it is selected by a name rebinding rather than a separate `_py*` file.
+- `confidence` — `high` (a dedicated twin file exists: `decimal`, `io`, `datetime`, `abc`, `warnings`, `zoneinfo`), `medium` (full `import *` accelerator, or a guarded import with dual bindings), `low` (partial acceleration, or not differentiable).
+- `rejected_pairs` (top level) — pairs dropped because `c_module` does not exist as an importable module. `long`/`_long` lives here: `import _long` raises `ModuleNotFoundError` and `_pylong` is an algorithm helper for `longobject.c`, not an API twin.
+- `parse_health` (top level) — how many `Lib/` modules were read with `ast` vs the regex fallback. The toolkit venv is usually older than the target tree, and `ast.parse` rejects modern stdlib syntax outright; a large `regex` count means the structure data is best-effort.
 
-Start with the `high`-confidence pairs — they are true dual implementations with the widest shared API surface, so they give the richest differential.
+Start with the `high`-confidence pairs, then `medium` ones with `dual_bindings`. Skip anything with `differentiable: false`.
 
 ## Step 2: Construct adversarial inputs
 
@@ -52,48 +57,51 @@ Aim for inputs that exercise the hand-written C bookkeeping the pure-Python twin
 
 Let the pair guide the shape: precision/context for `decimal`; buffer sizes, `seek`/`read` amounts, and `__index__`-lying arguments for `io`; nesting and hostile `default=`/`__reduce__` for `json`/`_pickle`; the comparator key for `heapq`/`_bisect`.
 
-## Step 3: Run the SAME input through BOTH backends, in SEPARATE subprocesses
+## Step 3: Emit the harness — do NOT rebuild one
 
-A C-side crash **kills the interpreter** — you cannot catch a SIGSEGV with `try/except`, and it would take your own process down. So each trial runs in its own child process and you read its **exit code**, not a return value.
+The differential driver is identical for every pair, and rebuilding it by hand is where ~90% of a previous run's elapsed time went. Generate it:
 
-**Force the pure-Python backend.** Consult `force_python_hint`:
-
-- Dedicated twin (`python_twin_module` set): import it directly — `import _pydecimal`, `import _pyio`, `import _pydatetime` — and use its symbols.
-- Accelerator-import only (no `_py*` file, e.g. `heapq`): the C names shadow the inline pure-Python definitions in the same file. Block the accelerator before importing:
-  ```python
-  import sys
-  sys.modules["_heapq"] = None   # force ImportError on the `from _heapq import *`
-  import heapq                    # now the pure-Python definitions stand
-  ```
-
-**Force the C backend.** Import the module normally (`import decimal`, `import io`, `import heapq`) — the accelerator is used by default. When in doubt, exercise `c_module` directly (`import _decimal`, `import _heapq`).
-
-**Harness pattern** — one payload string, run twice:
-
-```python
-import subprocess, sys, textwrap
-
-def run(setup: str, body: str):
-    src = textwrap.dedent(setup + "\n" + body)
-    p = subprocess.run([sys.executable, "-c", src], capture_output=True, text=True, timeout=30)
-    return p.returncode, p.stdout, p.stderr
-
-payload = "print(repr(op(x)))"                 # the SAME operation for both
-c_setup  = "import decimal as m; op = m.Decimal; x = <adversarial>"
-py_setup = "import _pydecimal as m; op = m.Decimal; x = <adversarial>"
-print("C :", run(c_setup, payload))
-print("py:", run(py_setup, payload))
+```bash
+python <plugin_root>/scripts/find_parity_pairs.py <cpython> --emit-harness datetime --out <run>/repro
+# or every pair at once:
+python <plugin_root>/scripts/find_parity_pairs.py <cpython> --emit-harness all --out <run>/repro
 ```
 
-Interpret the child `returncode`:
+The emitted `parity_harness_<module>.py` already does all of this:
 
-- `-11` / `139` → **SIGSEGV** (segfault).
-- `-6` / `134` → **SIGABRT** (assertion / `Py_FatalError` / heap corruption abort — especially loud on a debug build).
-- other negative `-N` → killed by signal N.
-- `0` → completed; compare stdout.
-- non-zero positive → a Python exception escaped; compare the traceback tail in stderr.
+- runs each side in its **own subprocess** (a C-side SIGSEGV kills the interpreter — you cannot catch it with `try/except`, and it would take your process down);
+- decodes the child exit code (`-11`/`139` → SIGSEGV, `-6`/`134` → SIGABRT, other negatives → killed by signal N, positive → a Python exception escaped, plus a timeout — a hang on one side only is itself a divergence);
+- extracts the **exception type** and the result value from both sides and compares them;
+- classifies the pair of outcomes into FIX / SHARED / CONSIDER / AGREE;
+- and **proves which backend each side actually loaded** before running the payload.
 
-Use `timeout=` on the subprocess; a hang on one side but not the other is itself a divergence (algorithmic blowup / infinite loop in one backend).
+```bash
+./parity_harness_datetime.py \
+    --interpreter <matrix>/release-gil-nojit/python \
+    --interpreter <matrix>/debug-gil-nojit/python \
+    -e "m.date(b'\x00\x00\x01\x01').ctime()" --repeat 2
+```
+
+The payload is evaluated as an expression when it is one, otherwise `exec`'d — in that case set a variable named `result` if you want the value compared. The module under test is bound as `m` on both sides. With no payload the harness prints only the backend probe, which is a useful smoke test.
+
+### The backend assertion — the trap that produces false cleans
+
+**`datetime.datetime.__module__` is `'datetime'` for BOTH backends.** So is `sys.modules['datetime'].__file__`. An agent that "confirms" the backend that way runs a differential with the C accelerator on *both* sides and reports a clean sample. Never use `__module__`.
+
+What works is the **type of a probe attribute**: a C accelerator exposes `method_descriptor` / `builtin_function_or_method` / `getset_descriptor`, a pure-Python twin exposes `function` / `method` / `property`. The harness runs every probe on both sides, picks the first one whose kind actually *differs*, bakes that expectation into both preludes, and aborts the run if no probe differs rather than reporting a clean. If you write a prelude by hand, carry the same assertion:
+
+```python
+# C side
+import datetime as m
+assert type(m.datetime.replace).__name__ == 'method_descriptor'
+# pure-Python side
+import _pydatetime as m
+assert type(m.datetime.replace).__name__ == 'function'
+```
+
+### Run the build matrix, not one interpreter
+
+The same input looks like three different bugs across builds: a release build returns a wrong value or segfaults, a debug build aborts on an assertion, an ASan build names the exact array and offset. Pass `--interpreter` once per build and **report the matrix row**, not a single transcript. CPY-0032 is exit 139 on release, exit 134 plus `Assertion 'year >= 1' failed` on debug, and a named `global-buffer-overflow` 8 bytes before `format_ctime.DayNames` under ASan — one bug, three faces.
 
 ## Step 4: Classify the divergence
 
@@ -112,16 +120,21 @@ Judge each pair of outcomes for the same input:
 ## C/Python Parity Report
 
 ### Inventory
-- Pairs discovered: N (high: N, medium: N, low: N)
+- Pairs discovered: N (high: N, medium: N, low: N); differentiable: N; rejected: N
 - Pairs differentially tested: [decimal, io, heapq, ...]
-- Interpreter: [path] ([debug/ASan/release], version)
+- Backend assertion used per pair: [probe -> C kind vs pure-Python kind]
+- Interpreters: [paths] (build matrix rows)
 
 ### Divergences
 
 #### [FIX] _decimal crashes where _pydecimal raises (Modules/_decimal/_decimal.c:LINE)
 - **Input**: `<minimized adversarial value>`
-- **C backend** (`import decimal`): exit -11 (SIGSEGV)
-- **Python twin** (`import _pydecimal`): raises `ValueError: ...`
+- **Build matrix**:
+  | build | C backend | pure-Python twin |
+  |---|---|---|
+  | release | exit 139 (SIGSEGV) | `'...'` |
+  | debug | exit 134 (SIGABRT), `Assertion ... failed` | `'...'` |
+  | ASan | `global-buffer-overflow` READ, N bytes before `<symbol>` | `'...'` |
 - **Evidence**: [faulthandler / ASan traceback tail]
 - **Implicated C code**: [function + the missing check]
 - **Reproduced**: yes (K/K runs), minimized to [payload]
@@ -140,3 +153,4 @@ Judge each pair of outcomes for the same input:
 - **A negative result is a real result.** "Both backends agreed across every adversarial input I tried" is useful signal — report it plainly, and say which inputs you tried, rather than inflating a non-divergence into a finding.
 - **Record confirmed finds.** For a reproduced C crash, write the record into the `cpython-review-findings` repo (`repro.py`, `evidence.txt` with the exit code + traceback, the implicated `c_sources` file, and `found_by: parity-checker`), and hand it to the `oom-reproducer` / dynamic-verification flow if a wider allocation-failure sweep is warranted.
 - **Start high-confidence, cap output.** Work the `high`-confidence pairs first. Report at most 10 divergences; note totals if more exist.
+- **Check every denominator before calling a zero earned.** A scanner JSON that was *filtered* down to a sample after a corpus-wide run keeps its corpus-wide denominators (`total_nullable_fields`, `mutex_functions`, `vocabulary_counts`, `parse_health`), so a filtered `findings: []` sitting next to a three-digit denominator is **not** evidence of a clean sample — it is evidence of a filter. Produce sample JSON with `tools/sample_scan.py <scanner> <root> --files ...`, which re-runs the scanner over exactly the sample files so every number is sample-scoped and records its merge policy under `_sample`. If you are handed a pre-filtered file instead, say in the report that its denominators are corpus-wide and do not lean on them.

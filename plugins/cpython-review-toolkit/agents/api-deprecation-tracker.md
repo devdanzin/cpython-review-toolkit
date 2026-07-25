@@ -27,7 +27,39 @@ definition site, comment prose, or a substring false positive
 (`PyUnicode_AsUnicode` matching the live `PyUnicode_AsUnicodeEscapeString`).
 
 Key fields per finding: `api`, `tier`, `deprecated_in`, `removed_in`,
-`replacement`, `severity`, `code` (the source line), `detail`.
+`replacement`, **`drop_in`**, **`caveat`**, `severity`, `code` (the source
+line), `detail`.
+
+### Order the report by `removed_in`, soonest first
+
+Use the `summary.by_removal` map, which is sorted by deadline. Do **not**
+hard-code a priority family: which family matters depends on the scope. On
+`Objects/` the `_PyUnicodeWriter_*` family (removal 3.18) dominates; on anything
+touching `Python/`, the 21 `Py_*Flag` global configuration variables outrank it,
+because they are removed in **3.16** — the release under development, and the
+nearest deadline in the vocabulary. Let the data pick the family.
+
+### `drop_in` / `caveat` — read these before recommending anything
+
+`replacement` alone is not enough, and trusting it caused the one FIX of the
+`Modules/` run to point at a regression. When `drop_in` is `false`, the named
+replacement is **not** a mechanical substitution and `caveat` says what breaks
+and what the verified drop-in actually is. Three shapes recur:
+
+- **Different type check.** `_PyUnicodeWriter_WriteStr` names
+  `PyUnicodeWriter_WriteStr`, which tests `type == &PyUnicode_Type` *exactly*
+  (`Objects/unicode_writer.c:364`), so a `str` subclass falls through to
+  `PyObject_Str` and runs user code. That was gh-148241, and
+  `Modules/_json.c:407` carries a comment saying so. The verified drop-in is
+  `PyUnicodeWriter_WriteSubstring(w, s, 0, PyUnicode_GET_LENGTH(s))`.
+- **Inverted polarity.** Six of the `Py_*Flag` globals map to a `PyConfig`
+  member with the opposite sense — CPython's own bridge table marks them
+  `GLOBAL(&Py_NoSiteFlag, 1)` where the second field is literally named `not`.
+  A rename inverts the behaviour.
+- **Different refcount semantics.** `PyModule_AddObject` steals only on success.
+
+Report the *drop-in vs not* axis, not a "Difficulty" guess: "Medium" actively
+hides the fact that the named replacement reintroduces a fixed bug.
 
 ### The three tiers, in value order
 
@@ -35,10 +67,19 @@ Key fields per finding: `api`, `tier`, `deprecated_in`, `removed_in`,
    exists. These carry `_Py_DEPRECATED_EXTERNALLY(...)`, which
    `Include/pyport.h:269-274` expands to **nothing** under `Py_BUILD_CORE`.
    The compiler emits no warning for CPython's own call sites, so a scanner is
-   the only way to find them. The `_PyUnicodeWriter_*` family alone is ~75 call
-   sites in `Objects/` + `Modules/`, all scheduled for removal in 3.18.
-2. **`hard`** — a plain `Py_DEPRECATED(...)` marker. The build already warns,
-   so these are usually few and already known.
+   the only way to find them. The `_PyUnicodeWriter_*` family is ~100 call sites
+   in `Objects/` + `Modules/`, all scheduled for removal in 3.18 — that
+   includes the two **macro** forms, `_PyUnicodeWriter_Prepare` and
+   `_PyUnicodeWriter_PrepareKind`, which are ~25 of them. The macros are
+   separate vocabulary entries from the `*Internal` functions they expand to,
+   because a word-boundary matcher cannot match one from the other; and they are
+   *more* invisible than the functions, since the fast path inlines the bounds
+   check and never references the marked symbol at all.
+2. **`hard`** — a plain `Py_DEPRECATED(...)` marker. The build warns for
+   external users, but CPython's own initialization code is not built with
+   `-Werror`, so these still accumulate: the 21 `Py_*Flag` globals
+   (`Include/cpython/pydebug.h:8-26`, `Include/fileobject.h:22-29`) are all
+   `Py_DEPRECATED(3.12)` and all removed in 3.16.
 3. **`soft`** — documented as deprecated with no compiler marker
    (`PyModule_AddObject`, `PyErr_Fetch`/`Restore`, the `PyMem_NEW` macro family).
 
@@ -48,23 +89,50 @@ Do not add these back; each was checked and rejected:
 
 - **Not actually deprecated** — `PyDict_GetItem`, `PyMapping_HasKey`,
   `PyMapping_HasKeyString`, `PyOS_snprintf`. The docs carry a "prefer X" note,
-  which is not a deprecation. Reporting them as deprecated is wrong.
+  which is not a `.. deprecated::` directive. Reporting them as deprecated is
+  wrong.
 - **Already removed**, so no call site can exist — `PyWeakref_GetObject` (3.15),
   `PyEval_CallObject` and friends, `PyCFunction_Call`, `PyObject_As*Buffer`,
   `Py_TRASHCAN_SAFE_BEGIN/END` (all 3.13), `PyUnicode_GetSize` /
-  `PyUnicode_AsUnicode` (3.12).
+  `PyUnicode_AsUnicode` (3.12), the `Py_Get*` path family, the
+  `PyUnicode_As{Decoded,Encoded}{Object,Unicode}` family, and
+  `PyImport_ImportModuleNoBlock`. The last is a **live trap**: the header
+  declaration is gone but the symbol survives for ABI compatibility at
+  `Python/import.c:3645`, and `Modules/_testlimitedcapi/import.c:116`
+  re-declares the prototype locally so it can call it at `:123`. Adding the name
+  back would report that call as a live deprecated call site.
+
+### Compat shims are suppressed in data, not by hand
+
+An entry may carry `compat_shim_files`: files where a use is the deprecated
+API's own backwards-compatibility implementation, its definition, or a test that
+exercises it deliberately. The 21 `Py_*Flag` globals suppress
+`Python/initconfig.c`, `Python/preconfig.c` and `Programs/_testembed.c` this
+way — without that, the family lands ~28 findings that are the variables'
+definitions and the `PyConfig` bridge, and the one genuine consumer read
+(`Python/sysmodule.c:4533`, which pairs a deprecated *function* with a
+deprecated *variable* on a single line, both removed in 3.16) is buried.
+`summary.suppressed_compat_shim` reports how many were suppressed, so the
+filtering is visible rather than silent.
 
 ### For each deprecated API found
 
 1. Count call sites and note which files/modules use them
-2. Check the `replacement` field and whether it is a drop-in
+2. **Read `drop_in` and `caveat`** before proposing a migration; quote the
+   caveat in the finding when `drop_in` is false
 3. Assess migration difficulty — in particular, **refcount semantics may
    differ**: `PyModule_AddObject` steals a reference *only on success*, while
    `PyModule_AddObjectRef` does not, so the fix is not a rename
 4. **Filter self-referential uses.** A deprecated shim calling itself is
-   ACCEPTABLE — e.g. `_PyUnicodeWriter_WriteStr` inside
-   `Objects/unicode_writer.c`, the file that implements the deprecated writer.
-   Only migrate *consumers*.
+   ACCEPTABLE — e.g. `_PyUnicodeWriter_WriteStr` and the two `Prepare` macros
+   inside `Objects/unicode_writer.c`, the file that implements the deprecated
+   writer. Only migrate *consumers*.
+5. **Grep the same file for the `replacement`.** If the file already uses it
+   somewhere, the remaining sites are an unfinished migration with the target
+   idiom demonstrated locally, not an unexplored design question —
+   `Modules/_pickle.c:2783` already uses `PyBytesWriter_Create` while four
+   `_PyBytes_Resize` calls remain. That single fact is the most useful thing you
+   can tell a maintainer about those four.
 
 ## The `gc-untrack-macro-form` safety rule
 
@@ -106,13 +174,22 @@ unconditionally in both the default and free-threaded builds, so
 ## API Deprecation Report
 
 ### Summary
-| Deprecated API | Tier | Occurrences | Deprecated | Removal | Replacement | Difficulty |
+Ordered by removal deadline, soonest first (`summary.by_removal`).
+
+| Deprecated API | Tier | Occurrences | Deprecated | Removal | Replacement | Drop-in? |
 |---|---|---|---|---|---|---|
-| _PyUnicodeWriter_Dealloc | hard-internal | N | 3.14 | **3.18** | PyUnicodeWriter_Discard | Medium |
-| PyModule_AddObject | soft | N | 3.13 | — | PyModule_Add | Medium (refcount) |
+| Py_IsolatedFlag | hard | N | 3.12 | **3.16** | PyConfig.isolated | yes |
+| Py_NoSiteFlag | hard | N | 3.12 | **3.16** | PyConfig.site_import | **no — polarity inverted** |
+| _PyUnicodeWriter_Dealloc | hard-internal | N | 3.14 | **3.18** | PyUnicodeWriter_Discard | yes |
+| _PyUnicodeWriter_WriteStr | hard-internal | N | 3.14 | **3.18** | PyUnicodeWriter_WriteStr | **no — use WriteSubstring, see caveat** |
+| PyModule_AddObject | soft | N | 3.13 | — | PyModule_Add | **no — steals only on success** |
+
+The last column is the load-bearing one. A "Difficulty: Medium" cell hides the
+fact that a replacement reintroduces a fixed bug; "drop-in: no" plus the caveat
+does not.
 
 ### Scheduled removals — these stop compiling
-[Group everything with a `removed_in` first, ordered by release]
+[Group everything with a `removed_in` first, ordered by release, soonest first]
 
 ### Detailed Findings
 
@@ -154,4 +231,17 @@ emits no warning**, so this will not appear in any compiler log.
 - **Verify before extending the vocabulary.** If you add an entry to
   `data/deprecated_c_apis.json`, cite the `Include/` marker or the `Doc/`
   directive with a file:line. "I remember this being deprecated" is how the
-  previous 0/13 list was built.
+  previous 0/13 list was built. When a pending-removal doc page lists a second
+  *form* of something already captured — a macro next to its function, a
+  variable next to its setter — that is a gap, not a duplicate: both spellings
+  are needed because a word-boundary matcher will not match one from the other.
+- **A new entry needs `drop_in` and, if false, a `caveat`.** An entry that
+  names a replacement without saying whether it is mechanical hands the next
+  agent a rediscovery task, and hands a maintainer a possible regression.
+- **Check the denominator before calling a zero earned.** A scanner JSON that
+  was *filtered* to a sample after a corpus-wide run keeps corpus-wide
+  denominators, so `findings: []` beside a three-digit denominator is evidence
+  of a filter, not of clean code. Produce sample JSON with
+  `tools/sample_scan.py <scanner> <root> --files ...`, which re-runs the scanner
+  over exactly those files so every count is sample-scoped. If handed a
+  pre-filtered file, say so and do not lean on its denominators.

@@ -18,6 +18,11 @@ Rules emitted (``findings[].type``):
     within the preceding few lines: the clear swallows *whatever* exception is
     live, including ``KeyboardInterrupt`` and ``MemoryError``.  Destructor-family
     functions are deliberately skipped — those belong to ``scan_pyerr_clear.py``.
+``pylong_sentinel_no_errcheck``
+    ``PyLong_As*`` compared against ``-1`` with no ``PyErr_Occurred()``
+    narrowing on the guard.  ``-1`` is both the error sentinel *and* the honest
+    conversion of the integer ``-1``, so the bare comparison makes the function
+    return its error sentinel with **no exception set**.
 ``unchecked_parse``
     ``PyArg_ParseTuple*`` result not tested.
 
@@ -278,9 +283,18 @@ _SETREF_RE = re.compile(
 
 # PyErr_Clear rule.
 _PYERR_CLEAR_RE = re.compile(r'\b_?PyErr_Clear\s*\(')
+# `PyErr_Occurred` is deliberately NOT in this alternation.  It answers "is
+# *something* pending", never "is it the exception I expected" — it is the
+# failure test itself, not a narrowing.  Counting it as a guard silently
+# suppressed every `if (x == -1 && PyErr_Occurred()) PyErr_Clear();`, which is
+# the single most common written form of the bug this rule exists to find
+# (measured: Modules/ 39 -> 46, +4 true positives / +1 false positive on the
+# 12-file informed sample).  The one known residual FP class is a `PyLong_As*`
+# clear on an operand the function already `PyLong_Check`-ed, where only an
+# OverflowError can be pending (Modules/itertoolsmodule.c count_repr).
 _PYERR_CLEAR_GUARD_RE = re.compile(
     r'\b_?PyErr_(?:ExceptionMatches|GivenExceptionMatches|GetRaisedException'
-    r'|Fetch|Occurred|SetRaisedException|Restore|GetHandledException)\s*\('
+    r'|Fetch|SetRaisedException|Restore|GetHandledException)\s*\('
 )
 # A test whose failure branch the clear sits in — the shape the rule is about.
 _FAILURE_TEST_RE = re.compile(
@@ -624,6 +638,27 @@ def _check_alloc_no_memerror(
     return findings
 
 
+_ANY_PYLONG_AS_RE = re.compile(r'\b_?PyLong_As\w*\s*\(')
+_CHECKED_LONG_LOOKBACK = 6
+
+
+def _cleared_call_is_checked_long(clean: str, window: str) -> bool:
+    """Is every ``PyLong_As*`` in ``window`` applied to a checked long?
+
+    Returns False when the window holds no ``PyLong_As*`` at all, so the gate
+    only ever suppresses the specific measured class.
+    """
+    found = False
+    for m in _ANY_PYLONG_AS_RE.finditer(window):
+        close = _match_paren(window, m.end() - 1)
+        if close is None:
+            return False
+        found = True
+        if not _pylong_checked(clean, window[m.end():close]):
+            return False
+    return found
+
+
 def _check_unconditional_pyerr_clear(func: dict, clean: str) -> list[dict]:
     """Rule `unconditional_pyerr_clear`.
 
@@ -646,6 +681,22 @@ def _check_unconditional_pyerr_clear(func: dict, clean: str) -> list[dict]:
         # shape where a user-supplied exception can be the thing discarded.
         if not _FAILURE_TEST_RE.search(window):
             continue
+        # Dominant residual FP class after dropping `Occurred` from the guard
+        # alternation (6 of 9 dismissals in the tree-wide hand-check): the
+        # failure being cleared is a `PyLong_As*` on an operand the function
+        # already `PyLong_Check`-ed. Those converters short-circuit on
+        # PyLong_Check, so not even an int subclass runs user code — only an
+        # OverflowError can be pending, and it is always the case the branch
+        # is handling. (rangeobject.c range_iter, _sqlite/blob.c
+        # ass_subscript_index, itertoolsmodule.c count_repr, pythonrun.c
+        # parse_exit_code.)
+        # A wider lookback than the guard window: the conversion and its `== -1`
+        # test are often separated by an explanatory comment (Python/pythonrun.c
+        # parse_exit_code puts two between them).
+        if _cleared_call_is_checked_long(
+            clean, "\n".join(lines[max(0, idx - _CHECKED_LONG_LOOKBACK):idx + 1])
+        ):
+            continue
         findings.append({
             "type": "unconditional_pyerr_clear",
             "api_call": "PyErr_Clear",
@@ -656,6 +707,129 @@ def _check_unconditional_pyerr_clear(func: dict, clean: str) -> list[dict]:
                 "KeyboardInterrupt and MemoryError raised by user code"
             ),
             "confidence": "medium",
+        })
+    return findings
+
+
+# ---------------------------------------------------------------------------
+# PyLong_As* sentinel rule
+# ---------------------------------------------------------------------------
+#
+# These converters return -1 both as their error sentinel *and* as the honest
+# conversion of the integer -1, so `if (x == -1) return -1;` turns a perfectly
+# ordinary value into a silent failure: the function returns its error sentinel
+# with no exception set, and the caller propagates NULL to Python, where
+# _Py_CheckFunctionResult aborts a debug build and raises SystemError on a
+# release build.  The correct spelling is `if (x == -1 && PyErr_Occurred())`.
+#
+# Measured on Modules/ + Objects/ + Python/ at 3.16.0a0: 4 candidates,
+# 4 true positives, 0 false positives — all four in Modules/_zoneinfo.c, whose
+# own neighbouring lines (:1063, :2304) show the guarded twin.
+
+PYLONG_SENTINEL_APIS = frozenset({
+    "PyLong_AsLong", "PyLong_AsLongLong", "PyLong_AsSsize_t",
+    "PyLong_AsInt", "PyLong_AsSize_t",
+    "PyLong_AsUnsignedLong", "PyLong_AsUnsignedLongLong",
+})
+
+# An lvalue that can be subscripted: `self->trans_list_utc[i]`.
+_SENTINEL_LVALUE = r'\w+(?:\[[^\]\n]*\]|\s*->\s*\w+|\s*\.\s*\w+)*'
+
+_PYLONG_SENTINEL_RE = re.compile(
+    r'(' + _SENTINEL_LVALUE + r')\s*=\s*' + _CAST
+    + r'(' + _alt(PYLONG_SENTINEL_APIS) + r')\s*\('
+)
+
+# `== -1`, `== (unsigned long)-1`, `== -1L` — but not `== -10`.  Matched
+# against a whitespace-free rendering of the line, so `a -> b [i]` and
+# `a->b[i]` compare equal.
+_MINUS_ONE = r'==(?:\([\w*]+\))?-1(?![0-9])'
+
+# `PyErr_Occurred()` *is* the right narrowing for this rule: it is what
+# separates the sentinel from the honest -1.
+_SENTINEL_NARROWING_RE = re.compile(
+    r'\b_?PyErr_(?:Occurred|ExceptionMatches|GivenExceptionMatches)\s*\('
+)
+
+# How many lines after the conversion to look for its `== -1` test.
+_SENTINEL_WINDOW = 6
+
+
+def _pylong_checked(clean: str, operand: str) -> bool:
+    """Is the converter's operand already `PyLong_Check`-ed in this function?
+
+    Measured FP class.  With a checked long no user code runs inside the
+    converter, so the only thing it can raise is an OverflowError the caller
+    can re-derive from the magnitude — and CPython uses that shape for
+    *non-error* sentinels: `Python/flowgraph.c` `const_folding_safe_power` /
+    `const_folding_safe_lshift` return NULL to mean "not foldable", and
+    `fold_const_binop:1957` narrows to KeyboardInterrupt and clears the rest.
+    Both are the only cast-form (`== (size_t)-1`) hits tree-wide.
+    """
+    operand = _normalize(operand)
+    if not re.fullmatch(r'\w+(?:(?:->|\.)\w+)*', operand):
+        return False
+    return re.search(
+        r'\bPyLong_Check(?:Exact)?\(' + re.escape(operand) + r'\)',
+        _normalize(clean),
+    ) is not None
+
+
+def _check_pylong_sentinel(clean: str) -> list[dict]:
+    """Rule ``pylong_sentinel_no_errcheck``."""
+    findings: list[dict] = []
+    lines = clean.split('\n')
+    for m in _PYLONG_SENTINEL_RE.finditer(clean):
+        var, api = m.group(1), m.group(2)
+        call_end = _match_paren(clean, m.end() - 1)
+        operand = clean[m.end():call_end] if call_end else ""
+        if _pylong_checked(clean, operand):
+            continue
+        assign_idx = clean[:m.start()].count('\n')
+        cmp_re = re.compile(re.escape(_normalize(var)) + _MINUS_ONE)
+        guard_idx = None
+        for j in range(assign_idx + 1,
+                       min(len(lines), assign_idx + 1 + _SENTINEL_WINDOW)):
+            if cmp_re.search(_normalize(lines[j])):
+                guard_idx = j
+                break
+        if guard_idx is None:
+            continue
+        # The narrowing may sit on the guard line itself (`&& PyErr_Occurred()`)
+        # or on the line after it (a multi-line condition).
+        if _SENTINEL_NARROWING_RE.search(
+            " ".join(lines[guard_idx:guard_idx + 2])
+        ):
+            continue
+        line_start = sum(len(ln) + 1 for ln in lines[:guard_idx])
+        branch = ""
+        om = re.search(r'\bif\s*\(', clean[line_start:line_start + 400])
+        if om is not None:
+            close = _match_paren(clean, line_start + om.end() - 1)
+            if close is not None:
+                branch = _guarded_branch(clean[close + 1:close + 401])
+        errors_out = bool(
+            _ERROR_RETURN_RE.search(branch) or _GOTO_RE.search(branch)
+        )
+        findings.append({
+            "type": "pylong_sentinel_no_errcheck",
+            "api_call": api,
+            "variable": var.strip(),
+            "line_offset": guard_idx,
+            "assign_line_offset": assign_idx,
+            "detail": (
+                f"'{var.strip()}' comes from {api}, whose -1 return is both the "
+                f"error sentinel and the honest conversion of the integer -1, "
+                f"but the guard tests only '== -1' with no PyErr_Occurred(). "
+                f"An input whose value really is -1 takes the failure branch "
+                f"with no exception set"
+                + (" and returns the function's error sentinel"
+                   if errors_out else "")
+                + " — the caller propagates NULL to Python and "
+                "_Py_CheckFunctionResult raises SystemError (SIGABRT on a "
+                "debug build). Fix: 'if (x == -1 && PyErr_Occurred())'."
+            ),
+            "confidence": "high" if errors_out else "medium",
         })
     return findings
 
@@ -697,6 +871,7 @@ def analyze_function_errors(
     findings.extend(_check_unchecked_returns(clean))
     findings.extend(_check_alloc_no_memerror(func, clean, clean_lines))
     findings.extend(_check_unconditional_pyerr_clear(func, clean))
+    findings.extend(_check_pylong_sentinel(clean))
     findings.extend(_check_unchecked_parse(clean))
     return findings
 
@@ -745,6 +920,11 @@ def analyze(target: str, *, max_files: int = 0) -> dict:
                         func["body_start_line"]
                         + finding.pop("guard_line_offset")
                     )
+                if "assign_line_offset" in finding:
+                    finding["assign_line"] = (
+                        func["body_start_line"]
+                        + finding.pop("assign_line_offset")
+                    )
                 all_findings.append(finding)
 
     def count(kind: str) -> int:
@@ -761,6 +941,7 @@ def analyze(target: str, *, max_files: int = 0) -> dict:
             "unchecked_returns": count("unchecked_return"),
             "alloc_null_no_memerror": count("alloc_null_no_memerror"),
             "unconditional_pyerr_clear": count("unconditional_pyerr_clear"),
+            "pylong_sentinel_no_errcheck": count("pylong_sentinel_no_errcheck"),
             "unchecked_parse_calls": count("unchecked_parse"),
             "total_findings": len(all_findings),
         },
