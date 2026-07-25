@@ -19,6 +19,17 @@ makes these real, reachable-from-Python crashes, not hypotheticals.
   immediate SIGSEGV. Reproduced under ASan on a free-threaded build at
   ``Objects/genericaliasobject.c:952`` (``ga_iternext``).
 
+* **T4 — published before initialisation completed**: the object becomes
+  reachable from another thread at line A and a field is still written with a
+  plain store at line B > A.  ``type_new_impl`` calls ``PyType_Ready(type)`` at
+  :4953 -- which links the type into every base's ``tp_subclasses`` and every
+  subclass's MRO -- and *then* calls ``fixup_slot_dispatchers(type)`` at :4958,
+  which rewrites the slot table with plain non-atomic stores (gh-151377).  The
+  stores are two hops away, inside ``update_one_slot``, and are written through
+  a computed pointer that never names the field, so a rule reading only the
+  publishing function's body sees nothing.  Confidence degrades with call
+  depth: one hop is checkable by opening the callee, three is a chain.
+
 * **T2 — lazy-init cache without a critical section**: ``if (!self->f) self->f =
   compute();`` with no critical section in the function — two threads both see
   NULL, both compute and store (leak + torn/lost write). Confirmed:
@@ -519,18 +530,358 @@ _ALLOCATOR_CALL_RE = (
 )
 
 
-def _is_freshly_allocated(body: str, var: str, before: int) -> bool:
+# `PyTypeObject *type = &res->ht_type;` -- an *interior pointer* into an object
+# this thread just allocated. `type` is then written through for the rest of the
+# constructor, and without following the alias every one of those writes reads
+# as a race on a shared object. `Objects/typeobject.c:5628` is the instance.
+_INTERIOR_ALIAS_RE = (
+    r"\b{var}\s*=\s*(?:\([^;)]*\)\s*)?&?\s*([A-Za-z_]\w*)\s*(?:->|\.)\s*\w+\s*;"
+)
+# `PyTypeObject *type = (PyTypeObject *)res;` -- a plain cast alias.
+_CAST_ALIAS_RE = r"\b{var}\s*=\s*(?:\([^;)]*\)\s*)?&?\s*([A-Za-z_]\w*)\s*;"
+
+_MAX_ALIAS_HOPS = 4
+
+
+def _is_freshly_allocated(
+    body: str, var: str, before: int, _hops: int = 0
+) -> bool:
     """True if ``var`` was assigned from an allocator earlier in this body.
 
     A store into an object the current thread just allocated and has not yet
     published is unreachable by any other thread — ``tuple_iter``'s
     ``it = PyObject_GC_New(...); it->it_index = 0;`` is not a race.
+
+    Follows **interior-pointer and cast aliases** for up to
+    ``_MAX_ALIAS_HOPS``: ``type = &res->ht_type`` makes ``type`` a window onto
+    the freshly-allocated ``res``, and without that hop every field store in
+    ``type_from_slots_or_spec`` after line 5628 reads as a race on a shared
+    object.
     """
     pattern = rf"\b{re.escape(var)}\s*=\s*(?:\([^;)]*\)\s*)?{_ALLOCATOR_CALL_RE}"
     for m in re.finditer(pattern, body):
         if m.start() < before:
             return True
+    if _hops >= _MAX_ALIAS_HOPS:
+        return False
+    for template in (_INTERIOR_ALIAS_RE, _CAST_ALIAS_RE):
+        for m in re.finditer(template.format(var=re.escape(var)), body):
+            if m.start() >= before or m.group(1) == var:
+                continue
+            if _is_freshly_allocated(body, m.group(1), m.start(), _hops + 1):
+                return True
     return False
+
+
+# ---------------------------------------------------------------------------
+# T4 — publish_before_init_complete   (issue #28 rule 9)
+# ---------------------------------------------------------------------------
+#
+# No rule modelled "published at line A, fields still written at line B > A".
+# That is the shape of `fixup_slot_dispatchers` (gh-151377, reproduced as
+# CPY-0072): `type_new_impl` calls `PyType_Ready(type)` at :4953, which links
+# the type into every base's `tp_subclasses` and into every subclass's MRO --
+# it is reachable from other threads from that instant -- and *then* calls
+# `fixup_slot_dispatchers(type)` at :4958, which rewrites the slot table with
+# plain, non-atomic stores.
+#
+# The stores are one hop away, in the callee, so a rule that only looks at the
+# publishing function's own body sees nothing.
+
+# Calls after which another thread can reach the object.
+_PUBLISH_APIS = (
+    "PyType_Ready",
+    "PyType_ReadyWithFlags",
+    "_PyType_Ready",
+    "_PyObject_GC_TRACK",
+    "PyObject_GC_Track",
+    "PyModule_AddObjectRef",
+    "PyModule_AddObject",
+    "PyModule_AddType",
+    "PyDict_SetItem",
+    "PyDict_SetItemString",
+    "PyList_Append",
+    "PySet_Add",
+    "PyObject_SetAttr",
+    "PyObject_SetAttrString",
+    "add_subclass",
+    "add_all_subclasses",
+)
+_PUBLISH_CALL_RE = re.compile(
+    r"\b(" + "|".join(re.escape(a) for a in _PUBLISH_APIS) + r")\s*\("
+)
+_ANY_CALL_RE = re.compile(r"\b([A-Za-z_]\w*)\s*\(")
+
+
+def _call_args_at(text: str, open_paren: int) -> tuple[str, int] | None:
+    """Argument text and the offset just past the closing paren.
+
+    A ``\\(([^;]*)\\)`` regex is greedy to the *last* paren before the next
+    semicolon, so ``if (PyType_Ready(type) < 0)`` captures ``type) < 0`` and the
+    argument stops being an identifier. Balanced matching is not optional here.
+    """
+    depth = 0
+    for i in range(open_paren, len(text)):
+        if text[i] == "(":
+            depth += 1
+        elif text[i] == ")":
+            depth -= 1
+            if depth == 0:
+                return text[open_paren + 1 : i], i + 1
+        elif text[i] == ";" and depth == 0:
+            return None
+    return None
+
+# A plain (non-atomic, non-critical-section) store into a field of a pointer.
+_PLAIN_FIELD_STORE_TEMPLATE = r"\b{var}\s*->\s*(\w+)\s*(?<![=!<>+\-*/%&|^])=(?!=)"
+
+# `void **ptr = slotptr(type, offset); ... *ptr = specific;` --
+# `update_one_slot` writes the slot table through a computed pointer, so the
+# store never mentions the receiver at all. Deliberately any RHS that mentions
+# the parameter, not just a cast expression: CPython spells this both as
+# `(void **)((char *)type + p->offset)` and as a `slotptr(type, offset)` call,
+# and pinning it to the cast form left the motivating case four hops away
+# through an unrelated path instead of two.
+_COMPUTED_PTR_TEMPLATE = r"\b([A-Za-z_]\w*)\s*=\s*[^;]*\b{var}\b[^;]*;"
+_STAR_STORE_TEMPLATE = r"\*\s*\(?\s*{ptr}\s*\)?\s*(?<![=!<>+\-*/%&|^])=(?!=)"
+
+
+def _param_field_writers(functions: list[dict]) -> dict[str, dict[int, tuple]]:
+    """Map ``callee -> {param index: (field, line)}`` for plain field stores.
+
+    Two spellings, both needed for the motivating case: the direct
+    ``p->field = v`` and the computed-pointer ``ptr = (void **)((char *)p + n);
+    *ptr = v;`` that ``update_one_slot`` uses to write the slot table.
+    """
+    out: dict[str, dict[int, tuple]] = {}
+    for func in functions:
+        body = func["body"]
+        body_line = func["body_node"].start_point[0] + 1
+        params = _param_names(func.get("parameters", ""))
+        found: dict[int, tuple] = {}
+        for index, name in enumerate(params):
+            if not name:
+                continue
+            m = re.search(_PLAIN_FIELD_STORE_TEMPLATE.format(var=re.escape(name)), body)
+            if m is not None:
+                found[index] = (
+                    m.group(1),
+                    body_line + body.count("\n", 0, m.start()),
+                    0,
+                )
+                continue
+            for pm in re.finditer(
+                _COMPUTED_PTR_TEMPLATE.format(var=re.escape(name)), body
+            ):
+                ptr = pm.group(1)
+                # Search *after* the assignment: `void **ptr = slotptr(...)`
+                # contains the text `*ptr =` in its own declarator, so a search
+                # from offset 0 finds the declaration and concludes the store
+                # comes first.
+                sm = re.search(
+                    _STAR_STORE_TEMPLATE.format(ptr=re.escape(ptr)), body[pm.end() :]
+                )
+                if sm is not None:
+                    at = pm.end() + sm.start()
+                    found[index] = (
+                        f"*{ptr} (computed from {name})",
+                        body_line + body.count("\n", 0, at),
+                        0,
+                    )
+                    break
+        if found:
+            out[func["name"]] = found
+
+    # Propagate through the call graph. `fixup_slot_dispatchers` does not write
+    # any field itself -- it calls `update_one_slot(type, p)`, which writes the
+    # slot table through a computed pointer. Two hops, so a single pass sees
+    # nothing at the site the rule exists for.
+    by_name = {f["name"]: f for f in functions}
+    for _ in range(_MAX_WRITER_HOPS):
+        grew = False
+        for func in functions:
+            params = _param_names(func.get("parameters", ""))
+            body = func["body"]
+            body_line = func["body_node"].start_point[0] + 1
+            for cm in _ANY_CALL_RE.finditer(body):
+                callee = cm.group(1)
+                fields = out.get(callee)
+                if not fields or callee == func["name"] or callee not in by_name:
+                    continue
+                got = _call_args_at(body, cm.end() - 1)
+                if got is None:
+                    continue
+                for index, arg in enumerate(_split_call_args(got[0])):
+                    if index not in fields:
+                        continue
+                    try:
+                        own = params.index(arg.strip())
+                    except ValueError:
+                        continue
+                    field, _line, hops = fields[index]
+                    existing = out.get(func["name"], {}).get(own)
+                    if existing is not None and existing[2] <= hops + 1:
+                        continue
+                    # Keep only the field name, not an ever-growing chain: a
+                    # four-deep "(via A) (via B) (via C)" label is not a claim a
+                    # reader can check. The hop count carries that information.
+                    out.setdefault(func["name"], {})[own] = (
+                        field.split(" (via ")[0],
+                        body_line + body.count("\n", 0, cm.start()),
+                        hops + 1,
+                    )
+                    grew = True
+        if not grew:
+            break
+    return out
+
+
+_MAX_WRITER_HOPS = 3
+
+
+def _param_names(parameters: str) -> list[str]:
+    text = parameters.strip()
+    if text.startswith("(") and text.endswith(")"):
+        text = text[1:-1]
+    names: list[str] = []
+    depth = 0
+    current: list[str] = []
+    parts: list[str] = []
+    for ch in text:
+        if ch in "([":
+            depth += 1
+        elif ch in ")]":
+            depth -= 1
+        if ch == "," and depth == 0:
+            parts.append("".join(current))
+            current = []
+        else:
+            current.append(ch)
+    parts.append("".join(current))
+    for part in parts:
+        idents = re.findall(r"[A-Za-z_]\w*", part)
+        names.append(
+            idents[-1] if idents and idents[-1] not in ("void", "const") else ""
+        )
+    return names
+
+
+def _split_call_args(args: str) -> list[str]:
+    depth = 0
+    current: list[str] = []
+    parts: list[str] = []
+    for ch in args:
+        if ch in "([":
+            depth += 1
+        elif ch in ")]":
+            depth -= 1
+        if ch == "," and depth == 0:
+            parts.append("".join(current))
+            current = []
+        else:
+            current.append(ch)
+    parts.append("".join(current))
+    return [p.strip() for p in parts]
+
+
+def check_publish_before_init(
+    func: dict, writers: dict[str, dict[int, tuple]], gil_only: list
+) -> list[dict]:
+    """Fields written after the object became reachable from another thread."""
+    body = func["body"]
+    body_line = func["body_node"].start_point[0] + 1
+    if any(tok in body for tok in _LOCK_TOKENS):
+        # The whole function serialises; not this rule's shape.
+        return []
+
+    findings: list[dict] = []
+    seen: set[tuple[str, int]] = set()
+    for pub in _PUBLISH_CALL_RE.finditer(body):
+        api = pub.group(1)
+        got = _call_args_at(body, pub.end() - 1)
+        if got is None:
+            continue
+        pub_args, pub_end = got
+        for arg in _split_call_args(pub_args):
+            # `(PyObject *)self` is how CPython spells the publish argument at
+            # most of these sites; stripping only `&*(` leaves `PyObject *)self`.
+            var = re.sub(r"^\s*(?:\(\s*[\w\s*]+\)\s*)*[&*]*\s*", "", arg).strip()
+            if not var.isidentifier():
+                continue
+            after = body[pub_end:]
+
+            direct = re.search(
+                _PLAIN_FIELD_STORE_TEMPLATE.format(var=re.escape(var)), after
+            )
+            site: tuple[str, int, str, int] | None = None
+            if direct is not None:
+                site = (
+                    direct.group(1),
+                    body_line + body.count("\n", 0, pub_end + direct.start()),
+                    "this function",
+                    0,
+                )
+            else:
+                for call in _ANY_CALL_RE.finditer(after):
+                    fields = writers.get(call.group(1))
+                    if not fields:
+                        continue
+                    inner = _call_args_at(after, call.end() - 1)
+                    if inner is None:
+                        continue
+                    for index, a in enumerate(_split_call_args(inner[0])):
+                        if a.strip() != var or index not in fields:
+                            continue
+                        field, wline, hops = fields[index]
+                        site = (
+                            field,
+                            body_line
+                            + body.count("\n", 0, pub_end + call.start()),
+                            f"{call.group(1)}():{wline}",
+                            hops + 1,
+                        )
+                        break
+                    if site is not None:
+                        break
+            if site is None:
+                continue
+            field, line, where, hops = site
+            if (field, line) in seen:
+                continue
+            seen.add((field, line))
+            findings.append(
+                {
+                    "type": "publish_before_init_complete",
+                    "ft_class": "T4",
+                    "function": func["name"],
+                    "member": f"{var}.{field}",
+                    "access": f"{var}->{field}",
+                    "line": line,
+                    "publish_line": body_line
+                    + body.count("\n", 0, pub.start()),
+                    "publish_api": api,
+                    "written_in": where,
+                    "call_hops": hops,
+                    # One hop is a claim a reader can check by opening the
+                    # callee. Three is a chain, and a chain through an
+                    # intermediate that may itself be conditional is a lead, not
+                    # a finding.
+                    "confidence": "medium" if hops <= 1 else "low",
+                    "detail": (
+                        f"'{var}' becomes reachable from other threads at "
+                        f"{api}() (line "
+                        f"{body_line + body.count(chr(10), 0, pub.start())}), and "
+                        f"'{field}' is still written afterwards, in {where}, with "
+                        f"a plain non-atomic store and no critical section. On a "
+                        f"free-threaded build another thread can observe the "
+                        f"object between the two — half-initialised, and torn if "
+                        f"the store is wider than a word. Finish initialising "
+                        f"before publishing, or make the tail stores atomic. "
+                        f"This is the fixup_slot_dispatchers shape (gh-151377)."
+                    ),
+                }
+            )
+    return findings
 
 
 def _build_t2_findings(sites: list[dict], tree, source_bytes: bytes) -> list[dict]:
@@ -1252,8 +1603,12 @@ def analyze(target: str, *, max_files: int = 0) -> dict:
         slot_names = _collect_iternext_names(source)
 
         lazy_sites: list[dict] = []
+        field_writers = _param_field_writers(functions)
         for func in functions:
             total_functions += 1
+            for f in check_publish_before_init(func, field_writers, gil_only):
+                f["file"] = rel
+                findings.append(f)
             is_iter = _is_iternext(func["name"], slot_names)
             if is_iter:
                 iternext_functions += 1
