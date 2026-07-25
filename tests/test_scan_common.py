@@ -88,5 +88,89 @@ class TestRuleNotApplicable(unittest.TestCase):
         self.assertIs(report["rule_not_applicable"], False)
 
 
+class TestDenominators(unittest.TestCase):
+    """Every envelope carries a `denominators` block (issue #28).
+
+    `rule_not_applicable` answers "did the rule see anything" only for scanners
+    that ship a vocabulary. The rest express their reach as bespoke keys that an
+    agent has to know about in advance. One name means the standing rule --
+    *report the denominator before calling a zero clean* -- can be followed
+    against any scanner's output.
+    """
+
+    def _report(self, **extra):
+        return mod.build_report(
+            project_root=Path("/x"),
+            scan_root=Path("/x/y"),
+            files_analyzed=2,
+            functions_analyzed=40,
+            findings=[],
+            summary={"total_findings": 0},
+            **extra,
+        )
+
+    def test_always_present(self):
+        den = self._report()["denominators"]
+        self.assertEqual(den["files_analyzed"], 2)
+        self.assertEqual(den["functions_analyzed"], 40)
+        self.assertEqual(den["findings"], 0)
+
+    def test_suffix_named_counters_are_collected(self):
+        den = self._report(total_nullable_fields=7, allocation_sites=12)["denominators"]
+        self.assertEqual(den["total_nullable_fields"], 7)
+        self.assertEqual(den["allocation_sites"], 12)
+
+    def test_summary_counters_are_collected_too(self):
+        report = mod.build_report(
+            project_root=Path("/x"),
+            scan_root=Path("/x"),
+            files_analyzed=1,
+            functions_analyzed=3,
+            findings=[],
+            summary={"total_findings": 0, "allocation_sites": 5},
+        )
+        self.assertEqual(report["denominators"]["allocation_sites"], 5)
+
+    def test_a_census_dict_is_flattened_not_counted(self):
+        """Reporting a three-key census's *length* would say 3 for numbers that
+        are 161/127/27 -- worse than saying nothing."""
+        den = self._report(
+            varobject_allocation_census={"sites": 161, "via_slot_pointer": 127}
+        )["denominators"]
+        self.assertEqual(den["varobject_allocation_census.sites"], 161)
+        self.assertEqual(den["varobject_allocation_census.via_slot_pointer"], 127)
+        self.assertNotIn("varobject_allocation_census", den)
+
+    def test_a_non_numeric_collection_is_counted(self):
+        den = self._report(outparam_wrappers=["a", "b"])["denominators"]
+        self.assertEqual(den["outparam_wrappers"], 2)
+
+    def test_vocabulary_is_summed(self):
+        den = self._report(vocabulary_counts={"A": 3, "B": 0})["denominators"]
+        self.assertEqual(den["vocabulary_resolved"], 3)
+        self.assertEqual(den["vocabulary_tokens_seen"], 2)
+
+    def test_all_zero_denominators_get_a_note(self):
+        report = mod.build_report(
+            project_root=Path("/x"),
+            scan_root=Path("/x"),
+            files_analyzed=0,
+            functions_analyzed=0,
+            findings=[],
+            summary={"total_findings": 0},
+            allocation_sites=0,
+        )
+        self.assertIn("note", report["denominators"])
+        self.assertIn("silence, not safety", report["denominators"]["note"])
+
+    def test_a_real_denominator_gets_no_note(self):
+        den = self._report(allocation_sites=4)["denominators"]
+        self.assertNotIn("note", den)
+
+    def test_booleans_are_not_denominators(self):
+        den = self._report(some_flag_resolved=True)["denominators"]
+        self.assertNotIn("some_flag_resolved", den)
+
+
 if __name__ == "__main__":
     unittest.main()

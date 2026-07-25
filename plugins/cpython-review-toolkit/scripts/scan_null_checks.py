@@ -1040,6 +1040,19 @@ def analyze(target: str, *, max_files: int = 0) -> dict:
         "files_analyzed": len(sources),
         "functions_analyzed": functions_analyzed,
         "outparam_wrappers": sorted(wrappers),
+        # See scan_common.collect_denominators: report the denominator before
+        # calling a zero clean.
+        "denominators": {
+            "files_analyzed": len(sources),
+            "functions_analyzed": functions_analyzed,
+            "findings": len(all_findings),
+            "assignment_sites": assignment_sites,
+            "fallible_sources_resolved": len(
+                ALLOC_APIS | PYOBJ_APIS | local_helpers
+            ),
+            "local_nullable_helpers": len(local_helpers),
+            "outparam_wrappers": len(wrappers),
+        },
         # Denominators, so a zero is readable. `assignment_sites` is every
         # `lvalue = ...` in scope; `fallible_sources_resolved` is how many
         # distinct callees the rule recognised as able to return NULL, of which

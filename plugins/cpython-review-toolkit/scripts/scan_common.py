@@ -228,7 +228,83 @@ def build_report(
                 "the vocabulary does not cover (a file-local macro wrapper is the "
                 "usual cause). Establish which before reporting a clean result."
             )
+    report["denominators"] = collect_denominators(report)
     return report
+
+
+# Envelope / summary keys that answer "how much did this rule even see". Named
+# by suffix so a scanner gains a denominator by naming its counter well, rather
+# than by editing a list here.
+_DENOMINATOR_SUFFIXES = (
+    "_sites",
+    "_functions",
+    "_resolved",
+    "_analyzed",
+    "_census",
+    "_candidates",
+    "_wrappers",
+    "_helpers",
+    "_fields",
+)
+
+
+def collect_denominators(report: dict) -> dict:
+    """Gather every "how much did the rule see" counter into one block.
+
+    ``rule_not_applicable`` answers the question only for scanners that ship a
+    vocabulary. The rest express their reach as bespoke envelope keys
+    (``total_nullable_fields``, ``allocation_sites``,
+    ``critical_section_functions``, …), which an agent has to know about in
+    advance to look for. Collecting them under one name means the standing rule
+    -- *report the denominator before calling a zero clean* -- can be followed
+    against any scanner's output without knowing which scanner it is.
+
+    Reported alongside ``findings``, so the ratio is readable at a glance.
+    """
+    out: dict = {
+        "files_analyzed": report.get("files_analyzed", 0),
+        "functions_analyzed": report.get("functions_analyzed", 0),
+        "findings": len(report.get("findings") or ()),
+    }
+    counts = report.get("vocabulary_counts")
+    if isinstance(counts, dict):
+        out["vocabulary_resolved"] = sum(
+            v for v in counts.values() if isinstance(v, (int, float))
+        )
+        out["vocabulary_tokens_seen"] = len(counts)
+
+    for source in (report, report.get("summary") or {}):
+        if not isinstance(source, dict):
+            continue
+        for key, value in source.items():
+            if key in out or not key.endswith(_DENOMINATOR_SUFFIXES):
+                continue
+            if isinstance(value, bool):
+                continue
+            if isinstance(value, (int, float)):
+                out[key] = value
+            elif isinstance(value, dict) and value and all(
+                isinstance(v, (int, float)) and not isinstance(v, bool)
+                for v in value.values()
+            ):
+                # A census dict holds the counts themselves; reporting its
+                # *length* would say "3" for a three-key census whose numbers
+                # are 161/127/27, which is worse than saying nothing.
+                for sub, subvalue in value.items():
+                    out.setdefault(f"{key}.{sub}", subvalue)
+            elif isinstance(value, (list, dict)):
+                out[key] = len(value)
+
+    measured = [
+        v for k, v in out.items() if k != "findings" and isinstance(v, (int, float))
+    ]
+    if measured and not any(measured):
+        out["note"] = (
+            "Every denominator this scanner reports is zero: the empty findings "
+            "list is silence, not safety. Establish that the constructs are "
+            "genuinely absent before reporting a clean result."
+        )
+    return out
 
 
 # ---------------------------------------------------------------------------

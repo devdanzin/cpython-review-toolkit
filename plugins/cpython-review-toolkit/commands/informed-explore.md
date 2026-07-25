@@ -71,6 +71,16 @@ include-graph-mapper output, give **every** agent the contents of
 >    (the correctly-handled sibling in the same file/family = the fix), and search for the other sites
 >    that lack it. New siblings + new territory are the goal, not re-describing the catalog. Where a
 >    differential is listed for the shape, run it to confirm or kill the lead.
+> 4. **Report the denominator before calling a zero clean.** Every scanner's envelope carries a
+>    `denominators` block — how many sites, functions, vocabulary tokens or candidate constructs the
+>    rule actually resolved. **Quote it in your report whatever the finding count is.** A zero against
+>    a large denominator is a result you can stand behind; a zero against a zero denominator is
+>    *silence*, and reporting it as clean is the single failure this toolkit has repeated most. In the
+>    `obj-typeobject` run nine scanners reported zero and **every one of those zeros was structural**:
+>    `scan_null_checks` had resolved 49 of 760 assignment sites, `scan_lock_discipline` 2 of 25 lock
+>    regions, `scan_recursion_guards` 0 of 7 descents. If `denominators.note` or
+>    `rule_not_applicable` is present, the scanner is telling you it saw nothing — your job shifts from
+>    *verifying* the negative to *proving the rule can fire here at all*.
 
 Groups run sequentially (History last, so it can cross-reference the others); `parallel` runs agents
 *within* a group concurrently, capped by `--max-parallel`.

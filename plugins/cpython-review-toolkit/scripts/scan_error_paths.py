@@ -1101,6 +1101,11 @@ def analyze(target: str, *, max_files: int = 0) -> dict:
     all_findings: list[dict] = []
     functions_analyzed = 0
     files_analyzed = 0
+    # Denominators. `int_status_callees_resolved` is the population the new
+    # int-sentinel rule works over: the closed API table plus whatever the file
+    # itself defines. A zero against a zero is silence, not safety.
+    int_callee_names: set[str] = set()
+    fallible_call_sites = 0
 
     for filepath in discover_c_files(scan_root, max_files=max_files):
         files_analyzed += 1
@@ -1113,8 +1118,12 @@ def analyze(target: str, *, max_files: int = 0) -> dict:
         functions = find_functions(source)
         clean_lines = strip_comments_and_strings(source).split('\n')
         int_callees = int_status_callees(functions)
+        int_callee_names |= int_callees
         for func in functions:
             functions_analyzed += 1
+            fallible_call_sites += len(
+                _ASSIGN_CALL_RE.findall(strip_comments_and_strings(func["body"]))
+            )
             func_findings = analyze_function_errors(
                 func, clean_lines, int_callees
             )
@@ -1151,6 +1160,18 @@ def analyze(target: str, *, max_files: int = 0) -> dict:
         "scan_root": str(scan_root),
         "files_analyzed": files_analyzed,
         "functions_analyzed": functions_analyzed,
+        # See scan_common.collect_denominators: report the denominator before
+        # calling a zero clean.
+        "denominators": {
+            "files_analyzed": files_analyzed,
+            "functions_analyzed": functions_analyzed,
+            "findings": len(all_findings),
+            "fallible_assignment_sites": fallible_call_sites,
+            "int_status_callees_resolved": len(int_callee_names),
+            "int_status_callees_discovered": len(
+                int_callee_names - set(INT_STATUS_APIS)
+            ),
+        },
         "findings": all_findings,
         "summary": {
             "missing_null_checks": count("missing_null_check"),

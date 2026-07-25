@@ -2989,6 +2989,12 @@ def analyze(target: str, *, max_files: int = 0) -> dict:
     all_findings: list[dict] = []
     functions_analyzed = 0
     files_analyzed = 0
+    # Denominators. `borrowed_load_sites` is the population the borrowed-ref
+    # rules actually work over; a zero finding count against a large one is a
+    # result, against a zero one it is silence.
+    accessor_names: set[str] = set()
+    borrowed_load_sites = 0
+    slot_load_sites = 0
 
     for filepath in discover_c_files(scan_root, max_files=max_files):
         files_analyzed += 1
@@ -3008,9 +3014,13 @@ def analyze(target: str, *, max_files: int = 0) -> dict:
         functions = find_functions(source)
         ctx = FileRefContext(source, functions)
         accessors = ctx.field_accessors(source)
+        accessor_names |= set(accessors)
 
         for func in functions:
             functions_analyzed += 1
+            _clean = strip_comments_and_strings(func["body"])
+            borrowed_load_sites += len(_field_accessor_loads(_clean, accessors))
+            slot_load_sites += len(_borrowed_slot_loads(_clean))
             func_findings = analyze_function_refcounts(func)
             stale = check_stale_slot_decref(func)
             func_findings.extend(stale)
@@ -3052,6 +3062,17 @@ def analyze(target: str, *, max_files: int = 0) -> dict:
         "scan_root": str(scan_root),
         "files_analyzed": files_analyzed,
         "functions_analyzed": functions_analyzed,
+        # See scan_common.collect_denominators: report the denominator before
+        # calling a zero clean.
+        "denominators": {
+            "files_analyzed": files_analyzed,
+            "functions_analyzed": functions_analyzed,
+            "findings": len(all_findings),
+            "borrowed_field_accessors": len(accessor_names),
+            "borrowed_accessor_load_sites": borrowed_load_sites,
+            "borrowed_slot_load_sites": slot_load_sites,
+        },
+        "field_accessors_discovered": sorted(accessor_names),
         "findings": all_findings,
         "summary": {
             "potential_leaks": count("potential_leak", "potential_leak_on_error"),
