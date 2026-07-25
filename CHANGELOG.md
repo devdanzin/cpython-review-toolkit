@@ -5,6 +5,79 @@ Format loosely follows [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+### Fixed — five defects measured by the `obj-typeobject` review
+
+The first slice of the review campaign (`Objects/typeobject.c`, 13,068 lines, 16
+agents) produced 15 FIX findings against 11 scanner candidates. Nine of the
+scanners reported zero, and **every one of those zeros was structural**. These
+are the defects behind that.
+
+- **`tree_sitter_utils`: function-generating macros were eating their
+  neighbours.** `SLOT0`/`SLOT1`/`SLOT1BIN`/`SLOT1BINFULL` expand to whole
+  function definitions at file scope. The generated function being invisible is
+  expected — tree-sitter has no preprocessor — but the *unparseable invocation
+  corrupted the parse of the real functions that followed it*. On
+  `Objects/typeobject.c`: 35 invocations, 47 ERROR nodes, and `slot_tp_hash`,
+  `slot_tp_call`, `_Py_slot_tp_getattro`, `slot_tp_repr`, `slot_tp_str` and
+  `call_attribute` invisible — ordinary functions that dispatch into user
+  Python, i.e. exactly the population the crash-class rules police.
+  `scan_pyerr_clear` reported 9 `PyErr_Clear` calls against a true 11.
+  `scrub_macros` now substitutes a byte-length-preserving stub: **417 functions
+  / 47 errors → 458 / 5**. Tree-wide over `Objects/` + `Modules/` + `Python/`:
+  16,376 → 16,418 functions, 5,091 → 5,049 ERROR nodes, **one file changed,
+  zero regressions across 428 files**. The stub keeps the identifier at its
+  original byte offset — callers pass unscrubbed source to `get_node_text`, so a
+  plain `int NAME(){}` prefix shifts the name four bytes and every consumer
+  reads garbage; the first version of this fix did exactly that.
+  This file is vendored into five sibling toolkits and had **no direct test
+  coverage** for `scrub_macros` or `parse_health`; it does now.
+- **`run_oom_sweep`: the reproduction harness armed `set_nomemory` unbounded.**
+  One argument fails allocation *n and every one after it*, so any payload that
+  allocates more than once dies at the first index reached and the tool reports
+  a crash at a low `n` with `lost sys.stderr` regardless of where the defect is
+  — a false positive shaped exactly like a real result, in the harness previous
+  runs used to certify reproductions. Default is now `--width 1`. Measured on
+  `type_set_bases_unlocked:1966`: unbounded reports abort at n=3,4,5,6; bounded
+  at n=5,6,7 — the low indices were cascade artifacts, so the old default
+  *mislocated* which allocation's failure path is broken. Separately, a payload
+  the old default reported at n=1 had its real failure at n=127. `--width 0`
+  restores the legacy behaviour and the width is recorded in the JSON.
+- **`deprecated_c_apis.json` recommended migrations that leak or don't
+  compile.** Four entries corrected against CPython main rather than from
+  memory. The PEP 667 family (`PyEval_GetGlobals`/`GetBuiltins`/`GetLocals`) all
+  shipped `drop_in: true` with an empty caveat while the replacement returns a
+  **strong** reference where these return **borrowed** (`ceval.c:2741` raw vs
+  `:2874` `Py_XNewRef`) — a bare rename leaks a module `__dict__`, which pins
+  the whole module. `PyEval_GetBuiltins` carried *"Returns a borrowed
+  reference"* in its own notes while asserting drop-in. A new canary — a
+  replacement that **gains** `Ref`/`Frame`/`New` may not claim `drop_in` without
+  justification — also caught `_PyDict_GetItemStringWithError`, which is not a
+  rename at all: borrowed `PyObject *` becomes an `int` status writing a strong
+  reference to an out-parameter, arity 2 → 3, and a mechanical substitution does
+  not compile. The two false positives the canary must not fire on
+  (`PyCode_New` → `PyUnstable_Code_New`, `PyMem_NEW` → `PyMem_New`) are
+  documented in the test. Second firing of the class that produced these fields.
+- **The lock dimension was missing from the stop-the-world vocabulary.**
+  Neither `Py_BEGIN_CRITICAL_SECTION` nor `PyMutex_Lock` appeared in
+  `stw_safe_apis.json` at all, in either list — so the scanner could not reason
+  about taking a lock with the world stopped, and both lock-discipline findings
+  from the review live in that gap. The polarity is counter-intuitive and now
+  carries citations: a critical section inside a stopped-world region is
+  **safe** (`PyMutex_Lock` blocks with `_PY_LOCK_DETACH`, `lock.c:656` →
+  `detach_thread`, `pystate.c:2323` → `_PyCriticalSection_SuspendAll`,
+  `critical_section.c:113`, which releases it), while a **raw** `PyMutex_Lock`
+  is the real hazard. Also completes `lock_macros.json`, which listed 2 of the 5
+  critical-section openers while `tree_sitter_utils` knew all five — the parser
+  and the lock analysis disagreed about what a lock is.
+- **The envelope now distinguishes "clean" from "recognised nothing".**
+  `build_report` derives `rule_not_applicable` from `vocabulary_counts`.
+  Measured, both reporting zero findings: `Objects/typeobject.c` → `true` (all
+  counts zero, in a file with 11 stop-the-world regions), `Modules/socketmodule.c`
+  → `false` (29 resolved `ALLOW_THREADS` pairs). A scanner with no vocabulary
+  gets no verdict, since guessing either way is the bug.
+
+Tests 664 → 695.
+
 ### Added — the review-slice campaign
 
 Two informed runs have covered 26 files and ~53,000 lines; the reviewable
