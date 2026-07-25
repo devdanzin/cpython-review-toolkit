@@ -52,6 +52,13 @@ Silent by design:
 ### Phase 0: establish the denominator — do this before anything else
 A zero from this scanner is the common case, and "no constructs present" is a different result from "constructs present and all verified clean". The envelope now carries `vocabulary_counts` (raw per-macro counts over the scope), `critical_section_functions` and `mutex_functions`. Compare `grep -c Py_BEGIN_CRITICAL_SECTION <file>` against what the scanner attributes to that file: a gap means the tree-sitter chassis dropped or merged functions, and you must hand-check the difference. On `Objects/dictobject.c` that check is 47 vs 29 and takes ten seconds. **Report the denominator whatever the finding count is.**
 
+**Locally `#define`d wrappers are resolved.** A file that wraps the vocabulary in its own macros used to be invisible: `Objects/typeobject.c:79` defines `BEGIN_TYPE_LOCK()` as `Py_BEGIN_CRITICAL_SECTION_MUTEX(TYPE_LOCK)` and uses it 25 times, and the scanner resolved **2** of those regions — the two written in the canonical spelling. Same-TU `#define`s (including backslash-continued ones) are now followed up to 4 hops down to a known token, and `report.local_lock_macros` lists what each file resolved. Tree-wide that moved visible lock regions from 758 to 818, with `Python/` going 16 → 45.
+
+Two things to hold onto when reading it:
+
+- **`ASSERT_TYPE_LOCK_HELD` is not an acquire.** It asserts the *caller* holds the lock; counting it as an acquire turns every lock-held helper into an unpaired begin and manufactures a missing-`END` on correct code. Those macros are listed separately under `lock_held_assertions`.
+- **An empty `local_lock_macros` entry is the expected answer, not a gap.** Only 13 files in the whole tree define such wrappers — 2 in `Objects/` (`typeobject.c`, `dictobject.c`), 5 in `Modules/`, 6 in `Python/`. The other 17 of 18 `Objects/` files that lock at all use the canonical spellings, and their zero was always earned. The finding count stayed **0 on all three trees** after this change, which is the point: the newly visible regions are genuinely clean, and now you can say so.
+
 ### Phase 1: Triage each leak (FIX candidates)
 For every `critical_section_missing_end` / `critical_section_end_on_error`:
 1. Read ~30 lines around the flagged line.

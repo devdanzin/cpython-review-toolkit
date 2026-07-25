@@ -191,15 +191,20 @@ def _parse_signature(lines: list[str], brace_idx: int) -> dict | None:
         if name in _C_KEYWORDS:
             return None
         sig_start = j
+        ret_type = head[:m.start()].strip()
         # A bare return type on its own line above the name.
         if sig_start > 0 and re.match(
             r"^[\w\s\*]+$", lines[sig_start - 1].strip()
         ):
             sig_start -= 1
+            ret_type = (lines[sig_start].strip() + " " + ret_type).strip()
         return {
             "name": name,
             "params": text[open_paren + 1:text.rindex(")")],
             "sig_start": sig_start,
+            # Needed to tell a pointer-returning (hence NULL-capable) helper
+            # from an int-returning one when widening the fallible-source set.
+            "return_type": ret_type,
         }
     return None
 
@@ -251,6 +256,7 @@ def find_functions(source: str) -> list[dict]:
             "body_line": body_start + 1,
             "start_line": sig["sig_start"] + 1,
             "end_line": body_end + 1,
+            "return_type": sig.get("return_type", ""),
         })
     return functions
 
@@ -276,6 +282,61 @@ _EXTRA_TARGET_RE = re.compile(
     r"(" + _LVALUE + r")\s*(?<![=!<>+\-*/%&|^])=(?!=)"
 )
 
+
+def _alloc_re_for(extra: Iterable[str]) -> re.Pattern:
+    """``_ALL_ALLOC_RE`` widened with same-file NULL-returning helpers."""
+    names = ALLOC_APIS | PYOBJ_APIS | set(extra)
+    return re.compile(
+        r"(?P<lval>" + _LVALUE + r")"
+        r"\s*(?<![=!<>+\-*/%&|^])=(?!=)\s*"
+        r"(?:\([^()]*\)\s*)?"
+        r"(?P<api>"
+        + "|".join(re.escape(api) for api in sorted(names, key=len, reverse=True))
+        + r")\s*\("
+    )
+
+
+# A pointer-returning function is fallible if it can hand back NULL.  Needed
+# because the closed API enum resolved only **49 of 760** assignment-from-call
+# sites tree-wide (6.4%): `Objects/dictobject.c:4491` assigns
+# `d = frozendict_new_untracked(&PyFrozenDict_Type);`, a same-file `static`
+# helper, so there was no candidate to check in the first place.
+_RETURNS_NULL_RE = re.compile(r"\breturn\s+(?:NULL|PyErr_NoMemory\s*\(\s*\))\s*;")
+
+
+_FORWARD_RETURN_RE = re.compile(r"\breturn\s+([A-Za-z_]\w*)\s*\(")
+
+
+def nullable_source_calls(functions: Iterable[dict]) -> set[str]:
+    """Same-file functions that return a pointer and can return NULL.
+
+    Includes thin forwarders: ``dict_new_untracked`` is
+    ``return anydict_new_untracked(type);`` and has no literal ``return NULL``
+    of its own, so a one-pass test misses half the producers of any value it
+    feeds.
+    """
+    pointer_returning = [
+        f for f in functions if "*" in (f.get("return_type", "") or "")
+    ]
+    out = {
+        f["name"]
+        for f in pointer_returning
+        if _RETURNS_NULL_RE.search(f.get("body", ""))
+    }
+    for _ in range(4):
+        grown = False
+        for f in pointer_returning:
+            if f["name"] in out:
+                continue
+            for m in _FORWARD_RETURN_RE.finditer(f.get("body", "")):
+                if m.group(1) in out or m.group(1) in ALLOC_APIS | PYOBJ_APIS:
+                    out.add(f["name"])
+                    grown = True
+                    break
+        if not grown:
+            break
+    return out
+
 # How many lines after the assignment to look for the NULL check / the use.
 # A line window, not a byte window: a single CPython error branch routinely
 # exceeds 300 bytes, which used to hide checks that were plainly present.
@@ -292,7 +353,27 @@ _NULL_CHECK_TEMPLATE = (
     r"!\s*{var}\s*[)&|]|"
     r"if\s*\(\s*{var}\s*\)|"
     r"while\s*\(\s*{var}\s*\)|"
-    r"assert\s*\(\s*{var}\b"
+    # `assert(x)` / `assert(x != NULL)` -- the operand must be the *whole*
+    # assertion, not buried inside a call. `assert(MACRO(x))` is the opposite of
+    # a check: see _ASSERT_CALL_DEREF below.
+    r"assert\s*\(\s*!?\s*{var}\s*(?:\)|&&|\|\||[!=]=)"
+)
+
+# `assert(EXPR(var))` -- the operand sits inside a *call* under the assert, so
+# the macro dereferences it (issue #28 rule 8).
+#
+# `Objects/dictobject.c:4493` is `assert(!_PyObject_GC_IS_TRACKED(d))` on a `d`
+# that was never NULL-checked. This is worse than an ordinary unchecked deref:
+# the dereference is undefined behaviour, and the UB licenses the optimizer to
+# conclude `d` cannot be NULL and **delete the NULL check inside the inlined
+# callee** -- disassembly of the release build shows no `test %rax,%rax` before
+# the store. Recorded as CPY-0079.
+#
+# It is also invisible on a release build, where NDEBUG compiles the assert out
+# entirely, so the reproduction and the miscompilation live on opposite builds.
+_ASSERT_CALL_DEREF = (
+    r"assert\s*\([^;]*?[A-Za-z_]\w*\s*\(\s*"
+    r"(?:\(\s*[\w\s*]+\)\s*)?{var}\s*[,)]"
 )
 
 # Unsafe macros/uses that dereference their operand without a NULL check.
@@ -314,7 +395,8 @@ _DEREF_TEMPLATE = (
     r"Py_INCREF\s*\(\s*{var}\s*\)|"
     r"Py_DECREF\s*\(\s*{var}\s*\)|"
     r"Py(?:Tuple|List|Bytes|ByteArray|Unicode|Dict|Set|Frame|Function|Cell|"
-    r"Method|Slice|Weakref)_[A-Z][A-Za-z_]*\s*\(\s*{var}\s*[,)]"
+    r"Method|Slice|Weakref)_[A-Z][A-Za-z_]*\s*\(\s*{var}\s*[,)]|"
+    r"_?_?Py\w*_(?:GC_)?IS_[A-Z_]+\s*\(\s*{var}\s*\)|" + _ASSERT_CALL_DEREF
 )
 
 
@@ -436,16 +518,106 @@ def _assignment_targets(body: str, m: re.Match) -> list[str]:
     return targets
 
 
+def _leaves_scope(text: str, end: int) -> bool:
+    """True if reaching ``end`` requires closing a block open at offset 0."""
+    depth = 0
+    for ch in text[:end]:
+        if ch == "{":
+            depth += 1
+        elif ch == "}":
+            depth -= 1
+            if depth < 0:
+                return True
+    return False
+
+
 def _truncate_at_reassignment(window: str, targets: list[str]) -> str:
-    """Cut ``window`` at the first re-assignment of any tracked lvalue."""
+    """Cut ``window`` at the first re-assignment of any tracked lvalue.
+
+    A re-assignment in a *sibling branch* does not end this value's life --
+    exactly one of the two arms runs.  ``Objects/dictobject.c:4489`` assigns
+    ``d`` in the ``if`` arm and ``:4492`` assigns it in the ``else``; treating
+    the second as a re-binding cut the window three lines short and hid the
+    ``assert`` that dereferences it.
+    """
     cut = len(window)
     for target in targets:
-        rea = re.search(
-            _lvalue_regex(target) + r"\s*(?<![=!<>+\-*/%&|^])=(?!=)", window
+        pat = re.compile(
+            _lvalue_regex(target) + r"\s*(?<![=!<>+\-*/%&|^])=(?!=)"
         )
-        if rea is not None:
+        for rea in pat.finditer(window):
+            if _leaves_scope(window, rea.start()):
+                continue
             cut = min(cut, rea.start())
+            break
     return window[:cut]
+
+
+_IF_KEYWORD_RE = re.compile(r"\bif\s*\(")
+
+
+def _join_after_full_ifelse(
+    body: str, assign_pos: int, targets: list[str]
+) -> int | None:
+    """Offset just past an ``if/else`` in which **every** arm assigns a target.
+
+    ``_dominates`` requires the use to sit at the assignment's own brace depth,
+    which is right for the sibling-arm false positive it was built for and
+    wrong when both arms assign: the value is live at the join whichever arm
+    ran.  Returns the join offset so the caller can re-test dominance from
+    there.
+    """
+    # Innermost `if (` whose consequent block contains the assignment.
+    best: tuple[int, int] | None = None
+    for m in _IF_KEYWORD_RE.finditer(body, 0, assign_pos):
+        close = _matching_paren(body, m.end() - 1)
+        if close == -1:
+            continue
+        i = close + 1
+        while i < len(body) and body[i] in " \t\n":
+            i += 1
+        if i >= len(body) or body[i] != "{":
+            continue
+        end = _block_end(body, i + 1)
+        if not (i < assign_pos < end):
+            continue
+        if best is None or i > best[0]:
+            best = (i, end)
+    if best is None:
+        return None
+
+    _, cons_end = best
+    j = cons_end + 1
+    while j < len(body) and body[j] in " \t\n":
+        j += 1
+    if not body.startswith("else", j):
+        return None
+    j += 4
+    while j < len(body) and body[j] in " \t\n":
+        j += 1
+    if j >= len(body) or body[j] != "{":
+        return None
+    alt_end = _block_end(body, j + 1)
+    alt = body[j:alt_end]
+    for target in targets:
+        if re.search(
+            _lvalue_regex(target) + r"\s*(?<![=!<>+\-*/%&|^])=(?!=)", alt
+        ):
+            return alt_end + 1
+    return None
+
+
+def _block_end(text: str, start: int) -> int:
+    """Offset of the ``}`` closing the block whose body begins at ``start``."""
+    depth = 0
+    for i in range(start, len(text)):
+        if text[i] == "{":
+            depth += 1
+        elif text[i] == "}":
+            if depth == 0:
+                return i
+            depth -= 1
+    return len(text) - 1
 
 
 def _depth_profile(text: str) -> list[int]:
@@ -511,17 +683,21 @@ def _dominates(body: str, depths: list[int], start: int, end: int) -> bool:
     return True
 
 
-def analyze_function_null_safety(func: dict) -> list[dict]:
+def analyze_function_null_safety(
+    func: dict, alloc_re: re.Pattern | None = None
+) -> list[dict]:
     """Analyze NULL safety in a single function.
 
     ``func["body"]`` must already be comment/string-stripped; offsets in it map
-    1:1 onto lines of the original file.
+    1:1 onto lines of the original file.  ``alloc_re`` lets the caller widen the
+    fallible-source set with the file's own NULL-returning helpers; it defaults
+    to the closed API enum.
     """
     body = func["body"]
     findings: list[dict] = []
     depths = _depth_profile(body)
 
-    for m in _ALL_ALLOC_RE.finditer(body):
+    for m in (alloc_re or _ALL_ALLOC_RE).finditer(body):
         api = m.group("api")
         targets = _assignment_targets(body, m)
         primary = targets[0]
@@ -562,7 +738,14 @@ def analyze_function_null_safety(func: dict) -> list[dict]:
         # `if (...) x = alloc(); else Py_INCREF(x);` reads as a dereference.
         deref_abs = window_start + deref.start()
         if not _dominates(body, depths, m.start(), deref_abs):
-            continue
+            # The value may still be live at the join of an if/else whose arms
+            # *all* assign it, which is where CPython puts the shared use.
+            join = _join_after_full_ifelse(body, m.start(), targets)
+            if join is None or not _dominates(body, depths, join, deref_abs):
+                continue
+
+        deref_text = deref.group(0).strip()
+        via_assert = deref_text.startswith("assert")
 
         if checked_at is None:
             findings.append({
@@ -570,10 +753,26 @@ def analyze_function_null_safety(func: dict) -> list[dict]:
                 "api_call": api,
                 "variable": primary,
                 "line_offset": line_offset,
+                "deref_line_offset": body[:deref_abs].count("\n") + 1,
+                "deref_is_assert": via_assert,
                 "detail": (
                     f"Result of {api} assigned to '{primary}' is never checked "
                     f"for NULL and is dereferenced "
-                    f"({deref.group(0).strip()})"
+                    f"({deref_text})"
+                    + (
+                        ". The dereference is inside an assert(), which is NOT a "
+                        "NULL check -- it is the opposite. On a debug build it "
+                        "dereferences NULL; on a release build NDEBUG compiles "
+                        "it out, so the crash and the real damage live on "
+                        "different builds. The damage is that the dereference is "
+                        "undefined behaviour, which licenses the optimizer to "
+                        "conclude the pointer cannot be NULL and delete NULL "
+                        "checks downstream, including inside an inlined callee "
+                        "(CPY-0079: no `test %rax,%rax` before the store in the "
+                        "release disassembly)."
+                        if via_assert
+                        else ""
+                    )
                 ),
                 "confidence": "medium",
             })
@@ -802,10 +1001,22 @@ def analyze(target: str, *, max_files: int = 0) -> dict:
     all_findings: list[dict] = []
     functions_analyzed = 0
 
+    assignment_sites = 0
+    local_helpers: set[str] = set()
+
     for rel, source in sources:
-        for func in find_functions(source):
+        functions = find_functions(source)
+        # Widen the fallible-source set with this file's own NULL-returning
+        # helpers. The closed API enum resolved 49 of 760 assignment-from-call
+        # sites tree-wide (6.4%), which is why `d = frozendict_new_untracked(...)`
+        # at Objects/dictobject.c:4491 had no candidate to check at all.
+        extra = nullable_source_calls(functions)
+        local_helpers |= extra
+        alloc_re = _alloc_re_for(extra)
+        for func in functions:
             functions_analyzed += 1
-            func_findings = analyze_function_null_safety(func)
+            assignment_sites += len(_EXTRA_TARGET_RE.findall(func["body"]))
+            func_findings = analyze_function_null_safety(func, alloc_re)
             func_findings += analyze_function_outparams(func, outparam_apis)
             for finding in func_findings:
                 finding["file"] = rel
@@ -813,6 +1024,10 @@ def analyze(target: str, *, max_files: int = 0) -> dict:
                 finding["line"] = (
                     func["body_line"] + finding.pop("line_offset") - 1
                 )
+                if "deref_line_offset" in finding:
+                    finding["deref_line"] = (
+                        func["body_line"] + finding.pop("deref_line_offset") - 1
+                    )
                 all_findings.append(finding)
 
     by_type: dict[str, int] = {}
@@ -825,12 +1040,42 @@ def analyze(target: str, *, max_files: int = 0) -> dict:
         "files_analyzed": len(sources),
         "functions_analyzed": functions_analyzed,
         "outparam_wrappers": sorted(wrappers),
+        # See scan_common.collect_denominators: report the denominator before
+        # calling a zero clean.
+        "denominators": {
+            "files_analyzed": len(sources),
+            "functions_analyzed": functions_analyzed,
+            "findings": len(all_findings),
+            "assignment_sites": assignment_sites,
+            "fallible_sources_resolved": len(
+                ALLOC_APIS | PYOBJ_APIS | local_helpers
+            ),
+            "local_nullable_helpers": len(local_helpers),
+            "outparam_wrappers": len(wrappers),
+        },
+        # Denominators, so a zero is readable. `assignment_sites` is every
+        # `lvalue = ...` in scope; `fallible_sources_resolved` is how many
+        # distinct callees the rule recognised as able to return NULL, of which
+        # `local_nullable_helpers` were discovered from this corpus rather than
+        # tabulated. A zero finding count against a large `assignment_sites` and
+        # a tiny resolved set is a coverage statement, not a safety one.
+        "assignment_sites": assignment_sites,
+        "fallible_sources_resolved": len(ALLOC_APIS | PYOBJ_APIS | local_helpers),
+        "local_nullable_helpers": len(local_helpers),
         "findings": all_findings,
         "summary": {
             "unchecked_allocations": by_type.get("unchecked_alloc", 0),
             "deref_before_check": by_type.get("deref_before_check", 0),
             "decref_of_nulled_outparam": by_type.get(
                 "decref_of_nulled_outparam", 0
+            ),
+            # Standing note: this rule has a denominator of literally zero on
+            # CPython -- no call sites and no discovered wrappers -- so its zero
+            # is structural. Do not read it as a clean result.
+            "decref_of_nulled_outparam_call_sites": len(wrappers)
+            + len(NULLING_OUTPARAM_APIS),
+            "assert_only_derefs": len(
+                [f for f in all_findings if f.get("deref_is_assert")]
             ),
             "total_findings": len(all_findings),
             "high_confidence": len(

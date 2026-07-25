@@ -815,5 +815,218 @@ static PyType_Spec Other_spec = {
         )
 
 
+# ---------------------------------------------------------------------------
+# One-hop interprocedural sink + vararg sentinel (issue #28 rules 5 and 6)
+# ---------------------------------------------------------------------------
+#
+# The `super` shape, reduced from Objects/typeobject.c. Three things are being
+# tested at once, and all three are properties of the *same* function:
+#
+#   * `supercheck(su->type, obj)` at :12797 -- the crash is one hop away, in the
+#     callee's unguarded `type->tp_name`. The old rule could not see it.
+#   * `Py_NewRef(su->type)` at :12806 -- what the old rule DID report, and which
+#     control never reaches. CPY-0007's catalog entry has the right lines; the
+#     scanner was right by luck.
+#   * `PyObject_CallFunctionObjArgs(..., su->type, obj, NULL)` at :12793 -- a
+#     NULL here does not crash, it truncates the call and drops `obj`
+#     (CPY-0080). It is in the *other* arm of the same `if`, so it must not be
+#     treated as dominating anything in the `else`.
+SUPER_SHAPE = """\
+#include "Python.h"
+
+typedef struct {
+    PyObject_HEAD
+    PyTypeObject *type;
+    PyObject *obj;
+} superobject;
+
+static PyTypeObject *
+supercheck(PyTypeObject *type, PyObject *obj)
+{
+    if (PyType_IsSubtype(Py_TYPE(obj), type)) {
+        return (PyTypeObject *)Py_NewRef(Py_TYPE(obj));
+    }
+    PyErr_Format(PyExc_TypeError, "not an instance of %.200s", type->tp_name);
+    return NULL;
+}
+
+static PyObject *
+do_super_lookup(superobject *su, PyTypeObject *su_obj_type, PyObject *name)
+{
+    if (su_obj_type == NULL) {
+        goto skip;
+    }
+    return _PySuper_LookupDescr(su_obj_type, name);
+  skip:
+    return PyObject_GenericGetAttr((PyObject *)su, name);
+}
+
+static PyObject *
+super_descr_get(PyObject *self, PyObject *obj, PyObject *type)
+{
+    superobject *su = (superobject *)self;
+    superobject *newobj;
+
+    if (obj == NULL || su->obj != NULL) {
+        return Py_NewRef(self);
+    }
+    if (!Py_IS_TYPE(su, &PySuper_Type))
+        return PyObject_CallFunctionObjArgs((PyObject *)Py_TYPE(su),
+                                            su->type, obj, NULL);
+    else {
+        PyTypeObject *obj_type = supercheck(su->type, obj);
+        if (obj_type == NULL)
+            return NULL;
+        newobj = (superobject *)PySuper_Type.tp_new(&PySuper_Type, NULL, NULL);
+        newobj->type = (PyTypeObject *)Py_NewRef(su->type);
+        return (PyObject *)newobj;
+    }
+}
+
+static int
+super_init(superobject *su, PyObject *args, PyObject *kwds)
+{
+    su->type = (PyTypeObject *)Py_NewRef(&PyBaseObject_Type);
+    su->obj = NULL;
+    return 0;
+}
+
+PyTypeObject PySuper_Type = {
+    PyVarObject_HEAD_INIT(0, 0)
+    "super",
+    sizeof(superobject),
+    0,
+    0,                                          /* tp_dealloc */
+    0,                                          /* tp_getattr */
+    Py_TPFLAGS_DEFAULT | Py_TPFLAGS_BASETYPE,   /* tp_flags */
+    super_init,                                 /* tp_init */
+    PyType_GenericAlloc,                        /* tp_alloc */
+    PyType_GenericNew,                          /* tp_new */
+};
+"""
+
+
+class TestOneHopParamSink(unittest.TestCase):
+    def setUp(self):
+        self.mod = import_script("scan_init_bypass")
+
+    def _findings(self, files):
+        with TempProject(files) as root:
+            return self.mod.analyze(str(root))
+
+    def _of_kind(self, result, kind):
+        return [f for f in result["findings"] if f.get("sink_kind") == kind]
+
+    def test_unguarded_param_sinks_finds_the_callee(self):
+        src = SUPER_SHAPE.encode()
+        tree = self.mod.parse_bytes(src)
+        funcs = self.mod.extract_functions(tree, src)
+        sinks = self.mod.unguarded_param_sinks(funcs)
+        self.assertIn("supercheck", sinks)
+        self.assertIn(0, sinks["supercheck"])
+
+    def test_do_super_lookup_is_the_negative_control(self):
+        """It opens with `if (su_obj_type == NULL) goto skip;`, so its
+        parameter is guarded and it must not become a sink."""
+        src = SUPER_SHAPE.encode()
+        tree = self.mod.parse_bytes(src)
+        funcs = self.mod.extract_functions(tree, src)
+        sinks = self.mod.unguarded_param_sinks(funcs)
+        self.assertNotIn(1, sinks.get("do_super_lookup", {}))
+
+    def test_call_site_is_reported_with_the_callee_deref_line(self):
+        result = self._findings({"Objects/typeobject.c": SUPER_SHAPE})
+        hops = self._of_kind(result, "one_hop_param_deref")
+        self.assertEqual(len(hops), 1, hops)
+        f = hops[0]
+        self.assertEqual(f["function"], "super_descr_get")
+        self.assertEqual(f["callee"], "supercheck")
+        self.assertEqual(f["callee_param_index"], 0)
+        self.assertEqual(f["field"], "type")
+        # The callee's deref line, not the call site's.
+        self.assertGreater(f["callee_deref_line"], 0)
+        self.assertLess(f["callee_deref_line"], f["line"])
+
+    def test_the_callee_deref_line_lands_on_the_deref(self):
+        src = SUPER_SHAPE.encode()
+        tree = self.mod.parse_bytes(src)
+        funcs = self.mod.extract_functions(tree, src)
+        line = self.mod.unguarded_param_sinks(funcs)["supercheck"][0]
+        # Body offsets are relative to the `{`, not to the signature's first
+        # line -- CPython puts the return type on its own line, so using
+        # start_line reports one or two lines early.
+        self.assertIn("type->tp_name", SUPER_SHAPE.split("\n")[line - 1])
+
+    def test_the_later_sink_is_marked_dominated(self):
+        """`Py_NewRef(su->type)` is downstream of the supercheck call on the
+        same path, so control never reaches it."""
+        result = self._findings({"Objects/typeobject.c": SUPER_SHAPE})
+        increfs = self._of_kind(result, "incref")
+        self.assertEqual(len(increfs), 1, increfs)
+        self.assertIn("dominated_by", increfs[0])
+        hop = self._of_kind(result, "one_hop_param_deref")[0]
+        self.assertEqual(increfs[0]["dominated_by"], hop["line"])
+        self.assertIn(increfs[0]["line"], hop["dominates"])
+
+    def test_a_sibling_branch_sink_is_not_dominated(self):
+        """The ObjArgs call is in the other arm of the same `if`. Text-order
+        brace counting cannot tell -- CPython writes the braceless
+        `if (c) return f(x); else { ... }`."""
+        result = self._findings({"Objects/typeobject.c": SUPER_SHAPE})
+        varargs = self._of_kind(result, "vararg_sentinel")
+        self.assertEqual(len(varargs), 1, varargs)
+        self.assertNotIn("dominated_by", varargs[0])
+        hop = self._of_kind(result, "one_hop_param_deref")[0]
+        self.assertNotIn("dominated_by", hop)
+
+
+class TestVarargNullTruncation(unittest.TestCase):
+    def setUp(self):
+        self.mod = import_script("scan_init_bypass")
+
+    def _findings(self, files):
+        with TempProject(files) as root:
+            return self.mod.analyze(str(root))
+
+    def test_non_final_null_truncates_the_call(self):
+        result = self._findings({"Objects/typeobject.c": SUPER_SHAPE})
+        found = [
+            f for f in result["findings"] if f["type"] == "vararg_null_truncation"
+        ]
+        self.assertEqual(len(found), 1, found)
+        f = found[0]
+        self.assertEqual(f["sink"], "PyObject_CallFunctionObjArgs")
+        self.assertEqual(f["argument_index"], 1)
+        self.assertEqual(f["arguments_dropped"], ["obj"])
+        self.assertEqual(f["confidence"], "medium")
+
+    def test_the_sentinel_position_itself_is_not_flagged(self):
+        """A NULL in the *final* slot is the terminator and is correct."""
+        src = SUPER_SHAPE.replace(
+            "                                            su->type, obj, NULL);",
+            "                                            su->type);",
+        )
+        found = [
+            f
+            for f in self._findings({"Objects/typeobject.c": src})["findings"]
+            if f["type"] == "vararg_null_truncation"
+        ]
+        self.assertEqual(found, [])
+
+    def test_argument_zero_is_left_to_the_call_sink(self):
+        """The callable itself is not a truncation; a NULL there raises."""
+        src = SUPER_SHAPE.replace(
+            "return PyObject_CallFunctionObjArgs((PyObject *)Py_TYPE(su),\n"
+            "                                            su->type, obj, NULL);",
+            "return PyObject_CallFunctionObjArgs(su->type, obj, NULL);",
+        )
+        found = [
+            f
+            for f in self._findings({"Objects/typeobject.c": src})["findings"]
+            if f["type"] == "vararg_null_truncation"
+        ]
+        self.assertEqual(found, [])
+
+
 if __name__ == "__main__":
     unittest.main()

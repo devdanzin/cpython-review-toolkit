@@ -1,0 +1,44 @@
+{
+ "project_root": "/home/danzin/projects/cpython",
+ "scan_root": "/home/danzin/projects/cpython/Modules",
+ "files_analyzed": 484,
+ "functions_analyzed": 10457,
+ "findings": [],
+ "summary": {
+  "mismatched_pairs": 0,
+  "api_without_gil": 50,
+  "blocking_with_gil": 18,
+  "total_findings": 68,
+  "by_type": {
+   "api_without_gil": 50,
+   "blocking_with_gil": 18,
+   "mismatched_allow_threads": 0,
+   "mismatched_gilstate": 0
+  }
+ },
+ "vocabulary_counts": {
+  "Py_BEGIN_ALLOW_THREADS": 440,
+  "Py_END_ALLOW_THREADS": 441,
+  "PyGILState_Ensure": 30,
+  "PyGILState_Release": 40
+ },
+ "skipped_files": [],
+ "_sample_filter": {
+  "sample_files": [
+   "Modules/_pickle.c",
+   "Modules/_datetimemodule.c",
+   "Modules/_elementtree.c",
+   "Modules/itertoolsmodule.c",
+   "Modules/_struct.c",
+   "Modules/_collectionsmodule.c",
+   "Modules/_zoneinfo.c",
+   "Modules/_json.c",
+   "Modules/_csv.c",
+   "Modules/_heapqmodule.c",
+   "Modules/_randommodule.c",
+   "Modules/_queuemodule.c"
+  ],
+  "modules_total": 68,
+  "sample_total": 0
+ }
+}

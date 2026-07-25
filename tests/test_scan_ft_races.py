@@ -838,5 +838,177 @@ class TestScanFtRaces(unittest.TestCase):
         self.assertIn("http://example", stripped)
 
 
+# ---------------------------------------------------------------------------
+# T4 — publish_before_init_complete (issue #28 rule 9)
+# ---------------------------------------------------------------------------
+#
+# `type_new_impl` calls `PyType_Ready(type)`, which links the type into every
+# base's `tp_subclasses` and every subclass's MRO — reachable from other threads
+# from that instant — and *then* calls `fixup_slot_dispatchers(type)`, which
+# rewrites the slot table with plain stores (gh-151377, CPY-0072). The stores
+# are in the callee, so a rule that only reads the publishing function's own
+# body sees nothing.
+
+PUBLISH_SHAPE = """\
+#include "Python.h"
+
+static void
+update_one_slot(PyTypeObject *type, slotdef *p)
+{
+    void **ptr = slotptr(type, p->offset);
+    *ptr = p->function;
+}
+
+static void
+fixup_slot_dispatchers(PyTypeObject *type)
+{
+    for (slotdef *p = slotdefs; p->name; p++) {
+        update_one_slot(type, p);
+    }
+}
+
+static PyObject *
+type_new_impl(type_new_ctx *ctx)
+{
+    PyTypeObject *type = type_new_init(ctx);
+    if (PyType_Ready(type) < 0) {
+        return NULL;
+    }
+    fixup_slot_dispatchers(type);
+    return (PyObject *)type;
+}
+"""
+
+
+class TestPublishBeforeInitComplete(unittest.TestCase):
+    def setUp(self):
+        self.mod = import_script("scan_ft_races")
+
+    def _findings(self, files):
+        with TempProject(files) as root:
+            result = self.mod.analyze(str(root))
+        return [
+            f
+            for f in result["findings"]
+            if f["type"] == "publish_before_init_complete"
+        ]
+
+    def test_the_reproduced_shape(self):
+        found = self._findings({"Objects/typeobject.c": PUBLISH_SHAPE})
+        hits = [f for f in found if f["function"] == "type_new_impl"]
+        self.assertEqual(len(hits), 1, found)
+        self.assertEqual(hits[0]["publish_api"], "PyType_Ready")
+        self.assertLess(hits[0]["publish_line"], hits[0]["line"])
+        self.assertIn("fixup_slot_dispatchers", hits[0]["written_in"])
+        self.assertEqual(hits[0]["ft_class"], "T4")
+
+    def test_direct_store_after_publish(self):
+        code = (
+            "static int\n"
+            "register_it(PyObject *d, PyObject *k, MyObject *self)\n"
+            "{\n"
+            "    if (PyDict_SetItem(d, k, (PyObject *)self) < 0) {\n"
+            "        return -1;\n"
+            "    }\n"
+            "    self->ready = 1;\n"
+            "    return 0;\n"
+            "}\n"
+        )
+        found = self._findings({"Objects/x.c": code})
+        self.assertEqual(len(found), 1, found)
+        self.assertEqual(found[0]["call_hops"], 0)
+        self.assertEqual(found[0]["confidence"], "medium")
+
+    def test_stores_before_the_publish_are_not_flagged(self):
+        code = (
+            "static int\n"
+            "register_it(PyObject *d, PyObject *k, MyObject *self)\n"
+            "{\n"
+            "    self->ready = 1;\n"
+            "    return PyDict_SetItem(d, k, (PyObject *)self);\n"
+            "}\n"
+        )
+        self.assertEqual(self._findings({"Objects/x.c": code}), [])
+
+    def test_a_critical_section_suppresses(self):
+        code = (
+            "static int\n"
+            "register_it(PyObject *d, PyObject *k, MyObject *self)\n"
+            "{\n"
+            "    Py_BEGIN_CRITICAL_SECTION(self);\n"
+            "    if (PyDict_SetItem(d, k, (PyObject *)self) < 0) {\n"
+            "        return -1;\n"
+            "    }\n"
+            "    self->ready = 1;\n"
+            "    Py_END_CRITICAL_SECTION();\n"
+            "    return 0;\n"
+            "}\n"
+        )
+        self.assertEqual(self._findings({"Objects/x.c": code}), [])
+
+    def test_confidence_degrades_with_call_depth(self):
+        """One hop is checkable by opening the callee; four is a chain."""
+        found = self._findings({"Objects/typeobject.c": PUBLISH_SHAPE})
+        for f in found:
+            expected = "medium" if f["call_hops"] <= 1 else "low"
+            self.assertEqual(f["confidence"], expected, f)
+
+    def test_balanced_paren_argument_extraction(self):
+        """`if (PyType_Ready(type) < 0)` -- a greedy `\\(([^;]*)\\)` captures
+        `type) < 0` and the argument stops being an identifier."""
+        text = "if (PyType_Ready(type) < 0) { return NULL; }"
+        open_paren = text.index("(", text.index("PyType_Ready"))
+        args, end = self.mod._call_args_at(text, open_paren)
+        self.assertEqual(args, "type")
+        self.assertEqual(text[end - 1], ")")
+
+
+class TestInteriorPointerAlias(unittest.TestCase):
+    """`PyTypeObject *type = &res->ht_type;` (Objects/typeobject.c:5628)."""
+
+    def setUp(self):
+        self.mod = import_script("scan_ft_races")
+
+    def test_interior_alias_of_a_fresh_allocation(self):
+        body = (
+            "    PyHeapTypeObject *res = PyType_GenericAlloc(meta, nmembers);\n"
+            "    PyTypeObject *type = &res->ht_type;\n"
+            "    type->tp_flags = flags;\n"
+        )
+        self.assertTrue(
+            self.mod._is_freshly_allocated(body, "type", body.index("type->tp_flags"))
+        )
+
+    def test_cast_alias_of_a_fresh_allocation(self):
+        body = (
+            "    PyObject *self = PyObject_GC_New(MyObject, tp);\n"
+            "    MyObject *obj = (MyObject *)self;\n"
+            "    obj->field = NULL;\n"
+        )
+        self.assertTrue(
+            self.mod._is_freshly_allocated(body, "obj", body.index("obj->field"))
+        )
+
+    def test_an_unrelated_local_is_not_fresh(self):
+        body = (
+            "    PyObject *self = PyObject_GC_New(MyObject, tp);\n"
+            "    MyObject *other = get_shared();\n"
+            "    other->field = NULL;\n"
+        )
+        self.assertFalse(
+            self.mod._is_freshly_allocated(body, "other", body.index("other->field"))
+        )
+
+    def test_the_alias_must_precede_the_use(self):
+        body = (
+            "    type->tp_flags = flags;\n"
+            "    PyHeapTypeObject *res = PyType_GenericAlloc(meta, 0);\n"
+            "    PyTypeObject *type = &res->ht_type;\n"
+        )
+        self.assertFalse(
+            self.mod._is_freshly_allocated(body, "type", body.index("type->tp_flags"))
+        )
+
+
 if __name__ == "__main__":
     unittest.main()

@@ -1,0 +1,58 @@
+{
+ "project_root": "/home/danzin/projects/cpython",
+ "scan_root": "/home/danzin/projects/cpython/Objects",
+ "files_analyzed": 113,
+ "functions_analyzed": 4627,
+ "findings": [
+  {
+   "type": "dealloc_of_uninitialized_object",
+   "function": "odictiter_new",
+   "variable": "di",
+   "allocator": "PyObject_GC_New",
+   "line": 1945,
+   "confidence": "medium",
+   "detail": "'di' is allocated via the non-zeroing PyObject_GC_New() and freed on an error path (Py_DECREF/Py_XDECREF/Py_CLEAR) before its members are NULL-initialized \u2014 tp_dealloc/tp_clear then reads uninitialized member pointers (crash, esp. under OOM). Zero the object right after allocation (memset or `di->member = NULL;` before the first fallible call).",
+   "file": "Objects/odictobject.c"
+  },
+  {
+   "type": "dealloc_of_uninitialized_object",
+   "function": "template_iter",
+   "variable": "iter",
+   "allocator": "PyObject_GC_New",
+   "line": 225,
+   "confidence": "medium",
+   "detail": "'iter' is allocated via the non-zeroing PyObject_GC_New() and freed on an error path (Py_DECREF/Py_XDECREF/Py_CLEAR) before its members are NULL-initialized \u2014 tp_dealloc/tp_clear then reads uninitialized member pointers (crash, esp. under OOM). Zero the object right after allocation (memset or `iter->member = NULL;` before the first fallible call).",
+   "file": "Objects/templateobject.c"
+  }
+ ],
+ "summary": {
+  "total_findings": 7,
+  "by_allocator": {
+   "PyObject_New": 2,
+   "PyObject_GC_NewVar": 1,
+   "PyObject_NewVar": 1,
+   "PyObject_GC_New": 3
+  }
+ },
+ "skipped_files": [],
+ "_sample_filter": {
+  "sample_files": [
+   "Objects/tupleobject.c",
+   "Objects/genericaliasobject.c",
+   "Objects/unionobject.c",
+   "Objects/templateobject.c",
+   "Objects/descrobject.c",
+   "Objects/odictobject.c",
+   "Objects/weakrefobject.c",
+   "Objects/funcobject.c",
+   "Objects/structseq.c",
+   "Objects/iterobject.c",
+   "Objects/capsule.c",
+   "Objects/interpolationobject.c",
+   "Objects/cellobject.c",
+   "Objects/lazyimportobject.c"
+  ],
+  "objects_total_findings": 7,
+  "sample_findings": 2
+ }
+}

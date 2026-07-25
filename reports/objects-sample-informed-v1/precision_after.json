@@ -1,0 +1,217 @@
+{
+  "cpython": "/home/danzin/projects/cpython",
+  "dirs": [
+    "Objects",
+    "Modules",
+    "Python"
+  ],
+  "scanners": {
+    "scan_recursion_guards": {
+      "total": 52,
+      "by_type": {
+        "missing_recursion_guard": 43,
+        "recursion_descent_guarded_by_dispatcher": 9
+      },
+      "line_hit": 41,
+      "line_miss": 2,
+      "errors": [],
+      "by_dir": {
+        "Objects": 34,
+        "Modules": 13,
+        "Python": 5
+      },
+      "line_accuracy": 0.9535,
+      "lines_checked": 43
+    },
+    "scan_pyerr_clear": {
+      "total": 51,
+      "by_type": {
+        "pyerr_clear_unfiltered_after_python_call": 42,
+        "pyerr_clear_on_success_path": 5,
+        "pyerr_clear_in_dealloc": 4
+      },
+      "line_hit": 51,
+      "line_miss": 0,
+      "errors": [],
+      "by_dir": {
+        "Objects": 10,
+        "Modules": 21,
+        "Python": 20
+      },
+      "line_accuracy": 1.0,
+      "lines_checked": 51
+    },
+    "scan_uninit_dealloc": {
+      "total": 4,
+      "by_type": {
+        "dealloc_of_uninitialized_object": 4
+      },
+      "line_hit": 4,
+      "line_miss": 0,
+      "errors": [],
+      "by_dir": {
+        "Objects": 3,
+        "Modules": 1,
+        "Python": 0
+      },
+      "line_accuracy": 1.0,
+      "lines_checked": 4
+    },
+    "scan_init_bypass": {
+      "total": 27,
+      "by_type": {
+        "init_bypass_null_deref": 27
+      },
+      "line_hit": 27,
+      "line_miss": 0,
+      "errors": [],
+      "by_dir": {
+        "Objects": 3,
+        "Modules": 24,
+        "Python": 0
+      },
+      "line_accuracy": 1.0,
+      "lines_checked": 27
+    },
+    "scan_ft_races": {
+      "total": 180,
+      "by_type": {
+        "atomic_plain_asymmetry": 113,
+        "lazy_init_no_critical_section": 52,
+        "iternext_setref_null_decref": 1,
+        "lazy_init_partial_guard": 1,
+        "iternext_double_decref": 13
+      },
+      "line_hit": 167,
+      "line_miss": 13,
+      "errors": [],
+      "by_dir": {
+        "Objects": 58,
+        "Modules": 58,
+        "Python": 64
+      },
+      "line_accuracy": 0.9278,
+      "lines_checked": 180
+    },
+    "scan_stw_safety": {
+      "total": 86,
+      "by_type": {
+        "stw_unknown_call": 81,
+        "stw_unsafe_call": 5
+      },
+      "line_hit": 84,
+      "line_miss": 2,
+      "errors": [],
+      "by_dir": {
+        "Objects": 13,
+        "Modules": 5,
+        "Python": 68
+      },
+      "line_accuracy": 0.9767,
+      "lines_checked": 86
+    },
+    "scan_lock_discipline": {
+      "total": 0,
+      "by_type": {},
+      "line_hit": 0,
+      "line_miss": 0,
+      "errors": [],
+      "by_dir": {
+        "Objects": 0,
+        "Modules": 0,
+        "Python": 0
+      },
+      "line_accuracy": null,
+      "lines_checked": 0
+    },
+    "scan_refcounts": {
+      "total": 7,
+      "by_type": {
+        "owner_freed_before_use": 4,
+        "stale_slot_decref": 1,
+        "borrowed_ref_across_call": 2
+      },
+      "line_hit": 7,
+      "line_miss": 0,
+      "errors": [],
+      "by_dir": {
+        "Objects": 2,
+        "Modules": 4,
+        "Python": 1
+      },
+      "line_accuracy": 1.0,
+      "lines_checked": 7
+    },
+    "scan_error_paths": {
+      "total": 184,
+      "by_type": {
+        "unconditional_pyerr_clear": 130,
+        "alloc_null_no_memerror": 39,
+        "unchecked_return": 15
+      },
+      "line_hit": 178,
+      "line_miss": 6,
+      "errors": [],
+      "by_dir": {
+        "Objects": 33,
+        "Modules": 61,
+        "Python": 90
+      },
+      "line_accuracy": 0.9674,
+      "lines_checked": 184
+    },
+    "scan_null_checks": {
+      "total": 14,
+      "by_type": {
+        "decref_of_nulled_outparam": 1,
+        "unchecked_alloc": 13
+      },
+      "line_hit": 11,
+      "line_miss": 3,
+      "errors": [],
+      "by_dir": {
+        "Objects": 1,
+        "Modules": 13,
+        "Python": 0
+      },
+      "line_accuracy": 0.7857,
+      "lines_checked": 14
+    },
+    "scan_memory_patterns": {
+      "total": 9,
+      "by_type": {
+        "gc_untrack_without_track": 2,
+        "varobject_nitems_unguarded": 5,
+        "mismatched_alloc_free": 1,
+        "alloc_size_overflow": 1
+      },
+      "line_hit": 9,
+      "line_miss": 0,
+      "errors": [],
+      "by_dir": {
+        "Objects": 4,
+        "Modules": 2,
+        "Python": 3
+      },
+      "line_accuracy": 1.0,
+      "lines_checked": 9
+    },
+    "scan_gil_usage": {
+      "total": 136,
+      "by_type": {
+        "blocking_with_gil": 86,
+        "api_without_gil": 50
+      },
+      "line_hit": 136,
+      "line_miss": 0,
+      "errors": [],
+      "by_dir": {
+        "Objects": 16,
+        "Modules": 68,
+        "Python": 52
+      },
+      "line_accuracy": 1.0,
+      "lines_checked": 136
+    }
+  }
+}

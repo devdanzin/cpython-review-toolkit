@@ -1,0 +1,85 @@
+{
+  "project_root": "/home/danzin/projects/cpython",
+  "scan_root": "/home/danzin/projects/cpython",
+  "files_analyzed": 9,
+  "functions_analyzed": 186,
+  "findings": [
+    {
+      "type": "api_without_gil",
+      "api_call": "PyBytes_AS_STRING",
+      "detail": "Python C API call PyBytes_AS_STRING() within Py_BEGIN_ALLOW_THREADS region of 'pysqlite_connection_init_impl' (GIL not held)",
+      "confidence": "high",
+      "file": "Modules/_sqlite/connection.c",
+      "function": "pysqlite_connection_init_impl",
+      "line": 260
+    }
+  ],
+  "summary": {
+    "mismatched_pairs": 0,
+    "api_without_gil": 1,
+    "blocking_with_gil": 0,
+    "total_findings": 1,
+    "by_type": {
+      "api_without_gil": 1,
+      "mismatched_allow_threads": 0,
+      "mismatched_gilstate": 0,
+      "blocking_with_gil": 0
+    }
+  },
+  "vocabulary_counts": {
+    "Py_BEGIN_ALLOW_THREADS": 28,
+    "Py_END_ALLOW_THREADS": 28,
+    "PyGILState_Ensure": 10,
+    "PyGILState_Release": 10
+  },
+  "skipped_files": [],
+  "_sample": {
+    "files_requested": [
+      "Modules/_sqlite/connection.c",
+      "Modules/_sqlite/cursor.c",
+      "Modules/_sqlite/module.c",
+      "Modules/_sqlite/blob.c",
+      "Modules/_sqlite/row.c",
+      "Modules/_sqlite/statement.c",
+      "Modules/_sqlite/util.c",
+      "Modules/_sqlite/microprotocols.c",
+      "Modules/_sqlite/prepare_protocol.c"
+    ],
+    "files_scanned": [
+      "Modules/_sqlite/connection.c",
+      "Modules/_sqlite/cursor.c",
+      "Modules/_sqlite/module.c",
+      "Modules/_sqlite/blob.c",
+      "Modules/_sqlite/row.c",
+      "Modules/_sqlite/statement.c",
+      "Modules/_sqlite/util.c",
+      "Modules/_sqlite/microprotocols.c",
+      "Modules/_sqlite/prepare_protocol.c"
+    ],
+    "files_missing": [],
+    "method": "the scanner was RE-RUN over exactly these files; every count in this report is sample-scoped. This is not a post-hoc filter of a corpus-wide scan -- a filtered report keeps corpus-wide denominators next to sample-scoped findings, which makes an unearned zero look earned.",
+    "merge_policy": {
+      "project_root": "carried (constant, not a count)",
+      "scan_root": "carried (constant, not a count)",
+      "files_analyzed": "summed",
+      "functions_analyzed": "summed",
+      "findings": "concatenated",
+      "summary": "merged key-wise",
+      "summary.mismatched_pairs": "summed",
+      "summary.api_without_gil": "summed",
+      "summary.blocking_with_gil": "summed",
+      "summary.total_findings": "summed",
+      "summary.by_type": "merged key-wise",
+      "summary.by_type.mismatched_allow_threads": "summed",
+      "summary.by_type.mismatched_gilstate": "summed",
+      "summary.by_type.api_without_gil": "summed",
+      "summary.by_type.blocking_with_gil": "summed",
+      "vocabulary_counts": "merged key-wise",
+      "vocabulary_counts.Py_BEGIN_ALLOW_THREADS": "summed",
+      "vocabulary_counts.Py_END_ALLOW_THREADS": "summed",
+      "vocabulary_counts.PyGILState_Ensure": "summed",
+      "vocabulary_counts.PyGILState_Release": "summed",
+      "skipped_files": "concatenated"
+    }
+  }
+}

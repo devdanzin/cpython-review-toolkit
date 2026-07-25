@@ -140,6 +140,110 @@ def _get_critical_section_pair() -> tuple[set[str], set[str]]:
     return _get_lock_families().get(_SCOPED_FAMILY, (set(), set()))
 
 
+# ---------------------------------------------------------------------------
+# Same-translation-unit #define resolution
+# ---------------------------------------------------------------------------
+#
+# A file that wraps the vocabulary in its own macros is invisible to a scanner
+# that only knows the canonical spellings:
+#
+#     #define BEGIN_TYPE_LOCK() Py_BEGIN_CRITICAL_SECTION_MUTEX(TYPE_LOCK)
+#     #define END_TYPE_LOCK()   Py_END_CRITICAL_SECTION()
+#
+# ``Objects/typeobject.c`` defines both at :79 and :80 and then uses them 25
+# times. The scanner resolved **2 of those 25** regions -- the two written in
+# the canonical spelling.
+#
+# Deliberately narrow. This is a *local* defect, not a tree-wide one: `Objects/`
+# holds 156 raw ``Py_BEGIN_CRITICAL_SECTION`` and 30 ``CS2`` across 18 files,
+# and 17 of the 18 have no local wrapper at all -- their zero is earned and must
+# stay zero. Only definitions found in the scanned file contribute, and only
+# when they transitively bottom out in a known token.
+
+_DEFINE_RE = re.compile(
+    r"^[ \t]*#[ \t]*define[ \t]+([A-Za-z_]\w*)\s*(?:\([^)]*\))?[ \t]*(.*)$",
+    re.MULTILINE,
+)
+_CONTINUED_LINE_RE = re.compile(r"\\\s*\n")
+
+# `_Py_CRITICAL_SECTION_ASSERT_MUTEX_LOCKED(TYPE_LOCK)` -- an assertion that the
+# caller already holds the lock. NOT an acquire: counting it as one turns every
+# lock-held helper into an unpaired begin and manufactures a "missing END" on
+# correct code. It marks the function as running under a caller-held lock, and
+# it belongs in the denominator.
+_LOCK_HELD_ASSERT_TOKENS = (
+    "_Py_CRITICAL_SECTION_ASSERT_MUTEX_LOCKED",
+    "_Py_CRITICAL_SECTION_ASSERT_OBJECT_LOCKED",
+    "PyMutex_IsLocked",
+    "_PyMutex_IsLocked",
+)
+
+_MAX_DEFINE_HOPS = 4
+
+
+def resolve_local_lock_macros(
+    source: str, families: dict[str, tuple[set[str], set[str]]]
+) -> tuple[dict[str, tuple[str, str]], set[str]]:
+    """Resolve a file's own ``#define``s down to the lock vocabulary.
+
+    Returns ``({macro: (family, "acquire"|"release")}, lock_held_assert_macros)``.
+    """
+    text = _CONTINUED_LINE_RE.sub(" ", source)
+    defines: dict[str, str] = {}
+    for m in _DEFINE_RE.finditer(text):
+        body = m.group(2).strip()
+        if body:
+            defines[m.group(1)] = body
+
+    canonical: dict[str, tuple[str, str]] = {}
+    for family, (acquires, releases) in families.items():
+        for tok in acquires:
+            canonical[tok] = (family, "acquire")
+        for tok in releases:
+            canonical[tok] = (family, "release")
+
+    resolved: dict[str, tuple[str, str]] = {}
+    asserts: set[str] = set()
+    for name, body in defines.items():
+        if name in canonical:
+            continue
+        seen: set[str] = set()
+        current = body
+        for _ in range(_MAX_DEFINE_HOPS):
+            heads = re.findall(r"\b([A-Za-z_]\w*)\s*\(", current)
+            hit = next((h for h in heads if h in canonical), None)
+            if hit is not None:
+                resolved[name] = canonical[hit]
+                break
+            if any(
+                h in _LOCK_HELD_ASSERT_TOKENS or h in seen for h in heads
+            ) or any(t in current for t in _LOCK_HELD_ASSERT_TOKENS):
+                if any(t in current for t in _LOCK_HELD_ASSERT_TOKENS):
+                    asserts.add(name)
+                break
+            nxt = next((h for h in heads if h in defines and h not in seen), None)
+            if nxt is None:
+                break
+            seen.add(nxt)
+            current = defines[nxt]
+    return resolved, asserts
+
+
+def _widen_families(
+    families: dict[str, tuple[set[str], set[str]]],
+    aliases: dict[str, tuple[str, str]],
+) -> dict[str, tuple[set[str], set[str]]]:
+    """A copy of ``families`` with the file's local aliases folded in."""
+    if not aliases:
+        return families
+    out = {name: (set(a), set(r)) for name, (a, r) in families.items()}
+    for macro, (family, role) in aliases.items():
+        if family not in out:
+            continue
+        (out[family][0] if role == "acquire" else out[family][1]).add(macro)
+    return out
+
+
 def _matching_end(begin_name: str) -> str:
     """Name of the ``END`` macro that closes a given ``BEGIN`` spelling."""
     if begin_name == _CS_BEGIN_2:
@@ -453,9 +557,13 @@ def _mutex_leaking_exits(
     return findings
 
 
-def _analyze_critical_sections(func: dict, source_bytes: bytes) -> list[dict]:
+def _analyze_critical_sections(
+    func: dict,
+    source_bytes: bytes,
+    families: dict[str, tuple[set[str], set[str]]] | None = None,
+) -> list[dict]:
     """Flag missing / early-exited / nested locks in one function, all families."""
-    families = _get_lock_families()
+    families = families if families is not None else _get_lock_families()
     if not families:
         return []
     body = func["body"]
@@ -620,6 +728,7 @@ def analyze(target: str, *, max_files: int = 0) -> dict:
         {tok for acquires, releases in families.values() for tok in acquires | releases}
     )
     vocab_counts: dict[str, int] = dict.fromkeys(vocabulary, 0)
+    local_macros: dict[str, dict] = {}
 
     for filepath in discover_c_files(scan_root, max_files=max_files):
         try:
@@ -648,13 +757,32 @@ def analyze(target: str, *, max_files: int = 0) -> dict:
         files_analyzed += 1
         rel = relpath(filepath, project_root)
 
+        # A file that wraps the vocabulary in its own #defines is invisible
+        # without this: typeobject.c uses BEGIN_TYPE_LOCK 25 times and the
+        # scanner resolved 2 of them.
+        aliases, held_asserts = resolve_local_lock_macros(source, families)
+        if aliases or held_asserts:
+            local_macros[rel] = {
+                "aliases": {k: list(v) for k, v in sorted(aliases.items())},
+                "lock_held_assertions": sorted(held_asserts),
+            }
+        file_families = _widen_families(families, aliases)
+        for token in sorted(aliases):
+            vocab_counts[token] = vocab_counts.get(token, 0) + len(
+                re.findall(rf"\b{re.escape(token)}\s*\(", source)
+            )
+
         for func in functions:
             total_functions += 1
-            if _has_critical_section(func):
+            if _has_critical_section(func) or any(
+                a in func["body"]
+                for a, (_f, role) in aliases.items()
+                if role == "acquire"
+            ):
                 cs_functions += 1
             if _has_mutex_lock(func):
                 mutex_functions += 1
-            for f in _analyze_critical_sections(func, source_bytes):
+            for f in _analyze_critical_sections(func, source_bytes, file_families):
                 if is_suppressed_by_comment(source_bytes, tree, f["line"]):
                     continue
                 f["file"] = rel
@@ -682,6 +810,11 @@ def analyze(target: str, *, max_files: int = 0) -> dict:
         critical_section_functions=cs_functions,
         mutex_functions=mutex_functions,
         lock_families=sorted(families),
+        # Which files wrap the vocabulary in their own #defines, and what those
+        # resolve to. Empty is the *expected* answer for almost every file --
+        # 17 of the 18 Objects/ files that lock at all use the canonical
+        # spellings, and their zero is earned.
+        local_lock_macros=local_macros,
         vocabulary_counts={k: v for k, v in sorted(vocab_counts.items()) if v},
         skipped_files=skipped,
     )

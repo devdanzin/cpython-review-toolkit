@@ -1,0 +1,37 @@
+{
+ "project_root": "/home/danzin/projects/cpython",
+ "scan_root": "/home/danzin/projects/cpython/Modules",
+ "files_analyzed": 380,
+ "functions_analyzed": 10457,
+ "findings": [],
+ "summary": {
+  "total_findings": 2,
+  "by_type": {
+   "varobject_nitems_unguarded": 1,
+   "mismatched_alloc_free": 1
+  },
+  "by_confidence": {
+   "low": 1,
+   "high": 1
+  }
+ },
+ "skipped_files": [],
+ "_sample_filter": {
+  "sample_files": [
+   "Modules/_pickle.c",
+   "Modules/_datetimemodule.c",
+   "Modules/_elementtree.c",
+   "Modules/itertoolsmodule.c",
+   "Modules/_struct.c",
+   "Modules/_collectionsmodule.c",
+   "Modules/_zoneinfo.c",
+   "Modules/_json.c",
+   "Modules/_csv.c",
+   "Modules/_heapqmodule.c",
+   "Modules/_randommodule.c",
+   "Modules/_queuemodule.c"
+  ],
+  "modules_total": 2,
+  "sample_total": 0
+ }
+}

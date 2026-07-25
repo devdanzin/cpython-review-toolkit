@@ -1,0 +1,64 @@
+{
+ "project_root": "/home/danzin/projects/cpython",
+ "scan_root": "/home/danzin/projects/cpython/Modules",
+ "files_analyzed": 380,
+ "functions_analyzed": 10457,
+ "findings": [
+  {
+   "type": "pyerr_clear_in_dealloc",
+   "function": "deque_clear",
+   "slot": "tp_clear",
+   "line": 750,
+   "confidence": "high",
+   "detail": "PyErr_Clear() in tp_clear function 'deque_clear' with no save/restore of the exception state bracketing this call \u2014 silently swallows an in-flight MemoryError / KeyboardInterrupt / SystemExit. Bracket the risky work with PyErr_GetRaisedException()/PyErr_SetRaisedException() (or report via PyErr_WriteUnraisable).",
+   "file": "Modules/_collectionsmodule.c"
+  },
+  {
+   "type": "pyerr_clear_unfiltered_after_python_call",
+   "function": "islice_new",
+   "line": 1648,
+   "confidence": "medium",
+   "failing_call": "PyNumber_AsSsize_t",
+   "detail": "PyErr_Clear() in 'islice_new' clears the exception raised by 'PyNumber_AsSsize_t' with no PyErr_ExceptionMatches narrowing. That call dispatches into arbitrary Python (__hash__ / __buffer__ / __index__ / import hooks), so its failure return only means *something* was raised \u2014 a MemoryError, KeyboardInterrupt or RecursionError is discarded along with the expected TypeError. Narrow first, e.g. if (!PyErr_ExceptionMatches(PyExc_TypeError)) return NULL; before clearing (see Objects/genericaliasobject.c set_orig_class).",
+   "file": "Modules/itertoolsmodule.c"
+  }
+ ],
+ "summary": {
+  "total_findings": 21,
+  "by_confidence": {
+   "high": 4,
+   "medium": 17
+  },
+  "by_slot": {
+   "tp_clear": 1,
+   "tp_dealloc": 2
+  },
+  "by_type": {
+   "pyerr_clear_in_dealloc": 3,
+   "pyerr_clear_unfiltered_after_python_call": 16,
+   "pyerr_clear_on_success_path": 2
+  }
+ },
+ "destructor_functions": 545,
+ "total_pyerr_clear_calls": 190,
+ "total_pyerr_clear_calls_in_destructors": 7,
+ "skipped_files": [],
+ "_sample_filter": {
+  "sample_files": [
+   "Modules/_pickle.c",
+   "Modules/_datetimemodule.c",
+   "Modules/_elementtree.c",
+   "Modules/itertoolsmodule.c",
+   "Modules/_struct.c",
+   "Modules/_collectionsmodule.c",
+   "Modules/_zoneinfo.c",
+   "Modules/_json.c",
+   "Modules/_csv.c",
+   "Modules/_heapqmodule.c",
+   "Modules/_randommodule.c",
+   "Modules/_queuemodule.c"
+  ],
+  "modules_total": 21,
+  "sample_total": 2
+ }
+}

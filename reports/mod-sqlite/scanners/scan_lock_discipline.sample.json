@@ -1,0 +1,78 @@
+{
+  "project_root": "/home/danzin/projects/cpython",
+  "scan_root": "/home/danzin/projects/cpython",
+  "files_analyzed": 9,
+  "functions_analyzed": 186,
+  "findings": [],
+  "summary": {
+    "total_findings": 0,
+    "by_type": {},
+    "by_classification": {}
+  },
+  "critical_section_functions": 0,
+  "mutex_functions": 0,
+  "lock_families": [
+    "critical_section",
+    "python_mutex",
+    "critical_section",
+    "python_mutex",
+    "critical_section",
+    "python_mutex",
+    "critical_section",
+    "python_mutex",
+    "critical_section",
+    "python_mutex",
+    "critical_section",
+    "python_mutex",
+    "critical_section",
+    "python_mutex",
+    "critical_section",
+    "python_mutex",
+    "critical_section",
+    "python_mutex"
+  ],
+  "vocabulary_counts": {},
+  "skipped_files": [],
+  "_sample": {
+    "files_requested": [
+      "Modules/_sqlite/connection.c",
+      "Modules/_sqlite/cursor.c",
+      "Modules/_sqlite/module.c",
+      "Modules/_sqlite/blob.c",
+      "Modules/_sqlite/row.c",
+      "Modules/_sqlite/statement.c",
+      "Modules/_sqlite/util.c",
+      "Modules/_sqlite/microprotocols.c",
+      "Modules/_sqlite/prepare_protocol.c"
+    ],
+    "files_scanned": [
+      "Modules/_sqlite/connection.c",
+      "Modules/_sqlite/cursor.c",
+      "Modules/_sqlite/module.c",
+      "Modules/_sqlite/blob.c",
+      "Modules/_sqlite/row.c",
+      "Modules/_sqlite/statement.c",
+      "Modules/_sqlite/util.c",
+      "Modules/_sqlite/microprotocols.c",
+      "Modules/_sqlite/prepare_protocol.c"
+    ],
+    "files_missing": [],
+    "method": "the scanner was RE-RUN over exactly these files; every count in this report is sample-scoped. This is not a post-hoc filter of a corpus-wide scan -- a filtered report keeps corpus-wide denominators next to sample-scoped findings, which makes an unearned zero look earned.",
+    "merge_policy": {
+      "project_root": "carried (constant, not a count)",
+      "scan_root": "carried (constant, not a count)",
+      "files_analyzed": "summed",
+      "functions_analyzed": "summed",
+      "findings": "concatenated",
+      "summary": "merged key-wise",
+      "summary.total_findings": "summed",
+      "summary.by_type": "merged key-wise",
+      "summary.by_classification": "merged key-wise",
+      "critical_section_functions": "summed",
+      "mutex_functions": "summed",
+      "lock_families": "concatenated",
+      "vocabulary_counts": "merged key-wise",
+      "skipped_files": "concatenated"
+    }
+  }
+}

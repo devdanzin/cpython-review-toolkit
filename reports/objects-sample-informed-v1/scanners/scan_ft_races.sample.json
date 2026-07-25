@@ -1,0 +1,107 @@
+{
+ "project_root": "/home/danzin/projects/cpython",
+ "scan_root": "/home/danzin/projects/cpython/Objects",
+ "files_analyzed": 113,
+ "functions_analyzed": 4627,
+ "findings": [
+  {
+   "type": "lazy_init_no_critical_section",
+   "ft_class": "T2",
+   "function": "descr_get_qualname",
+   "member": "descr->d_qualname",
+   "line": 622,
+   "confidence": "medium",
+   "detail": "Lazy init of 'descr->d_qualname' guarded only by a NULL check, with no critical section. Under free-threading two threads both observe NULL and both compute/store -> leak + torn/lost write (cf. gh descr_get_qualname / TSAN-0043). Guard with Py_BEGIN_CRITICAL_SECTION or a compare-exchange.",
+   "file": "Objects/descrobject.c"
+  },
+  {
+   "type": "lazy_init_no_critical_section",
+   "ft_class": "T2",
+   "function": "ga_getitem",
+   "member": "alias->parameters",
+   "line": 581,
+   "confidence": "medium",
+   "detail": "Lazy init of 'alias->parameters' guarded only by a NULL check, with no critical section. Under free-threading two threads both observe NULL and both compute/store -> leak + torn/lost write (cf. gh descr_get_qualname / TSAN-0043). Guard with Py_BEGIN_CRITICAL_SECTION or a compare-exchange.",
+   "file": "Objects/genericaliasobject.c"
+  },
+  {
+   "type": "iternext_double_decref",
+   "ft_class": "T3",
+   "function": "iter_iternext",
+   "line": 77,
+   "confidence": "high",
+   "detail": "'iter_iternext' is a tp_iternext that drops an owning reference to a shared self-member (Py_CLEAR / member=NULL + Py_DECREF) with no Py_BEGIN_CRITICAL_SECTION. Under the free-threaded build two concurrent next() calls read the same borrowed sequence and both DECREF it -> double-free (cf. gh-154130 dict, gh-144357 set, gh-153296 StringIO). Wrap the iternext body in Py_BEGIN_CRITICAL_SECTION(self).",
+   "file": "Objects/iterobject.c",
+   "duplicate_count": 1,
+   "duplicate_locations": [
+    {
+     "file": "Objects/iterobject.c",
+     "line": 241
+    }
+   ]
+  },
+  {
+   "type": "atomic_plain_asymmetry",
+   "ft_class": "T1",
+   "file": "Objects/tupleobject.c",
+   "member": "it_index",
+   "line": 1165,
+   "confidence": "low",
+   "detail": "Field 'it_index' is accessed via an atomic macro (_Py_atomic_* / FT_ATOMIC_*) elsewhere in this file but is read/written plainly here \u2014 one access is unsynchronized (cf. itertools count_repr / TSAN-0006). Make every access to a concurrently-shared field atomic, or hold a lock."
+  },
+  {
+   "type": "lazy_init_no_critical_section",
+   "ft_class": "T2",
+   "function": "unionbuilder_add_single_unchecked",
+   "member": "ub->unhashable_args",
+   "line": 171,
+   "confidence": "medium",
+   "detail": "Lazy init of 'ub->unhashable_args' guarded only by a NULL check, with no critical section. Under free-threading two threads both observe NULL and both compute/store -> leak + torn/lost write (cf. gh descr_get_qualname / TSAN-0043). Guard with Py_BEGIN_CRITICAL_SECTION or a compare-exchange.",
+   "file": "Objects/unionobject.c"
+  },
+  {
+   "type": "atomic_plain_asymmetry",
+   "ft_class": "T1",
+   "file": "Objects/weakrefobject.c",
+   "member": "wr_object",
+   "line": 65,
+   "confidence": "low",
+   "detail": "Field 'wr_object' is accessed via an atomic macro (_Py_atomic_* / FT_ATOMIC_*) elsewhere in this file but is read/written plainly here \u2014 one access is unsynchronized (cf. itertools count_repr / TSAN-0006). Make every access to a concurrently-shared field atomic, or hold a lock."
+  }
+ ],
+ "summary": {
+  "total_findings": 24,
+  "by_class": {
+   "T1": 14,
+   "T2": 7,
+   "T3": 3
+  },
+  "by_confidence": {
+   "low": 14,
+   "medium": 7,
+   "high": 3
+  }
+ },
+ "iternext_functions": 17,
+ "skipped_files": [],
+ "_sample_filter": {
+  "sample_files": [
+   "Objects/tupleobject.c",
+   "Objects/genericaliasobject.c",
+   "Objects/unionobject.c",
+   "Objects/templateobject.c",
+   "Objects/descrobject.c",
+   "Objects/odictobject.c",
+   "Objects/weakrefobject.c",
+   "Objects/funcobject.c",
+   "Objects/structseq.c",
+   "Objects/iterobject.c",
+   "Objects/capsule.c",
+   "Objects/interpolationobject.c",
+   "Objects/cellobject.c",
+   "Objects/lazyimportobject.c"
+  ],
+  "objects_total_findings": 24,
+  "sample_findings": 6
+ }
+}

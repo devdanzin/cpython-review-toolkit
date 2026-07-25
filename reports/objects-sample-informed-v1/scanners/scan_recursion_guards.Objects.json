@@ -1,0 +1,129 @@
+{
+  "project_root": "/home/danzin/projects/cpython",
+  "scan_root": "/home/danzin/projects/cpython/Objects",
+  "files_analyzed": 113,
+  "functions_analyzed": 4627,
+  "findings": [
+    {
+      "type": "missing_recursion_guard",
+      "function": "code_richcompare",
+      "slot": "tp_richcompare",
+      "shape": "container_element_descent",
+      "line": 2518,
+      "confidence": "high",
+      "detail": "'code_richcompare' (tp_richcompare) descends into container elements via PyObject_RichCompareBool with no Py_EnterRecursiveCall/Py_ReprEnter guard \u2014 a deeply-nested or cyclic object overflows the C stack (SIGSEGV) instead of raising RecursionError. Bracket the descent with Py_EnterRecursiveCall()/Py_LeaveRecursiveCall() (or Py_ReprEnter()/Py_ReprLeave() for repr/str).",
+      "file": "Objects/codeobject.c"
+    },
+    {
+      "type": "missing_recursion_guard",
+      "function": "BaseException_str",
+      "slot": "tp_str",
+      "shape": "container_element_descent",
+      "line": 174,
+      "confidence": "medium",
+      "detail": "'BaseException_str' (tp_str) descends into container elements via PyObject_Str with no Py_EnterRecursiveCall/Py_ReprEnter guard \u2014 a deeply-nested or cyclic object overflows the C stack (SIGSEGV) instead of raising RecursionError. Bracket the descent with Py_EnterRecursiveCall()/Py_LeaveRecursiveCall() (or Py_ReprEnter()/Py_ReprLeave() for repr/str).",
+      "file": "Objects/exceptions.c",
+      "duplicate_count": 1,
+      "duplicate_locations": [
+        {
+          "file": "Objects/exceptions.c",
+          "line": 3874
+        }
+      ]
+    },
+    {
+      "type": "missing_recursion_guard",
+      "function": "BaseExceptionGroup_repr",
+      "slot": "tp_repr",
+      "shape": "container_element_descent",
+      "line": 1101,
+      "confidence": "medium",
+      "detail": "'BaseExceptionGroup_repr' (tp_repr) descends into container elements via PyObject_Repr with no Py_EnterRecursiveCall/Py_ReprEnter guard \u2014 a deeply-nested or cyclic object overflows the C stack (SIGSEGV) instead of raising RecursionError. Bracket the descent with Py_EnterRecursiveCall()/Py_LeaveRecursiveCall() (or Py_ReprEnter()/Py_ReprLeave() for repr/str).",
+      "file": "Objects/exceptions.c"
+    },
+    {
+      "type": "missing_recursion_guard",
+      "function": "KeyError_str",
+      "slot": "tp_str",
+      "shape": "container_element_descent",
+      "line": 3028,
+      "confidence": "medium",
+      "detail": "'KeyError_str' (tp_str) descends into container elements via PyObject_Repr with no Py_EnterRecursiveCall/Py_ReprEnter guard \u2014 a deeply-nested or cyclic object overflows the C stack (SIGSEGV) instead of raising RecursionError. Bracket the descent with Py_EnterRecursiveCall()/Py_LeaveRecursiveCall() (or Py_ReprEnter()/Py_ReprLeave() for repr/str).",
+      "file": "Objects/exceptions.c"
+    },
+    {
+      "type": "missing_recursion_guard",
+      "function": "_Py_make_parameters",
+      "slot": "parameter_walk",
+      "shape": "self_recursion",
+      "line": 231,
+      "confidence": "high",
+      "detail": "'_Py_make_parameters' recurses into itself with no Py_EnterRecursiveCall guard \u2014 a deeply-nested or cyclic object overflows the C stack (SIGSEGV) instead of raising RecursionError. Bracket the descent with Py_EnterRecursiveCall()/Py_LeaveRecursiveCall() (or Py_ReprEnter()/Py_ReprLeave() for repr/str).",
+      "file": "Objects/genericaliasobject.c",
+      "duplicate_count": 2,
+      "duplicate_locations": [
+        {
+          "file": "Objects/genericaliasobject.c",
+          "line": 482
+        },
+        {
+          "file": "Objects/genericaliasobject.c",
+          "line": 721
+        }
+      ]
+    },
+    {
+      "type": "missing_recursion_guard",
+      "function": "set_richcompare",
+      "slot": "tp_richcompare",
+      "shape": "self_recursion",
+      "line": 2509,
+      "confidence": "high",
+      "detail": "'set_richcompare' recurses into itself with no Py_EnterRecursiveCall guard \u2014 a deeply-nested or cyclic object overflows the C stack (SIGSEGV) instead of raising RecursionError. Bracket the descent with Py_EnterRecursiveCall()/Py_LeaveRecursiveCall() (or Py_ReprEnter()/Py_ReprLeave() for repr/str).",
+      "file": "Objects/setobject.c"
+    },
+    {
+      "type": "missing_recursion_guard",
+      "function": "tuple_hash",
+      "slot": "tp_hash",
+      "shape": "container_element_descent",
+      "line": 385,
+      "confidence": "high",
+      "detail": "'tuple_hash' (tp_hash) descends into container elements via PyObject_Hash with no Py_EnterRecursiveCall/Py_ReprEnter guard \u2014 a deeply-nested or cyclic object overflows the C stack (SIGSEGV) instead of raising RecursionError. Bracket the descent with Py_EnterRecursiveCall()/Py_LeaveRecursiveCall() (or Py_ReprEnter()/Py_ReprLeave() for repr/str).",
+      "file": "Objects/tupleobject.c"
+    },
+    {
+      "type": "missing_recursion_guard",
+      "function": "tuple_richcompare",
+      "slot": "tp_richcompare",
+      "shape": "container_element_descent",
+      "line": 755,
+      "confidence": "high",
+      "detail": "'tuple_richcompare' (tp_richcompare) descends into container elements via PyObject_RichCompare, PyObject_RichCompareBool with no Py_EnterRecursiveCall/Py_ReprEnter guard \u2014 a deeply-nested or cyclic object overflows the C stack (SIGSEGV) instead of raising RecursionError. Bracket the descent with Py_EnterRecursiveCall()/Py_LeaveRecursiveCall() (or Py_ReprEnter()/Py_ReprLeave() for repr/str).",
+      "file": "Objects/tupleobject.c"
+    },
+    {
+      "type": "missing_recursion_guard",
+      "function": "union_hash",
+      "slot": "tp_hash",
+      "shape": "container_element_descent",
+      "line": 57,
+      "confidence": "high",
+      "detail": "'union_hash' (tp_hash) descends into container elements via PyObject_Hash with no Py_EnterRecursiveCall/Py_ReprEnter guard \u2014 a deeply-nested or cyclic object overflows the C stack (SIGSEGV) instead of raising RecursionError. Bracket the descent with Py_EnterRecursiveCall()/Py_LeaveRecursiveCall() (or Py_ReprEnter()/Py_ReprLeave() for repr/str).",
+      "file": "Objects/unionobject.c"
+    }
+  ],
+  "summary": {
+    "total_findings": 9,
+    "by_confidence": {
+      "high": 6,
+      "medium": 3
+    },
+    "by_shape": {
+      "container_element_descent": 7,
+      "self_recursion": 2
+    }
+  },
+  "recursion_prone_slot_functions": 138,
+  "skipped_files": []
+}

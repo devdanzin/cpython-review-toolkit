@@ -641,5 +641,356 @@ class TestHashAliasAndOneHop(unittest.TestCase):
         self.assertNotEqual(f["shape"], "temporary_container_descent")
 
 
+# ---------------------------------------------------------------------------
+# Un-gated self-recursion + object_graph_walk element ops (issue #28 rule 2)
+# ---------------------------------------------------------------------------
+#
+# Self-recursion used to be reported only for a recursion-prone *slot*. All
+# seven recursive descents in Objects/typeobject.c are non-slot static helpers,
+# so the shape was computed and discarded: precision 0/1, recall 0/7 on a file
+# holding a reproduced SIGSEGV (merge_class_dict, CPY-0071) and an
+# ASan-confirmed overflow (CPY-0087).
+
+
+class TestUngatedSelfRecursion(unittest.TestCase):
+    def setUp(self):
+        self.mod = import_script("scan_recursion_guards")
+
+    def _findings(self, files):
+        with TempProject(files) as root:
+            return self.mod.analyze(str(root))
+
+    def _get(self, result, name):
+        return next((f for f in result["findings"] if f["function"] == name), None)
+
+    def test_non_slot_helper_recursing_over_a_container(self):
+        """merge_class_dict:7117 — CPY-0071, SIGSEGV via the builtin dir()."""
+        result = self._findings(
+            {
+                "Objects/typeobject.c": (
+                    "static int\n"
+                    "merge_class_dict(PyObject *dict, PyObject *aclass)\n"
+                    "{\n"
+                    "    PyObject *bases;\n"
+                    "    if (PyObject_GetOptionalAttr(aclass, &_Py_ID(__bases__),"
+                    " &bases) < 0) {\n"
+                    "        return -1;\n"
+                    "    }\n"
+                    "    Py_ssize_t n = PySequence_Size(bases);\n"
+                    "    for (Py_ssize_t i = 0; i < n; i++) {\n"
+                    "        PyObject *base = PySequence_GetItem(bases, i);\n"
+                    "        int status = merge_class_dict(dict, base);\n"
+                    "        Py_DECREF(base);\n"
+                    "        if (status < 0) {\n"
+                    "            return -1;\n"
+                    "        }\n"
+                    "    }\n"
+                    "    return 0;\n"
+                    "}\n"
+                )
+            }
+        )
+        f = self._get(result, "merge_class_dict")
+        self.assertIsNotNone(f)
+        self.assertEqual(f["shape"], "self_recursion")
+        self.assertEqual(f["slot"], "not_a_slot")
+        self.assertEqual(f["descent_via"], "PySequence_GetItem")
+        self.assertEqual(f["confidence"], "high")
+
+    def test_out_parameter_binding(self):
+        """_PyType_Modified_Unlocked:1206 — PyDict_Next writes the element
+        through &ref, so there is no assignment node to follow at all."""
+        result = self._findings(
+            {
+                "Objects/typeobject.c": (
+                    "static void\n"
+                    "_PyType_Modified_Unlocked(PyTypeObject *type)\n"
+                    "{\n"
+                    "    PyObject *subclasses = lookup_tp_subclasses(type);\n"
+                    "    if (subclasses != NULL) {\n"
+                    "        Py_ssize_t i = 0;\n"
+                    "        PyObject *ref;\n"
+                    "        while (PyDict_Next(subclasses, &i, NULL, &ref)) {\n"
+                    "            PyTypeObject *subclass = type_from_ref(ref);\n"
+                    "            if (subclass == NULL) {\n"
+                    "                continue;\n"
+                    "            }\n"
+                    "            _PyType_Modified_Unlocked(subclass);\n"
+                    "            Py_DECREF(subclass);\n"
+                    "        }\n"
+                    "    }\n"
+                    "}\n"
+                )
+            }
+        )
+        f = self._get(result, "_PyType_Modified_Unlocked")
+        self.assertIsNotNone(f)
+        self.assertEqual(f["shape"], "self_recursion")
+        self.assertIn(f["descent_via"], ("PyDict_Next", "type_from_ref"))
+
+    def test_class_hierarchy_walk_is_an_element_op(self):
+        """None of the seven typeobject.c descents calls a dispatcher at all —
+        they walk __bases__ / tp_subclasses, the same unbounded depth."""
+        result = self._findings(
+            {
+                "Objects/typeobject.c": (
+                    "static PyTypeObject *\n"
+                    "get_base_by_token_recursive(PyTypeObject *type, void *token)\n"
+                    "{\n"
+                    "    PyObject *bases = lookup_tp_bases(type);\n"
+                    "    Py_ssize_t n = PyTuple_GET_SIZE(bases);\n"
+                    "    for (Py_ssize_t i = 0; i < n; i++) {\n"
+                    "        PyTypeObject *b = _PyType_CAST(PyTuple_GET_ITEM(bases, i));\n"
+                    "        PyTypeObject *r = get_base_by_token_recursive(b, token);\n"
+                    "        if (r != NULL) {\n"
+                    "            return r;\n"
+                    "        }\n"
+                    "    }\n"
+                    "    return NULL;\n"
+                    "}\n"
+                )
+            }
+        )
+        f = self._get(result, "get_base_by_token_recursive")
+        self.assertIsNotNone(f)
+        self.assertEqual(f["shape"], "self_recursion")
+
+    def test_arbitrary_getattr_is_not_a_graph_walk(self):
+        """Only the hierarchy attribute names count."""
+        result = self._findings(
+            {
+                "Objects/x.c": (
+                    "static int\n"
+                    "walk_attr(PyObject *obj)\n"
+                    "{\n"
+                    "    PyObject *child;\n"
+                    "    if (PyObject_GetOptionalAttr(obj, &_Py_ID(payload),"
+                    " &child) < 0) {\n"
+                    "        return -1;\n"
+                    "    }\n"
+                    "    return walk_attr(child);\n"
+                    "}\n"
+                )
+            }
+        )
+        self.assertIsNone(self._get(result, "walk_attr"))
+
+    def test_self_call_with_no_element_origin_stays_silent(self):
+        """A non-slot helper recursing on its own parameters is not a descent."""
+        result = self._findings(
+            {
+                "Objects/x.c": (
+                    "static int\n"
+                    "retry(PyObject *a, int flag)\n"
+                    "{\n"
+                    "    if (flag) {\n"
+                    "        return retry(a, 0);\n"
+                    "    }\n"
+                    "    return 0;\n"
+                    "}\n"
+                )
+            }
+        )
+        self.assertIsNone(self._get(result, "retry"))
+
+    def test_guard_still_suppresses(self):
+        result = self._findings(
+            {
+                "Objects/x.c": (
+                    "static int\n"
+                    "walk(PyObject *dict, PyObject *seq)\n"
+                    "{\n"
+                    '    if (Py_EnterRecursiveCall(" while walking") < 0) {\n'
+                    "        return -1;\n"
+                    "    }\n"
+                    "    PyObject *base = PySequence_GetItem(seq, 0);\n"
+                    "    int r = walk(dict, base);\n"
+                    "    Py_LeaveRecursiveCall();\n"
+                    "    return r;\n"
+                    "}\n"
+                )
+            }
+        )
+        self.assertIsNone(self._get(result, "walk"))
+
+
+# ---------------------------------------------------------------------------
+# Mutual recursion (issue #28 rule 3)
+# ---------------------------------------------------------------------------
+
+# update_subclasses:12359 <-> recurse_down_subclasses:12397 — an ASan-confirmed
+# native stack overflow (CPY-0087) that per-function analysis structurally
+# cannot see, because neither function calls itself.
+TYPEOBJECT_CYCLE = (
+    "static int\n"
+    "update_subclasses(PyTypeObject *type, PyObject *attr_name,\n"
+    "                  update_callback callback, void *data)\n"
+    "{\n"
+    "    if (callback(type, data) < 0) {\n"
+    "        return -1;\n"
+    "    }\n"
+    "    return recurse_down_subclasses(type, attr_name, callback, data);\n"
+    "}\n"
+    "\n"
+    "static int\n"
+    "recurse_down_subclasses(PyTypeObject *type, PyObject *attr_name,\n"
+    "                        update_callback callback, void *data)\n"
+    "{\n"
+    "    PyObject *subclasses = lookup_tp_subclasses(type);\n"
+    "    if (subclasses == NULL) {\n"
+    "        return 0;\n"
+    "    }\n"
+    "    Py_ssize_t i = 0;\n"
+    "    PyObject *ref;\n"
+    "    while (PyDict_Next(subclasses, &i, NULL, &ref)) {\n"
+    "        PyTypeObject *subclass = type_from_ref(ref);\n"
+    "        if (subclass == NULL) {\n"
+    "            continue;\n"
+    "        }\n"
+    "        if (update_subclasses(subclass, attr_name, callback, data) < 0) {\n"
+    "            Py_DECREF(subclass);\n"
+    "            return -1;\n"
+    "        }\n"
+    "        Py_DECREF(subclass);\n"
+    "    }\n"
+    "    return 0;\n"
+    "}\n"
+)
+
+
+class TestMutualRecursion(unittest.TestCase):
+    def setUp(self):
+        self.mod = import_script("scan_recursion_guards")
+
+    def _analyze(self, files):
+        with TempProject(files) as root:
+            return self.mod.analyze(str(root))
+
+    def _mutual(self, result):
+        return [f for f in result["findings"] if f["shape"] == "mutual_recursion"]
+
+    def test_two_function_cycle_is_found(self):
+        found = self._mutual(self._analyze({"Objects/typeobject.c": TYPEOBJECT_CYCLE}))
+        self.assertEqual(len(found), 1, found)
+        f = found[0]
+        self.assertEqual(
+            sorted(f["cycle"]), ["recurse_down_subclasses", "update_subclasses"]
+        )
+        # Reported at the first member in file order, on its edge into the
+        # cycle -- where a reader starts reading.
+        self.assertEqual(f["function"], "update_subclasses")
+        # The descent evidence lives on the *other* edge, so the gate is a
+        # property of the cycle, not of the reported site.
+        self.assertEqual(f["descent_edge"]["caller"], "recurse_down_subclasses")
+        self.assertEqual(f["confidence"], "high")
+
+    def test_neither_member_is_self_recursive(self):
+        """The point of the rule: per-function analysis sees nothing here."""
+        result = self._analyze({"Objects/typeobject.c": TYPEOBJECT_CYCLE})
+        self.assertEqual(
+            [f for f in result["findings"] if f["shape"] == "self_recursion"], []
+        )
+
+    def test_a_guard_in_either_member_discharges_the_whole_cycle(self):
+        guarded = TYPEOBJECT_CYCLE.replace(
+            "    if (callback(type, data) < 0) {",
+            '    if (Py_EnterRecursiveCall(" x") < 0) { return -1; }\n'
+            "    if (callback(type, data) < 0) {",
+        )
+        self.assertEqual(
+            self._mutual(self._analyze({"Objects/typeobject.c": guarded})), []
+        )
+
+    def test_hand_rolled_depth_bound_also_discharges_it(self):
+        """Python/marshal.c bounds w_object with p->depth > MAX_MARSHAL_STACK_DEPTH.
+        It is not Py_EnterRecursiveCall, but it bounds the recursion just as well."""
+        bounded = TYPEOBJECT_CYCLE.replace(
+            "    if (callback(type, data) < 0) {",
+            "    if (p->depth > MAX_MARSHAL_STACK_DEPTH) { return -1; }\n"
+            "    if (callback(type, data) < 0) {",
+        )
+        self.assertEqual(
+            self._mutual(self._analyze({"Objects/typeobject.c": bounded})), []
+        )
+
+    def test_cycle_over_fixed_structure_is_not_reported(self):
+        """No edge carries an element-derived value: CPython is full of mutually
+        recursive helper clusters that walk fixed structure."""
+        code = (
+            "static int\n"
+            "emit_expr(struct compiler *c, expr_ty e)\n"
+            "{\n"
+            "    return emit_stmt(c, e->body);\n"
+            "}\n"
+            "\n"
+            "static int\n"
+            "emit_stmt(struct compiler *c, stmt_ty s)\n"
+            "{\n"
+            "    return emit_expr(c, s->value);\n"
+            "}\n"
+        )
+        self.assertEqual(self._mutual(self._analyze({"Python/codegen.c": code})), [])
+
+    def test_oversized_cycles_are_counted_not_dropped_silently(self):
+        """A 14-member SCC in typeobject.c is the call graph, not a recursion.
+        The cap must still show up in the envelope."""
+        names = [f"f{i}" for i in range(_OVERSIZED_N)]
+        parts = []
+        for i, name in enumerate(names):
+            nxt = names[(i + 1) % len(names)]
+            parts.append(
+                f"static int\n{name}(PyObject *seq)\n{{\n"
+                f"    PyObject *item = PyTuple_GET_ITEM(seq, 0);\n"
+                f"    return {nxt}(item);\n}}\n"
+            )
+        result = self._analyze({"Objects/big.c": "\n".join(parts)})
+        self.assertEqual(self._mutual(result), [])
+        large = result.get("large_cycles_not_reported") or []
+        self.assertEqual(len(large), 1, large)
+        self.assertEqual(large[0]["size"], _OVERSIZED_N)
+        self.assertEqual(result["cycle_reporting_cap"], 3)
+
+
+_OVERSIZED_N = 6
+
+
+class TestElementDerivation(unittest.TestCase):
+    """The three binding forms, unit-tested directly."""
+
+    def setUp(self):
+        self.mod = import_script("scan_recursion_guards")
+
+    def test_out_parameter(self):
+        calls = [
+            {"function_name": "PyDict_Next", "arguments_text": "d, &i, NULL, &ref"}
+        ]
+        self.assertEqual(
+            self.mod.element_derived_names(calls, {}).get("ref"), "PyDict_Next"
+        )
+
+    def test_plain_assignment(self):
+        derived = self.mod.element_derived_names(
+            [], {"b": ["PyTuple_GET_ITEM(bases, i)"]}
+        )
+        self.assertEqual(derived.get("b"), "PyTuple_GET_ITEM")
+
+    def test_one_further_hop(self):
+        calls = [
+            {"function_name": "PyDict_Next", "arguments_text": "d, &i, NULL, &ref"}
+        ]
+        derived = self.mod.element_derived_names(calls, {"sub": ["type_from_ref(ref)"]})
+        self.assertIn("sub", derived)
+
+    def test_cast_macro_in_the_recursive_argument(self):
+        derived = {"b": "PyTuple_GET_ITEM"}
+        self.assertEqual(
+            self.mod.descent_element_op("interp, _PyType_CAST(b)", derived),
+            "PyTuple_GET_ITEM",
+        )
+
+    def test_unrelated_argument_yields_nothing(self):
+        self.assertIsNone(self.mod.descent_element_op("a, 0", {"b": "x"}))
+
+
 if __name__ == "__main__":
     unittest.main()

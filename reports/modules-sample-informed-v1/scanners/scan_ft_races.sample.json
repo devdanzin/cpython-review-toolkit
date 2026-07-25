@@ -1,0 +1,208 @@
+{
+ "project_root": "/home/danzin/projects/cpython",
+ "scan_root": "/home/danzin/projects/cpython/Modules",
+ "files_analyzed": 380,
+ "functions_analyzed": 10457,
+ "findings": [
+  {
+   "type": "atomic_plain_asymmetry",
+   "ft_class": "T1",
+   "file": "Modules/_collectionsmodule.c",
+   "member": "counter",
+   "function": "dequeiter_new",
+   "line": 2035,
+   "confidence": "low",
+   "detail": "Field 'counter' is accessed via an atomic macro (_Py_atomic_* / FT_ATOMIC_*) elsewhere in this file but is read/written plainly here \u2014 one access is unsynchronized (cf. itertools count_repr / TSAN-0006). Make every access to a concurrently-shared field atomic, or hold a lock."
+  },
+  {
+   "type": "atomic_plain_asymmetry",
+   "ft_class": "T1",
+   "file": "Modules/_csv.c",
+   "member": "field_limit",
+   "function": "csv_exec",
+   "line": 1804,
+   "confidence": "low",
+   "detail": "Field 'field_limit' is accessed via an atomic macro (_Py_atomic_* / FT_ATOMIC_*) elsewhere in this file but is read/written plainly here \u2014 one access is unsynchronized (cf. itertools count_repr / TSAN-0006). Make every access to a concurrently-shared field atomic, or hold a lock."
+  },
+  {
+   "type": "atomic_plain_asymmetry",
+   "ft_class": "T1",
+   "file": "Modules/_datetimemodule.c",
+   "member": "hashcode",
+   "function": "set_date_fields",
+   "line": 912,
+   "confidence": "low",
+   "detail": "Field 'hashcode' is accessed via an atomic macro (_Py_atomic_* / FT_ATOMIC_*) elsewhere in this file but is read/written plainly here \u2014 one access is unsynchronized (cf. itertools count_repr / TSAN-0006). Make every access to a concurrently-shared field atomic, or hold a lock."
+  },
+  {
+   "type": "iternext_double_decref",
+   "ft_class": "T3",
+   "function": "elementiter_next",
+   "member": "root_element",
+   "line": 2260,
+   "confidence": "high",
+   "detail": "elementiter_next is a tp_iternext that drops an owning reference to the shared self-member 'root_element' (Py_CLEAR / member=NULL + Py_DECREF) with no Py_BEGIN_CRITICAL_SECTION. Under the free-threaded build two concurrent next() calls read the same borrowed sequence and both DECREF it -> double-free (cf. gh-154130 dict, gh-144357 set, gh-153296 StringIO). Wrap the iternext body in Py_BEGIN_CRITICAL_SECTION(self), or elide the drop under #ifndef Py_GIL_DISABLED the way tupleiter_next / listiter_next / reversed_next do.",
+   "file": "Modules/_elementtree.c"
+  },
+  {
+   "type": "lazy_init_no_critical_section",
+   "ft_class": "T2",
+   "function": "_PyMemoTable_ResizeTable",
+   "member": "self->mt_table",
+   "line": 886,
+   "confidence": "medium",
+   "detail": "Lazy init of 'self->mt_table' guarded only by a NULL check, with no critical section. Under free-threading two threads both observe NULL and both compute/store -> leak + torn/lost write (cf. descr_get_qualname / TSAN-0043). Guard with Py_BEGIN_CRITICAL_SECTION or a compare-exchange.",
+   "file": "Modules/_pickle.c"
+  },
+  {
+   "type": "lazy_init_no_critical_section",
+   "ft_class": "T2",
+   "function": "_Unpickler_MemoPut",
+   "member": "self->memo_dict",
+   "line": 1636,
+   "confidence": "medium",
+   "detail": "Lazy init of 'self->memo_dict' guarded only by a NULL check, with no critical section. Under free-threading two threads both observe NULL and both compute/store -> leak + torn/lost write (cf. descr_get_qualname / TSAN-0043). Guard with Py_BEGIN_CRITICAL_SECTION or a compare-exchange.",
+   "file": "Modules/_pickle.c"
+  },
+  {
+   "type": "lazy_init_no_critical_section",
+   "ft_class": "T2",
+   "function": "fast_save_enter",
+   "member": "self->fast_memo",
+   "line": 2188,
+   "confidence": "medium",
+   "detail": "Lazy init of 'self->fast_memo' guarded only by a NULL check, with no critical section. Under free-threading two threads both observe NULL and both compute/store -> leak + torn/lost write (cf. descr_get_qualname / TSAN-0043). Guard with Py_BEGIN_CRITICAL_SECTION or a compare-exchange.",
+   "file": "Modules/_pickle.c"
+  },
+  {
+   "type": "lazy_init_no_critical_section",
+   "ft_class": "T2",
+   "function": "_pickle_Pickler___init___impl",
+   "member": "self->memo",
+   "line": 5059,
+   "confidence": "medium",
+   "detail": "Lazy init of 'self->memo' guarded only by a NULL check, with no critical section. Under free-threading two threads both observe NULL and both compute/store -> leak + torn/lost write (cf. descr_get_qualname / TSAN-0043). Guard with Py_BEGIN_CRITICAL_SECTION or a compare-exchange.",
+   "file": "Modules/_pickle.c"
+  },
+  {
+   "type": "iternext_double_decref",
+   "ft_class": "T3",
+   "function": "unpackiter_iternext",
+   "member": "so",
+   "line": 2270,
+   "confidence": "high",
+   "detail": "unpackiter_iternext is a tp_iternext that drops an owning reference to the shared self-member 'so' (Py_CLEAR / member=NULL + Py_DECREF) with no Py_BEGIN_CRITICAL_SECTION. Under the free-threaded build two concurrent next() calls read the same borrowed sequence and both DECREF it -> double-free (cf. gh-154130 dict, gh-144357 set, gh-153296 StringIO). Wrap the iternext body in Py_BEGIN_CRITICAL_SECTION(self), or elide the drop under #ifndef Py_GIL_DISABLED the way tupleiter_next / listiter_next / reversed_next do.",
+   "file": "Modules/_struct.c"
+  },
+  {
+   "type": "atomic_plain_asymmetry",
+   "ft_class": "T1",
+   "file": "Modules/itertoolsmodule.c",
+   "member": "index",
+   "function": "itertools_cycle_impl",
+   "line": 1247,
+   "confidence": "low",
+   "detail": "Field 'index' is accessed via an atomic macro (_Py_atomic_* / FT_ATOMIC_*) elsewhere in this file but is read/written plainly here \u2014 one access is unsynchronized (cf. itertools count_repr / TSAN-0006). Make every access to a concurrently-shared field atomic, or hold a lock."
+  },
+  {
+   "type": "atomic_plain_asymmetry",
+   "ft_class": "T1",
+   "file": "Modules/itertoolsmodule.c",
+   "member": "cnt",
+   "function": "islice_next",
+   "line": 1710,
+   "confidence": "low",
+   "detail": "Field 'cnt' is accessed via an atomic macro (_Py_atomic_* / FT_ATOMIC_*) elsewhere in this file but is read/written plainly here \u2014 one access is unsynchronized (cf. itertools count_repr / TSAN-0006). Make every access to a concurrently-shared field atomic, or hold a lock."
+  },
+  {
+   "type": "iternext_double_decref",
+   "ft_class": "T3",
+   "function": "pairwise_next",
+   "member": "it",
+   "line": 361,
+   "confidence": "high",
+   "detail": "pairwise_next is a tp_iternext that drops an owning reference to the shared self-member 'it' (Py_CLEAR / member=NULL + Py_DECREF) with no Py_BEGIN_CRITICAL_SECTION. Under the free-threaded build two concurrent next() calls read the same borrowed sequence and both DECREF it -> double-free (cf. gh-154130 dict, gh-144357 set, gh-153296 StringIO). Wrap the iternext body in Py_BEGIN_CRITICAL_SECTION(self), or elide the drop under #ifndef Py_GIL_DISABLED the way tupleiter_next / listiter_next / reversed_next do.",
+   "file": "Modules/itertoolsmodule.c"
+  },
+  {
+   "type": "iternext_double_decref",
+   "ft_class": "T3",
+   "function": "groupby_next",
+   "member": "currgrouper",
+   "line": 537,
+   "confidence": "high",
+   "detail": "groupby_next is a tp_iternext that drops an owning reference to the shared self-member 'currgrouper' (Py_CLEAR / member=NULL + Py_DECREF) with no Py_BEGIN_CRITICAL_SECTION. Under the free-threaded build two concurrent next() calls read the same borrowed sequence and both DECREF it -> double-free (cf. gh-154130 dict, gh-144357 set, gh-153296 StringIO). Wrap the iternext body in Py_BEGIN_CRITICAL_SECTION(self), or elide the drop under #ifndef Py_GIL_DISABLED the way tupleiter_next / listiter_next / reversed_next do.",
+   "file": "Modules/itertoolsmodule.c"
+  },
+  {
+   "type": "iternext_double_decref",
+   "ft_class": "T3",
+   "function": "_grouper_next",
+   "member": "currvalue",
+   "line": 692,
+   "confidence": "high",
+   "detail": "_grouper_next is a tp_iternext that drops an owning reference to the shared self-member 'currvalue' (Py_CLEAR / member=NULL + Py_DECREF) with no Py_BEGIN_CRITICAL_SECTION. Under the free-threaded build two concurrent next() calls read the same borrowed sequence and both DECREF it -> double-free (cf. gh-154130 dict, gh-144357 set, gh-153296 StringIO). Wrap the iternext body in Py_BEGIN_CRITICAL_SECTION(self), or elide the drop under #ifndef Py_GIL_DISABLED the way tupleiter_next / listiter_next / reversed_next do.",
+   "file": "Modules/itertoolsmodule.c"
+  },
+  {
+   "type": "iternext_double_decref",
+   "ft_class": "T3",
+   "function": "islice_next",
+   "member": "it",
+   "line": 1732,
+   "confidence": "high",
+   "detail": "islice_next is a tp_iternext that drops an owning reference to the shared self-member 'it' (Py_CLEAR / member=NULL + Py_DECREF) with no Py_BEGIN_CRITICAL_SECTION. Under the free-threaded build two concurrent next() calls read the same borrowed sequence and both DECREF it -> double-free (cf. gh-154130 dict, gh-144357 set, gh-153296 StringIO). Wrap the iternext body in Py_BEGIN_CRITICAL_SECTION(self), or elide the drop under #ifndef Py_GIL_DISABLED the way tupleiter_next / listiter_next / reversed_next do.",
+   "file": "Modules/itertoolsmodule.c"
+  },
+  {
+   "type": "lazy_init_no_critical_section",
+   "ft_class": "T2",
+   "function": "count_nextlong",
+   "member": "lz->long_cnt",
+   "line": 3622,
+   "confidence": "medium",
+   "detail": "Lazy init of 'lz->long_cnt' guarded only by a NULL check, with no critical section. Under free-threading two threads both observe NULL and both compute/store -> leak + torn/lost write (cf. descr_get_qualname / TSAN-0043). Guard with Py_BEGIN_CRITICAL_SECTION or a compare-exchange.",
+   "file": "Modules/itertoolsmodule.c"
+  }
+ ],
+ "summary": {
+  "total_findings": 58,
+  "by_class": {
+   "T1": 23,
+   "T2": 27,
+   "T3": 8
+  },
+  "by_type": {
+   "atomic_plain_asymmetry": 23,
+   "lazy_init_no_critical_section": 27,
+   "iternext_double_decref": 8
+  },
+  "by_confidence": {
+   "low": 23,
+   "medium": 27,
+   "high": 8
+  }
+ },
+ "iternext_functions": 40,
+ "lock_held_functions": 81,
+ "files_with_ft_regions": 36,
+ "skipped_files": [],
+ "_sample_filter": {
+  "sample_files": [
+   "Modules/_pickle.c",
+   "Modules/_datetimemodule.c",
+   "Modules/_elementtree.c",
+   "Modules/itertoolsmodule.c",
+   "Modules/_struct.c",
+   "Modules/_collectionsmodule.c",
+   "Modules/_zoneinfo.c",
+   "Modules/_json.c",
+   "Modules/_csv.c",
+   "Modules/_heapqmodule.c",
+   "Modules/_randommodule.c",
+   "Modules/_queuemodule.c"
+  ],
+  "modules_total": 58,
+  "sample_total": 16
+ }
+}

@@ -1,0 +1,58 @@
+{
+  "project_root": "/home/danzin/projects/cpython",
+  "scan_root": "/home/danzin/projects/cpython/Objects",
+  "files_analyzed": 113,
+  "functions_analyzed": 4819,
+  "findings": [
+    {
+      "type": "init_bypass_null_deref",
+      "function": "bytearray_resize_lock_held",
+      "field": "ob_bytes_object",
+      "sink": "_PyBytes_Resize",
+      "reason": "new_bypass",
+      "line": 280,
+      "confidence": "medium",
+      "detail": "'ob_bytes_object' is passed by address to _PyBytes_Resize(), which derefs *pv, with no NULL guard, but it can be NULL via a __new__/subclass bypass of tp_init (T.__new__(T) leaves it NULL). A guard such as 'ob_bytes_object != Py_None' or 'Py_IsNone(ob_bytes_object)' does NOT protect this \u2014 after the bypass the field is NULL. Add 'if (ob_bytes_object == NULL)' (or initialize it in tp_new) before the deref.",
+      "file": "Objects/bytearrayobject.c"
+    },
+    {
+      "type": "init_bypass_null_deref",
+      "function": "bytearray_take_bytes_impl",
+      "field": "ob_bytes_object",
+      "sink": "_PyBytes_Resize",
+      "reason": "new_bypass",
+      "line": 1609,
+      "confidence": "medium",
+      "detail": "'ob_bytes_object' is passed by address to _PyBytes_Resize(), which derefs *pv, with no NULL guard, but it can be NULL via a __new__/subclass bypass of tp_init (T.__new__(T) leaves it NULL). A guard such as 'ob_bytes_object != Py_None' or 'Py_IsNone(ob_bytes_object)' does NOT protect this \u2014 after the bypass the field is NULL. Add 'if (ob_bytes_object == NULL)' (or initialize it in tp_new) before the deref.",
+      "file": "Objects/bytearrayobject.c"
+    },
+    {
+      "type": "init_bypass_null_deref",
+      "function": "super_descr_get",
+      "field": "type",
+      "sink": "Py_NewRef",
+      "reason": "new_bypass",
+      "line": 12806,
+      "confidence": "medium",
+      "detail": "'type' is Py_INCREF'd via Py_NewRef() with no NULL guard, but it can be NULL via a __new__/subclass bypass of tp_init (T.__new__(T) leaves it NULL). A guard such as 'type != Py_None' or 'Py_IsNone(type)' does NOT protect this \u2014 after the bypass the field is NULL. Add 'if (type == NULL)' (or initialize it in tp_new) before the deref.",
+      "file": "Objects/typeobject.c"
+    }
+  ],
+  "summary": {
+    "total_findings": 3,
+    "by_confidence": {
+      "medium": 3
+    },
+    "by_reason": {
+      "new_bypass": 3
+    }
+  },
+  "files_with_nullable_fields": 8,
+  "total_nullable_fields": 38,
+  "nullable_fields_by_reason": {
+    "new_bypass": 15,
+    "deletable_member": 27,
+    "deletable_getset": 2
+  },
+  "skipped_files": []
+}

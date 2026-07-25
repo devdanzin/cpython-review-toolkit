@@ -1,0 +1,69 @@
+{
+  "project_root": "/home/danzin/projects/cpython",
+  "scan_root": "/home/danzin/projects/cpython",
+  "files_analyzed": 7,
+  "functions_analyzed": 289,
+  "findings": [
+    {
+      "type": "pyerr_clear_unfiltered_after_python_call",
+      "function": "_io__Buffered__dealloc_warn_impl",
+      "line": 495,
+      "confidence": "medium",
+      "failing_call": "PyObject_CallMethodOneArg",
+      "detail": "PyErr_Clear() in '_io__Buffered__dealloc_warn_impl' clears the exception raised by 'PyObject_CallMethodOneArg' with no PyErr_ExceptionMatches narrowing. That call dispatches into arbitrary Python (__hash__ / __buffer__ / __index__ / import hooks), so its failure return only means *something* was raised \u2014 a MemoryError, KeyboardInterrupt or RecursionError is discarded along with the expected TypeError. Narrow first, e.g. if (!PyErr_ExceptionMatches(PyExc_TypeError)) return NULL; before clearing (see Objects/genericaliasobject.c set_orig_class).",
+      "file": "Modules/_io/bufferedio.c"
+    }
+  ],
+  "summary": {
+    "total_findings": 1,
+    "by_confidence": {
+      "medium": 1
+    },
+    "by_slot": {},
+    "by_type": {
+      "pyerr_clear_unfiltered_after_python_call": 1
+    }
+  },
+  "destructor_functions": 27,
+  "total_pyerr_clear_calls": 22,
+  "total_pyerr_clear_calls_in_destructors": 3,
+  "skipped_files": [],
+  "_sample": {
+    "files_requested": [
+      "Modules/_io/textio.c",
+      "Modules/_io/bufferedio.c",
+      "Modules/_io/bytesio.c",
+      "Modules/_io/fileio.c",
+      "Modules/_io/stringio.c",
+      "Modules/_io/iobase.c",
+      "Modules/_io/_iomodule.c"
+    ],
+    "files_scanned": [
+      "Modules/_io/textio.c",
+      "Modules/_io/bufferedio.c",
+      "Modules/_io/bytesio.c",
+      "Modules/_io/fileio.c",
+      "Modules/_io/stringio.c",
+      "Modules/_io/iobase.c",
+      "Modules/_io/_iomodule.c"
+    ],
+    "files_missing": [],
+    "method": "the scanner was RE-RUN over exactly these files; every count in this report is sample-scoped. This is not a post-hoc filter of a corpus-wide scan -- a filtered report keeps corpus-wide denominators next to sample-scoped findings, which makes an unearned zero look earned.",
+    "merge_policy": {
+      "project_root": "carried (constant, not a count)",
+      "scan_root": "carried (constant, not a count)",
+      "files_analyzed": "summed",
+      "functions_analyzed": "summed",
+      "findings": "concatenated",
+      "summary": "merged key-wise",
+      "summary.total_findings": "summed",
+      "summary.by_confidence": "merged key-wise",
+      "summary.by_slot": "merged key-wise",
+      "summary.by_type": "merged key-wise",
+      "destructor_functions": "summed",
+      "total_pyerr_clear_calls": "summed",
+      "total_pyerr_clear_calls_in_destructors": "summed",
+      "skipped_files": "concatenated"
+    }
+  }
+}

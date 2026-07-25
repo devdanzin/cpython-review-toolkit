@@ -1,0 +1,85 @@
+{
+  "project_root": "/home/danzin/projects/cpython",
+  "scan_root": "/home/danzin/projects/cpython",
+  "files_analyzed": 1,
+  "functions_analyzed": 417,
+  "findings": [
+    {
+      "type": "missing_recursion_guard",
+      "function": "find_name_in_mro",
+      "slot": "not_a_slot",
+      "shape": "hash_entry_point",
+      "element_op": "_PyObject_HashDictKey",
+      "argument_kind": "parameter",
+      "tail_call": false,
+      "line": 6147,
+      "sites": [
+        {
+          "line": 6147,
+          "argument_kind": "parameter",
+          "argument": "name",
+          "dispatcher": "_PyObject_HashDictKey"
+        }
+      ],
+      "confidence": "low",
+      "detail": "'find_name_in_mro' calls _PyObject_HashDictKey on a caller-supplied value \u2014 this adds exactly one C frame, so it is an entry point into the unguarded hash graph rather than an additive descent. _PyObject_HashDictKey (Include/internal/pycore_object.h:840 \u2014 a Py_ALWAYS_INLINE wrapper whose tail is PyObject_Hash) is an element-descent dispatcher with NO recursion guard, so a tp_hash descent is unguarded at every level: a deeply-nested or cyclic object overflows the C stack (SIGSEGV) instead of raising RecursionError. Bracket the descent with Py_EnterRecursiveCall(\" while hashing\")/Py_LeaveRecursiveCall().",
+      "file": "Objects/typeobject.c"
+    }
+  ],
+  "summary": {
+    "total_findings": 1,
+    "missing_recursion_guard": 1,
+    "guarded_by_dispatcher": 0,
+    "by_confidence": {
+      "low": 1
+    },
+    "by_shape": {
+      "hash_entry_point": 1
+    },
+    "by_type": {
+      "missing_recursion_guard": 1
+    }
+  },
+  "recursion_prone_slot_functions": 8,
+  "dispatcher_guard_model": {
+    "unguarded": {
+      "PyObject_Hash": "Objects/object.c:1158 \u2014 NO guard",
+      "_PyObject_HashDictKey": "Include/internal/pycore_object.h:840 \u2014 Py_ALWAYS_INLINE alias, tail-calls PyObject_Hash, so equally unguarded"
+    },
+    "guarded": {
+      "PyObject_Repr": "Objects/object.c:759",
+      "PyObject_Str": "Objects/object.c:800",
+      "PyObject_ASCII": "Objects/object.c:759 (via PyObject_Repr)",
+      "PyObject_RichCompare": "Objects/object.c:1099",
+      "PyObject_RichCompareBool": "Objects/object.c:1099 (via PyObject_RichCompare)"
+    },
+    "bound_zero_excluded": [
+      "PyObject_GenericHash",
+      "Py_HashBuffer",
+      "Py_HashPointer"
+    ],
+    "note": "Verified against CPython main @ 3.16.0a0. Only the hash dispatchers lack _Py_EnterRecursiveCallTstate, so only hash descents are unguarded at every level. Self-recursion is unguarded regardless of dispatcher. bound_zero_excluded lists hash spellings deliberately kept out of the vocabulary because they never descend into the object graph (identity, raw pointer, flat byte range)."
+  },
+  "skipped_files": [],
+  "_sample": {
+    "files_requested": [
+      "Objects/typeobject.c"
+    ],
+    "files_scanned": [
+      "Objects/typeobject.c"
+    ],
+    "files_missing": [],
+    "method": "the scanner was RE-RUN over exactly these files; every count in this report is sample-scoped. This is not a post-hoc filter of a corpus-wide scan -- a filtered report keeps corpus-wide denominators next to sample-scoped findings, which makes an unearned zero look earned.",
+    "merge_policy": {
+      "project_root": "carried (constant, not a count)",
+      "scan_root": "carried (constant, not a count)",
+      "files_analyzed": "summed",
+      "functions_analyzed": "summed",
+      "findings": "concatenated",
+      "summary": "merged key-wise",
+      "recursion_prone_slot_functions": "summed",
+      "dispatcher_guard_model": "merged key-wise",
+      "skipped_files": "concatenated"
+    }
+  }
+}

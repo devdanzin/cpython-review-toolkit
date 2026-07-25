@@ -1,0 +1,40 @@
+{
+  "project_root": "/home/danzin/projects/cpython",
+  "scan_root": "/home/danzin/projects/cpython/Modules",
+  "files_analyzed": 380,
+  "functions_analyzed": 10457,
+  "findings": [
+    {
+      "type": "dealloc_of_uninitialized_object",
+      "function": "create_elementiter",
+      "variable": "it",
+      "allocator": "PyObject_GC_New",
+      "line": 2367,
+      "free_line": 2377,
+      "free_call": "Py_DECREF",
+      "unset_members": [
+        "parent_stack_used"
+      ],
+      "unset_members_all": [
+        "parent_stack_size",
+        "parent_stack_used"
+      ],
+      "destructor_evidence": {
+        "parent_stack_used": {
+          "kind": "destructor_read",
+          "line": 2178
+        }
+      },
+      "confidence": "low",
+      "detail": "'it' is allocated via the non-zeroing PyObject_GC_New() and freed with Py_DECREF(it) at line 2377 while it->parent_stack_used still hold allocator garbage \u2014 those members are written only *after* the free (or only on a branch that does not dominate it), and the file's destructor reads them while tearing down other members (see line 2178). tp_dealloc/tp_clear then acts on an uninitialized value (crash, dominant under OOM). Fix: NULL/initialize these members immediately after the allocation, before the first fallible call.",
+      "file": "Modules/_elementtree.c"
+    }
+  ],
+  "summary": {
+    "total_findings": 1,
+    "by_allocator": {
+      "PyObject_GC_New": 1
+    }
+  },
+  "skipped_files": []
+}

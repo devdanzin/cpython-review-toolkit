@@ -1,0 +1,80 @@
+{
+  "project_root": "/home/danzin/projects/cpython",
+  "scan_root": "/home/danzin/projects/cpython",
+  "files_analyzed": 1,
+  "functions_analyzed": 362,
+  "findings": [
+    {
+      "type": "unconditional_pyerr_clear",
+      "api_call": "PyErr_Clear",
+      "detail": "PyErr_Clear() with no PyErr_ExceptionMatches within the preceding 3 lines \u2014 swallows any live exception, including KeyboardInterrupt and MemoryError raised by user code",
+      "confidence": "medium",
+      "file": "Objects/typeobject.c",
+      "function": "type_repr",
+      "line": 2405
+    },
+    {
+      "type": "unconditional_pyerr_clear",
+      "api_call": "PyErr_Clear",
+      "detail": "PyErr_Clear() with no PyErr_ExceptionMatches within the preceding 3 lines \u2014 swallows any live exception, including KeyboardInterrupt and MemoryError raised by user code",
+      "confidence": "medium",
+      "file": "Objects/typeobject.c",
+      "function": "find_name_in_mro",
+      "line": 6149
+    },
+    {
+      "type": "unconditional_pyerr_clear",
+      "api_call": "PyErr_Clear",
+      "detail": "PyErr_Clear() with no PyErr_ExceptionMatches within the preceding 3 lines \u2014 swallows any live exception, including KeyboardInterrupt and MemoryError raised by user code",
+      "confidence": "medium",
+      "file": "Objects/typeobject.c",
+      "function": "find_name_in_mro",
+      "line": 6158
+    },
+    {
+      "type": "unconditional_pyerr_clear",
+      "api_call": "PyErr_Clear",
+      "detail": "PyErr_Clear() with no PyErr_ExceptionMatches within the preceding 3 lines \u2014 swallows any live exception, including KeyboardInterrupt and MemoryError raised by user code",
+      "confidence": "medium",
+      "file": "Objects/typeobject.c",
+      "function": "object_repr",
+      "line": 7490
+    },
+    {
+      "type": "unconditional_pyerr_clear",
+      "api_call": "PyErr_Clear",
+      "detail": "PyErr_Clear() with no PyErr_ExceptionMatches within the preceding 3 lines \u2014 swallows any live exception, including KeyboardInterrupt and MemoryError raised by user code",
+      "confidence": "medium",
+      "file": "Objects/typeobject.c",
+      "function": "get_subclasses_key",
+      "line": 9748
+    }
+  ],
+  "summary": {
+    "missing_null_checks": 0,
+    "unchecked_returns": 0,
+    "alloc_null_no_memerror": 0,
+    "unconditional_pyerr_clear": 5,
+    "pylong_sentinel_no_errcheck": 0,
+    "unchecked_parse_calls": 0,
+    "total_findings": 5
+  },
+  "_sample": {
+    "files_requested": [
+      "Objects/typeobject.c"
+    ],
+    "files_scanned": [
+      "Objects/typeobject.c"
+    ],
+    "files_missing": [],
+    "method": "the scanner was RE-RUN over exactly these files; every count in this report is sample-scoped. This is not a post-hoc filter of a corpus-wide scan -- a filtered report keeps corpus-wide denominators next to sample-scoped findings, which makes an unearned zero look earned.",
+    "merge_policy": {
+      "project_root": "carried (constant, not a count)",
+      "scan_root": "carried (constant, not a count)",
+      "files_analyzed": "summed",
+      "functions_analyzed": "summed",
+      "findings": "concatenated",
+      "summary": "merged key-wise"
+    }
+  }
+}

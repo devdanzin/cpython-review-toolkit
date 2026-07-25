@@ -775,5 +775,130 @@ class TestResolvedTpAlloc(unittest.TestCase):
         self.assertEqual(findings, [])
 
 
+# ---------------------------------------------------------------------------
+# Interior-pointer aliases + the zeroing model (issue #28, blindness fix B)
+# ---------------------------------------------------------------------------
+
+
+class TestReceiverAliases(unittest.TestCase):
+    """`type = &res->ht_type;` — Objects/typeobject.c:5628.
+
+    Every subsequent `type->tp_...` write is a write into `res`, and a rule keyed
+    on the name `res` sees none of them.
+    """
+
+    def setUp(self):
+        self.mod = import_script("scan_uninit_dealloc")
+
+    def _analyze(self, files):
+        with TempProject(files) as root:
+            return self.mod.analyze(str(root))
+
+    def test_interior_alias_is_followed(self):
+        body = (
+            "    res = (PyHeapTypeObject *)metaclass->tp_alloc(metaclass, n);\n"
+            "    type = &res->ht_type;\n"
+            "    type->tp_base = base;\n"
+        )
+        self.assertEqual(self.mod._alias_names(body, "res"), {"res", "type"})
+
+    def test_cast_alias_is_followed(self):
+        body = (
+            "    self = PyObject_New(MyObject, tp);\n"
+            "    obj = (MyObject *)self;\n"
+            "    obj->field = NULL;\n"
+        )
+        self.assertEqual(self.mod._alias_names(body, "self"), {"self", "obj"})
+
+    def test_an_unrelated_local_is_not_an_alias(self):
+        body = (
+            "    self = PyObject_New(MyObject, tp);\n"
+            "    other = &shared->field;\n"
+        )
+        self.assertEqual(self.mod._alias_names(body, "self"), {"self"})
+
+    def test_writes_through_the_alias_count_as_initialisation(self):
+        """Without the alias the constructor looks like it initialises nothing,
+        and every member reads as still holding allocator garbage."""
+        code = (
+            "typedef struct { PyObject *a; PyObject *b; } Inner;\n"
+            "typedef struct { Inner inner; } Outer;\n"
+            "\n"
+            "static void\n"
+            "inner_dealloc(Inner *self)\n"
+            "{\n"
+            "    Py_XDECREF(self->a);\n"
+            "    Py_XDECREF(self->b);\n"
+            "}\n"
+            "\n"
+            "static PyObject *\n"
+            "make(PyTypeObject *tp, PyObject *arg)\n"
+            "{\n"
+            "    Outer *res = PyObject_New(Outer, tp);\n"
+            "    Inner *inner = &res->inner;\n"
+            "    inner->a = NULL;\n"
+            "    inner->b = NULL;\n"
+            "    if (arg == NULL) {\n"
+            "        Py_DECREF(res);\n"
+            "        return NULL;\n"
+            "    }\n"
+            "    inner->a = Py_NewRef(arg);\n"
+            "    return (PyObject *)res;\n"
+            "}\n"
+        )
+        result = self._analyze({"Objects/t.c": code})
+        self.assertEqual(result["findings"], [])
+
+
+class TestAllocatorModelIsAuditable(unittest.TestCase):
+    """A zero must be readable, and the zeroing model must not silently invert.
+
+    `PyType_GenericAlloc` forwards to `_PyType_AllocNoTrack`, which does
+    `memset((char *)obj + sizeof(PyObject), 0, ...)` at
+    Objects/typeobject.c:2542. Treating `tp_alloc` as unconditionally
+    non-zeroing would model a falsehood and manufacture a finding on every
+    heap-type constructor in the tree.
+    """
+
+    def setUp(self):
+        self.mod = import_script("scan_uninit_dealloc")
+
+    def _analyze(self, files):
+        with TempProject(files) as root:
+            return self.mod.analyze(str(root))
+
+    def test_pytype_genericalloc_is_not_non_zeroing(self):
+        self.assertNotIn("PyType_GenericAlloc", self.mod._NON_ZEROING_ALLOCATORS)
+
+    def test_the_model_is_reported(self):
+        result = self._analyze(
+            {"Objects/t.c": "static int f(void)\n{\n    return 0;\n}\n"}
+        )
+        model = result["allocator_model"]
+        self.assertIn("PyType_GenericAlloc", model["zeroing_by_evidence"])
+        self.assertIn("memset", model["zeroing_by_evidence"]["PyType_GenericAlloc"])
+        self.assertIn("_datetimemodule", model["tp_alloc_rule"])
+
+    def test_allocation_sites_is_the_denominator(self):
+        code = (
+            "static PyObject *\n"
+            "make(PyTypeObject *tp)\n"
+            "{\n"
+            "    MyObject *self = PyObject_New(MyObject, tp);\n"
+            "    return (PyObject *)self;\n"
+            "}\n"
+        )
+        self.assertEqual(
+            self._analyze({"Objects/t.c": code})["summary"]["allocation_sites"], 1
+        )
+
+    def test_zero_sites_is_reported_as_zero_sites(self):
+        result = self._analyze(
+            {"Objects/t.c": "static int f(void)\n{\n    return 0;\n}\n"}
+        )
+        self.assertEqual(result["summary"]["allocation_sites"], 0)
+        self.assertEqual(result["summary"]["total_findings"], 0)
+
+
 if __name__ == "__main__":
     unittest.main()

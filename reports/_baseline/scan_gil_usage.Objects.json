@@ -1,0 +1,171 @@
+{
+  "project_root": "/home/danzin/projects/cpython",
+  "scan_root": "/home/danzin/projects/cpython/Objects",
+  "files_analyzed": 123,
+  "functions_analyzed": 4819,
+  "findings": [
+    {
+      "type": "blocking_with_gil",
+      "api_call": "read",
+      "detail": "Blocking call read() in 'mi_prim_read' without releasing the GIL (no Py_BEGIN_ALLOW_THREADS)",
+      "confidence": "medium",
+      "file": "Objects/mimalloc/prim/unix/prim.c",
+      "function": "mi_prim_read",
+      "line": 86
+    },
+    {
+      "type": "blocking_with_gil",
+      "api_call": "pthread_mutex_lock",
+      "detail": "Blocking call pthread_mutex_lock() in 'mi_prim_mem_grow' without releasing the GIL (no Py_BEGIN_ALLOW_THREADS)",
+      "confidence": "medium",
+      "file": "Objects/mimalloc/prim/wasi/prim.c",
+      "function": "mi_prim_mem_grow",
+      "line": 70
+    },
+    {
+      "type": "blocking_with_gil",
+      "api_call": "pthread_mutex_lock",
+      "detail": "Blocking call pthread_mutex_lock() in 'mi_prim_mem_grow' without releasing the GIL (no Py_BEGIN_ALLOW_THREADS)",
+      "confidence": "medium",
+      "file": "Objects/mimalloc/prim/wasi/prim.c",
+      "function": "mi_prim_mem_grow",
+      "line": 84
+    },
+    {
+      "type": "blocking_with_gil",
+      "api_call": "fwrite",
+      "detail": "Blocking call fwrite() in 'PyObject_Print' without releasing the GIL (no Py_BEGIN_ALLOW_THREADS)",
+      "confidence": "medium",
+      "file": "Objects/object.c",
+      "function": "PyObject_Print",
+      "line": 676
+    },
+    {
+      "type": "blocking_with_gil",
+      "api_call": "fflush",
+      "detail": "Blocking call fflush() in 'PyObject_Dump' without releasing the GIL (no Py_BEGIN_ALLOW_THREADS)",
+      "confidence": "medium",
+      "file": "Objects/object.c",
+      "function": "PyObject_Dump",
+      "line": 727
+    },
+    {
+      "type": "blocking_with_gil",
+      "api_call": "fflush",
+      "detail": "Blocking call fflush() in 'PyObject_Dump' without releasing the GIL (no Py_BEGIN_ALLOW_THREADS)",
+      "confidence": "medium",
+      "file": "Objects/object.c",
+      "function": "PyObject_Dump",
+      "line": 734
+    },
+    {
+      "type": "blocking_with_gil",
+      "api_call": "fflush",
+      "detail": "Blocking call fflush() in 'PyObject_Dump' without releasing the GIL (no Py_BEGIN_ALLOW_THREADS)",
+      "confidence": "medium",
+      "file": "Objects/object.c",
+      "function": "PyObject_Dump",
+      "line": 743
+    },
+    {
+      "type": "blocking_with_gil",
+      "api_call": "fflush",
+      "detail": "Blocking call fflush() in 'PyObject_Dump' without releasing the GIL (no Py_BEGIN_ALLOW_THREADS)",
+      "confidence": "medium",
+      "file": "Objects/object.c",
+      "function": "PyObject_Dump",
+      "line": 749
+    },
+    {
+      "type": "blocking_with_gil",
+      "api_call": "fflush",
+      "detail": "Blocking call fflush() in 'PyObject_Dump' without releasing the GIL (no Py_BEGIN_ALLOW_THREADS)",
+      "confidence": "medium",
+      "file": "Objects/object.c",
+      "function": "PyObject_Dump",
+      "line": 755
+    },
+    {
+      "type": "blocking_with_gil",
+      "api_call": "fflush",
+      "detail": "Blocking call fflush() in '_PyObject_AssertFailed' without releasing the GIL (no Py_BEGIN_ALLOW_THREADS)",
+      "confidence": "medium",
+      "file": "Objects/object.c",
+      "function": "_PyObject_AssertFailed",
+      "line": 3239
+    },
+    {
+      "type": "blocking_with_gil",
+      "api_call": "fflush",
+      "detail": "Blocking call fflush() in '_PyObject_AssertFailed' without releasing the GIL (no Py_BEGIN_ALLOW_THREADS)",
+      "confidence": "medium",
+      "file": "Objects/object.c",
+      "function": "_PyObject_AssertFailed",
+      "line": 3247
+    },
+    {
+      "type": "blocking_with_gil",
+      "api_call": "fflush",
+      "detail": "Blocking call fflush() in '_PyObject_AssertFailed' without releasing the GIL (no Py_BEGIN_ALLOW_THREADS)",
+      "confidence": "medium",
+      "file": "Objects/object.c",
+      "function": "_PyObject_AssertFailed",
+      "line": 3253
+    },
+    {
+      "type": "blocking_with_gil",
+      "api_call": "fflush",
+      "detail": "Blocking call fflush() in '_PyObject_AssertFailed' without releasing the GIL (no Py_BEGIN_ALLOW_THREADS)",
+      "confidence": "medium",
+      "file": "Objects/object.c",
+      "function": "_PyObject_AssertFailed",
+      "line": 3259
+    },
+    {
+      "type": "blocking_with_gil",
+      "api_call": "fflush",
+      "detail": "Blocking call fflush() in '_PyObject_AssertFailed' without releasing the GIL (no Py_BEGIN_ALLOW_THREADS)",
+      "confidence": "medium",
+      "file": "Objects/object.c",
+      "function": "_PyObject_AssertFailed",
+      "line": 3275
+    },
+    {
+      "type": "blocking_with_gil",
+      "api_call": "fgets",
+      "detail": "Blocking call fgets() in '_pymalloc_system_hugepage_size' without releasing the GIL (no Py_BEGIN_ALLOW_THREADS)",
+      "confidence": "medium",
+      "file": "Objects/obmalloc.c",
+      "function": "_pymalloc_system_hugepage_size",
+      "line": 563
+    },
+    {
+      "type": "blocking_with_gil",
+      "api_call": "fflush",
+      "detail": "Blocking call fflush() in '_PyObject_DebugDumpAddress' without releasing the GIL (no Py_BEGIN_ALLOW_THREADS)",
+      "confidence": "medium",
+      "file": "Objects/obmalloc.c",
+      "function": "_PyObject_DebugDumpAddress",
+      "line": 3479
+    }
+  ],
+  "summary": {
+    "mismatched_pairs": 0,
+    "api_without_gil": 0,
+    "blocking_with_gil": 16,
+    "total_findings": 16,
+    "by_type": {
+      "blocking_with_gil": 16,
+      "mismatched_allow_threads": 0,
+      "mismatched_gilstate": 0,
+      "api_without_gil": 0
+    }
+  },
+  "vocabulary_counts": {
+    "Py_BEGIN_ALLOW_THREADS": 3,
+    "Py_END_ALLOW_THREADS": 3,
+    "PyGILState_Ensure": 1,
+    "PyGILState_Release": 1
+  },
+  "skipped_files": []
+}

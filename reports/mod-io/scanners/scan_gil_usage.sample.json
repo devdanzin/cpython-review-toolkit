@@ -1,0 +1,71 @@
+{
+  "project_root": "/home/danzin/projects/cpython",
+  "scan_root": "/home/danzin/projects/cpython",
+  "files_analyzed": 7,
+  "functions_analyzed": 289,
+  "findings": [],
+  "summary": {
+    "mismatched_pairs": 0,
+    "api_without_gil": 0,
+    "blocking_with_gil": 0,
+    "total_findings": 0,
+    "by_type": {
+      "mismatched_allow_threads": 0,
+      "mismatched_gilstate": 0,
+      "api_without_gil": 0,
+      "blocking_with_gil": 0
+    }
+  },
+  "vocabulary_counts": {
+    "Py_BEGIN_ALLOW_THREADS": 8,
+    "Py_END_ALLOW_THREADS": 8,
+    "PyGILState_Ensure": 0,
+    "PyGILState_Release": 0
+  },
+  "skipped_files": [],
+  "_sample": {
+    "files_requested": [
+      "Modules/_io/textio.c",
+      "Modules/_io/bufferedio.c",
+      "Modules/_io/bytesio.c",
+      "Modules/_io/fileio.c",
+      "Modules/_io/stringio.c",
+      "Modules/_io/iobase.c",
+      "Modules/_io/_iomodule.c"
+    ],
+    "files_scanned": [
+      "Modules/_io/textio.c",
+      "Modules/_io/bufferedio.c",
+      "Modules/_io/bytesio.c",
+      "Modules/_io/fileio.c",
+      "Modules/_io/stringio.c",
+      "Modules/_io/iobase.c",
+      "Modules/_io/_iomodule.c"
+    ],
+    "files_missing": [],
+    "method": "the scanner was RE-RUN over exactly these files; every count in this report is sample-scoped. This is not a post-hoc filter of a corpus-wide scan -- a filtered report keeps corpus-wide denominators next to sample-scoped findings, which makes an unearned zero look earned.",
+    "merge_policy": {
+      "project_root": "carried (constant, not a count)",
+      "scan_root": "carried (constant, not a count)",
+      "files_analyzed": "summed",
+      "functions_analyzed": "summed",
+      "findings": "concatenated",
+      "summary": "merged key-wise",
+      "summary.mismatched_pairs": "summed",
+      "summary.api_without_gil": "summed",
+      "summary.blocking_with_gil": "summed",
+      "summary.total_findings": "summed",
+      "summary.by_type": "merged key-wise",
+      "summary.by_type.mismatched_allow_threads": "summed",
+      "summary.by_type.mismatched_gilstate": "summed",
+      "summary.by_type.api_without_gil": "summed",
+      "summary.by_type.blocking_with_gil": "summed",
+      "vocabulary_counts": "merged key-wise",
+      "vocabulary_counts.Py_BEGIN_ALLOW_THREADS": "summed",
+      "vocabulary_counts.Py_END_ALLOW_THREADS": "summed",
+      "vocabulary_counts.PyGILState_Ensure": "summed",
+      "vocabulary_counts.PyGILState_Release": "summed",
+      "skipped_files": "concatenated"
+    }
+  }
+}

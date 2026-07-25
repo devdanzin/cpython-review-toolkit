@@ -39,7 +39,13 @@ The scanner emits four distinct finding `type`s. It **defaults to silence** — 
 | `type` | Confidence | What it means |
 |--------|-----------|---------------|
 | `alloc_size_overflow` | `medium` (unbounded taint: `PyLong_As*`, protocol length) · `low` (`PyArg_Parse*` output, or a bounded length with a second non-constant factor) | An allocator's size argument multiplies a Python-controlled operand with **no** visible overflow guard before the call. |
-| `varobject_nitems_unguarded` | `medium` (unbounded taint) · `low` (otherwise) | A `PyObject_*NewVar` / `PyObject_GC_Resize` whose `nitems` is neither narrow-typed, bounded by an existing allocation, nor preceded by an overflow guard. Fields: `nitems` (the argument text), `operands`. |
+| `varobject_nitems_unguarded` | `medium` (unbounded taint) · `low` (otherwise) | A `PyObject_*NewVar` / `PyObject_GC_Resize` / `PyType_GenericAlloc` / **`type->tp_alloc(type, n)`** whose `nitems` is neither narrow-typed, bounded by an existing allocation, nor preceded by an overflow guard. Fields: `nitems` (the argument text), `operands`, `dispatch` (`direct` or `slot_pointer`). |
+
+**The `tp_alloc` slot pointer is modelled.** It was not, and that is why the scanner reported zero on `Objects/typeobject.c`, whose var-object sites both go through the slot rather than naming an allocator. Tree-wide the census is **161 var-object allocation sites, 127 of them through the slot pointer, and only 27 with a non-constant `nitems`** — the other 134 pass a literal `0` and are discharged by the constant-count gate, so modelling the slot costs almost nothing.
+
+Before dismissing one of these on "surely the allocator checks": **it does not.** `_PyType_AllocNoTrack` (`Objects/typeobject.c:2521`) computes `_PyObject_VAR_SIZE(type, nitems+1)` with no `PY_SSIZE_T_MAX/itemsize` division check and no `__builtin_mul_overflow`, and `PyType_GenericAlloc` is a thin wrapper over it. Every caller passing a non-constant count owes the guard itself.
+
+Read `report.varobject_allocation_census` before calling a file clean: `sites: 0` means the rule never fired on this corpus, which is silence, not safety.
 | `gc_untrack_without_track` | `medium` (`gate: "type:macro"`) · `low` (`gate: "file"`) | A `PyObject_GC_New*` object freed on an error path before any `PyObject_GC_Track`, where **that type's own** `tp_dealloc` runs the untrack macro. Fields: `gate`, `tp_dealloc`. |
 | `mismatched_alloc_free` | `high` | The same variable is allocated by one family and freed by another in one function. |
 

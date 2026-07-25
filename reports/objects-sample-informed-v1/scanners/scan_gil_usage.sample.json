@@ -1,0 +1,33 @@
+{
+ "project_root": "/home/danzin/projects/cpython",
+ "scan_root": "/home/danzin/projects/cpython/Objects",
+ "files_analyzed": 123,
+ "functions_analyzed": 3073,
+ "findings": [],
+ "summary": {
+  "mismatched_pairs": 0,
+  "api_without_gil": 0,
+  "blocking_with_gil": 8,
+  "total_findings": 8
+ },
+ "_sample_filter": {
+  "sample_files": [
+   "Objects/tupleobject.c",
+   "Objects/genericaliasobject.c",
+   "Objects/unionobject.c",
+   "Objects/templateobject.c",
+   "Objects/descrobject.c",
+   "Objects/odictobject.c",
+   "Objects/weakrefobject.c",
+   "Objects/funcobject.c",
+   "Objects/structseq.c",
+   "Objects/iterobject.c",
+   "Objects/capsule.c",
+   "Objects/interpolationobject.c",
+   "Objects/cellobject.c",
+   "Objects/lazyimportobject.c"
+  ],
+  "objects_total_findings": 8,
+  "sample_findings": 0
+ }
+}

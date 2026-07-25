@@ -1,0 +1,109 @@
+{
+  "project_root": "/home/danzin/projects/cpython",
+  "scan_root": "/home/danzin/projects/cpython/Objects",
+  "files_analyzed": 113,
+  "functions_analyzed": 4819,
+  "findings": [
+    {
+      "type": "dealloc_of_uninitialized_object",
+      "function": "PyList_New",
+      "variable": "op",
+      "allocator": "PyObject_GC_New",
+      "line": 250,
+      "free_line": 262,
+      "free_call": "Py_DECREF",
+      "unset_members": [
+        "ob_item"
+      ],
+      "unset_members_all": [
+        "allocated",
+        "ob_item"
+      ],
+      "destructor_evidence": {
+        "ob_item": {
+          "kind": "pointer",
+          "line": 567
+        }
+      },
+      "confidence": "medium",
+      "detail": "'op' is allocated via the non-zeroing PyObject_GC_New() and freed with Py_DECREF(op) at line 262 while op->ob_item still hold allocator garbage \u2014 those members are written only *after* the free (or only on a branch that does not dominate it), and the file's destructor decrefs/visits them (see line 567). tp_dealloc/tp_clear then acts on an uninitialized value (crash, dominant under OOM). Fix: NULL/initialize these members immediately after the allocation, before the first fallible call.",
+      "file": "Objects/listobject.c"
+    },
+    {
+      "type": "dealloc_of_uninitialized_object",
+      "function": "odictiter_new",
+      "variable": "di",
+      "allocator": "PyObject_GC_New",
+      "line": 1945,
+      "free_line": 1952,
+      "free_call": "Py_DECREF",
+      "unset_members": [
+        "di_current",
+        "di_odict",
+        "kind"
+      ],
+      "unset_members_all": [
+        "di_current",
+        "di_odict",
+        "di_size",
+        "di_state",
+        "kind"
+      ],
+      "destructor_evidence": {
+        "di_current": {
+          "kind": "pointer",
+          "line": 1720
+        },
+        "di_odict": {
+          "kind": "pointer",
+          "line": 1719
+        },
+        "kind": {
+          "kind": "destructor_read",
+          "line": 1721
+        }
+      },
+      "confidence": "medium",
+      "detail": "'di' is allocated via the non-zeroing PyObject_GC_New() and freed with Py_DECREF(di) at line 1952 while di->di_current, di->di_odict, di->kind still hold allocator garbage \u2014 those members are written only *after* the free (or only on a branch that does not dominate it), and the file's destructor decrefs/visits them (see line 1719). tp_dealloc/tp_clear then acts on an uninitialized value (crash, dominant under OOM). Fix: NULL/initialize these members immediately after the allocation, before the first fallible call.",
+      "file": "Objects/odictobject.c"
+    },
+    {
+      "type": "dealloc_of_uninitialized_object",
+      "function": "template_iter",
+      "variable": "iter",
+      "allocator": "PyObject_GC_New",
+      "line": 225,
+      "free_line": 232,
+      "free_call": "Py_DECREF",
+      "unset_members": [
+        "interpolationsiter",
+        "stringsiter"
+      ],
+      "unset_members_all": [
+        "from_strings",
+        "interpolationsiter",
+        "stringsiter"
+      ],
+      "destructor_evidence": {
+        "interpolationsiter": {
+          "kind": "pointer",
+          "line": 54
+        },
+        "stringsiter": {
+          "kind": "pointer",
+          "line": 53
+        }
+      },
+      "confidence": "medium",
+      "detail": "'iter' is allocated via the non-zeroing PyObject_GC_New() and freed with Py_DECREF(iter) at line 232 while iter->interpolationsiter, iter->stringsiter still hold allocator garbage \u2014 those members are written only *after* the free (or only on a branch that does not dominate it), and the file's destructor decrefs/visits them (see line 53). tp_dealloc/tp_clear then acts on an uninitialized value (crash, dominant under OOM). Fix: NULL/initialize these members immediately after the allocation, before the first fallible call.",
+      "file": "Objects/templateobject.c"
+    }
+  ],
+  "summary": {
+    "total_findings": 3,
+    "by_allocator": {
+      "PyObject_GC_New": 3
+    }
+  },
+  "skipped_files": []
+}

@@ -1,0 +1,48 @@
+{
+ "project_root": "/home/danzin/projects/cpython",
+ "scan_root": "/home/danzin/projects/cpython/Objects",
+ "files_analyzed": 113,
+ "functions_analyzed": 4627,
+ "findings": [
+  {
+   "type": "gc_untrack_without_track",
+   "function": "odictiter_new",
+   "line": 1952,
+   "confidence": "low",
+   "detail": "'di' is allocated via PyObject_GC_New() and freed with Py_DECREF() on an error path before any PyObject_GC_Track(di) \u2014 if tp_dealloc runs the untrack macro (_PyObject_GC_UNTRACK) on the never-tracked object the GC invariant is violated (bug class O6; cf. gh-152107 OOM-0006/0017). Ensure the error path does not reach an unconditional untrack, or track before the fallible step.",
+   "file": "Objects/odictobject.c"
+  }
+ ],
+ "summary": {
+  "total_findings": 4,
+  "by_type": {
+   "alloc_size_overflow": 2,
+   "gc_untrack_without_track": 2
+  },
+  "by_confidence": {
+   "medium": 2,
+   "low": 2
+  }
+ },
+ "skipped_files": [],
+ "_sample_filter": {
+  "sample_files": [
+   "Objects/tupleobject.c",
+   "Objects/genericaliasobject.c",
+   "Objects/unionobject.c",
+   "Objects/templateobject.c",
+   "Objects/descrobject.c",
+   "Objects/odictobject.c",
+   "Objects/weakrefobject.c",
+   "Objects/funcobject.c",
+   "Objects/structseq.c",
+   "Objects/iterobject.c",
+   "Objects/capsule.c",
+   "Objects/interpolationobject.c",
+   "Objects/cellobject.c",
+   "Objects/lazyimportobject.c"
+  ],
+  "objects_total_findings": 4,
+  "sample_findings": 1
+ }
+}
