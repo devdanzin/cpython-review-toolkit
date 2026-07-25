@@ -1,0 +1,148 @@
+{
+  "project_root": "/home/danzin/projects/cpython",
+  "scan_root": "/home/danzin/projects/cpython/Modules",
+  "files_analyzed": 484,
+  "functions_analyzed": 10273,
+  "outparam_wrappers": [
+    "arrange_output_buffer_with_maximum"
+  ],
+  "findings": [
+    {
+      "type": "unchecked_alloc",
+      "api_call": "PyBytes_FromStringAndSize",
+      "variable": "bytes",
+      "detail": "Result of PyBytes_FromStringAndSize assigned to 'bytes' is never checked for NULL and is dereferenced (PyBytes_AS_STRING(bytes))",
+      "confidence": "medium",
+      "file": "Modules/_io/winconsoleio.c",
+      "function": "_io__WindowsConsoleIO_readall_impl",
+      "line": 957
+    },
+    {
+      "type": "unchecked_alloc",
+      "api_call": "PyUnicode_FromString",
+      "variable": "value",
+      "detail": "Result of PyUnicode_FromString assigned to 'value' is never checked for NULL and is dereferenced (Py_DECREF(value))",
+      "confidence": "medium",
+      "file": "Modules/_testcapi/hash.c",
+      "function": "hash_getfuncdef",
+      "line": 23
+    },
+    {
+      "type": "unchecked_alloc",
+      "api_call": "PyLong_FromLong",
+      "variable": "value",
+      "detail": "Result of PyLong_FromLong assigned to 'value' is never checked for NULL and is dereferenced (Py_DECREF(value))",
+      "confidence": "medium",
+      "file": "Modules/_testcapi/hash.c",
+      "function": "hash_getfuncdef",
+      "line": 30
+    },
+    {
+      "type": "unchecked_alloc",
+      "api_call": "PyLong_FromLong",
+      "variable": "value",
+      "detail": "Result of PyLong_FromLong assigned to 'value' is never checked for NULL and is dereferenced (Py_DECREF(value))",
+      "confidence": "medium",
+      "file": "Modules/_testcapi/hash.c",
+      "function": "hash_getfuncdef",
+      "line": 37
+    },
+    {
+      "type": "unchecked_alloc",
+      "api_call": "PyUnicode_FromString",
+      "variable": "test_string",
+      "detail": "Result of PyUnicode_FromString assigned to 'test_string' is never checked for NULL and is dereferenced (Py_SET_REFCNT(test_string)",
+      "confidence": "medium",
+      "file": "Modules/_testcapi/object.c",
+      "function": "pyobject_print_noref_object",
+      "line": 64
+    },
+    {
+      "type": "unchecked_alloc",
+      "api_call": "PyList_New",
+      "variable": "obj",
+      "detail": "Result of PyList_New assigned to 'obj' is never checked for NULL and is dereferenced (Py_DECREF(obj))",
+      "confidence": "medium",
+      "file": "Modules/_testcapi/object.c",
+      "function": "pyobject_is_unique_temporary_new_object",
+      "line": 144
+    },
+    {
+      "type": "unchecked_alloc",
+      "api_call": "PyUnicode_FromString",
+      "variable": "unicode",
+      "detail": "Result of PyUnicode_FromString assigned to 'unicode' is never checked for NULL and is dereferenced (Py_DECREF(unicode))",
+      "confidence": "medium",
+      "file": "Modules/_testcapi/object.c",
+      "function": "test_py_set_immortal",
+      "line": 234
+    },
+    {
+      "type": "unchecked_alloc",
+      "api_call": "PyLong_FromLong",
+      "variable": "obj",
+      "detail": "Result of PyLong_FromLong assigned to 'obj' is never checked for NULL and is dereferenced (Py_DECREF(obj))",
+      "confidence": "medium",
+      "file": "Modules/_testcapi/object.c",
+      "function": "test_xincref_doesnt_leak",
+      "line": 252
+    },
+    {
+      "type": "unchecked_alloc",
+      "api_call": "PyLong_FromLong",
+      "variable": "obj",
+      "detail": "Result of PyLong_FromLong assigned to 'obj' is never checked for NULL and is dereferenced (Py_DECREF(obj))",
+      "confidence": "medium",
+      "file": "Modules/_testcapi/object.c",
+      "function": "test_incref_doesnt_leak",
+      "line": 264
+    },
+    {
+      "type": "unchecked_alloc",
+      "api_call": "PyLong_FromLong",
+      "variable": "single",
+      "detail": "Result of PyLong_FromLong assigned to 'single' is never checked for NULL and is dereferenced (Py_DECREF(single))",
+      "confidence": "medium",
+      "file": "Modules/_testcapimodule.c",
+      "function": "profile_int",
+      "line": 867
+    },
+    {
+      "type": "unchecked_alloc",
+      "api_call": "PyLong_FromLong",
+      "variable": "single",
+      "detail": "Result of PyLong_FromLong assigned to 'single' is never checked for NULL and is dereferenced (Py_DECREF(single))",
+      "confidence": "medium",
+      "file": "Modules/_testcapimodule.c",
+      "function": "profile_int",
+      "line": 878
+    },
+    {
+      "type": "unchecked_alloc",
+      "api_call": "PyLong_FromLong",
+      "variable": "op1",
+      "detail": "Result of PyLong_FromLong assigned to 'op1' is never checked for NULL and is dereferenced (Py_DECREF(op1))",
+      "confidence": "medium",
+      "file": "Modules/_testcapimodule.c",
+      "function": "profile_int",
+      "line": 938
+    },
+    {
+      "type": "unchecked_alloc",
+      "api_call": "PyNumber_Add",
+      "variable": "result",
+      "detail": "Result of PyNumber_Add assigned to 'result' is never checked for NULL and is dereferenced (Py_DECREF(result))",
+      "confidence": "medium",
+      "file": "Modules/_testcapimodule.c",
+      "function": "profile_int",
+      "line": 941
+    }
+  ],
+  "summary": {
+    "unchecked_allocations": 13,
+    "deref_before_check": 0,
+    "decref_of_nulled_outparam": 0,
+    "total_findings": 13,
+    "high_confidence": 0
+  }
+}

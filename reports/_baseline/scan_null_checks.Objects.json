@@ -1,0 +1,29 @@
+{
+  "project_root": "/home/danzin/projects/cpython",
+  "scan_root": "/home/danzin/projects/cpython/Objects",
+  "files_analyzed": 123,
+  "functions_analyzed": 4212,
+  "outparam_wrappers": [
+    "PyBytes_Concat",
+    "tuple_extend"
+  ],
+  "findings": [
+    {
+      "type": "decref_of_nulled_outparam",
+      "api_call": "tuple_extend",
+      "variable": "subargs",
+      "detail": "Py_DECREF(subargs) runs in the failure branch of tuple_extend(&subargs, ...), which NULLs its out-parameter on every failure path -- this is a guaranteed Py_DECREF(NULL). The correct forms in-tree assert it instead (Objects/structseq.c:523, Objects/genericaliasobject.c:555).",
+      "confidence": "high",
+      "file": "Objects/genericaliasobject.c",
+      "function": "subs_tvars",
+      "line": 302
+    }
+  ],
+  "summary": {
+    "unchecked_allocations": 0,
+    "deref_before_check": 0,
+    "decref_of_nulled_outparam": 1,
+    "total_findings": 1,
+    "high_confidence": 1
+  }
+}

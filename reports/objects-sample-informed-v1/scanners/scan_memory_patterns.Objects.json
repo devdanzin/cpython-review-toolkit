@@ -1,0 +1,52 @@
+{
+  "project_root": "/home/danzin/projects/cpython",
+  "scan_root": "/home/danzin/projects/cpython/Objects",
+  "files_analyzed": 113,
+  "functions_analyzed": 4627,
+  "findings": [
+    {
+      "type": "alloc_size_overflow",
+      "function": "_PyObject_Call_Prepend",
+      "line": 491,
+      "confidence": "medium",
+      "detail": "PyMem_Malloc() size argument multiplies a Python-controlled operand (argcount) with no visible overflow guard (no PY_SSIZE_T_MAX/size division check, < 0 sign check, or __builtin_mul_overflow before the call). The product can wrap, under-allocating the buffer (bug class R5; cf. gh-3493, gh-1779). Use PyMem_New/PyMem_Calloc (they overflow-check) or add an explicit `n > PY_SSIZE_T_MAX / size` guard.",
+      "file": "Objects/call.c"
+    },
+    {
+      "type": "gc_untrack_without_track",
+      "function": "PyList_New",
+      "line": 262,
+      "confidence": "low",
+      "detail": "'op' is allocated via PyObject_GC_New() and freed with Py_DECREF() on an error path before any PyObject_GC_Track(op) \u2014 if tp_dealloc runs the untrack macro (_PyObject_GC_UNTRACK) on the never-tracked object the GC invariant is violated (bug class O6; cf. gh-152107 OOM-0006/0017). Ensure the error path does not reach an unconditional untrack, or track before the fallible step.",
+      "file": "Objects/listobject.c"
+    },
+    {
+      "type": "alloc_size_overflow",
+      "function": "list_sort_impl",
+      "line": 2985,
+      "confidence": "medium",
+      "detail": "PyMem_Malloc() size argument multiplies a Python-controlled operand (saved_ob_size) with no visible overflow guard (no PY_SSIZE_T_MAX/size division check, < 0 sign check, or __builtin_mul_overflow before the call). The product can wrap, under-allocating the buffer (bug class R5; cf. gh-3493, gh-1779). Use PyMem_New/PyMem_Calloc (they overflow-check) or add an explicit `n > PY_SSIZE_T_MAX / size` guard.",
+      "file": "Objects/listobject.c"
+    },
+    {
+      "type": "gc_untrack_without_track",
+      "function": "odictiter_new",
+      "line": 1952,
+      "confidence": "low",
+      "detail": "'di' is allocated via PyObject_GC_New() and freed with Py_DECREF() on an error path before any PyObject_GC_Track(di) \u2014 if tp_dealloc runs the untrack macro (_PyObject_GC_UNTRACK) on the never-tracked object the GC invariant is violated (bug class O6; cf. gh-152107 OOM-0006/0017). Ensure the error path does not reach an unconditional untrack, or track before the fallible step.",
+      "file": "Objects/odictobject.c"
+    }
+  ],
+  "summary": {
+    "total_findings": 4,
+    "by_type": {
+      "alloc_size_overflow": 2,
+      "gc_untrack_without_track": 2
+    },
+    "by_confidence": {
+      "medium": 2,
+      "low": 2
+    }
+  },
+  "skipped_files": []
+}

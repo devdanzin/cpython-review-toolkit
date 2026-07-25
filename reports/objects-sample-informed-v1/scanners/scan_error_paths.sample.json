@@ -1,0 +1,323 @@
+{
+ "project_root": "/home/danzin/projects/cpython",
+ "scan_root": "/home/danzin/projects/cpython/Objects",
+ "files_analyzed": 123,
+ "functions_analyzed": 3073,
+ "findings": [
+  {
+   "type": "unchecked_return",
+   "api_call": "PyObject_GetAttrString",
+   "variable": "object2",
+   "detail": "Return value of PyObject_GetAttrString assigned to 'object2' is not checked for NULL",
+   "confidence": "medium",
+   "file": "Objects/capsule.c",
+   "function": "PyCapsule_Import",
+   "line": 255
+  },
+  {
+   "type": "unchecked_return",
+   "api_call": "PyUnicode_FromFormat",
+   "variable": "res",
+   "detail": "Return value of PyUnicode_FromFormat assigned to 'res' is not checked for NULL",
+   "confidence": "medium",
+   "file": "Objects/cellobject.c",
+   "function": "cell_repr",
+   "line": 122
+  },
+  {
+   "type": "unchecked_return",
+   "api_call": "PyUnicode_FromFormat",
+   "variable": "res",
+   "detail": "Return value of PyUnicode_FromFormat assigned to 'res' is not checked for NULL",
+   "confidence": "medium",
+   "file": "Objects/descrobject.c",
+   "function": "calculate_qualname",
+   "line": 613
+  },
+  {
+   "type": "unchecked_return",
+   "api_call": "PyObject_RichCompare",
+   "variable": "res",
+   "detail": "Return value of PyObject_RichCompare assigned to 'res' is not checked for NULL",
+   "confidence": "medium",
+   "file": "Objects/descrobject.c",
+   "function": "mappingproxy_richcompare",
+   "line": 1251
+  },
+  {
+   "type": "unchecked_return",
+   "api_call": "PySequence_Tuple",
+   "variable": "tuple_args",
+   "detail": "Return value of PySequence_Tuple assigned to 'tuple_args' is not checked for NULL",
+   "confidence": "medium",
+   "file": "Objects/genericaliasobject.c",
+   "function": "_Py_make_parameters",
+   "line": 190
+  },
+  {
+   "type": "unchecked_return",
+   "api_call": "PyObject_CallFunction",
+   "variable": "tmp",
+   "detail": "Return value of PyObject_CallFunction assigned to 'tmp' is not checked for NULL",
+   "confidence": "medium",
+   "file": "Objects/genericaliasobject.c",
+   "function": "_Py_subs_parameters",
+   "line": 425
+  },
+  {
+   "type": "unchecked_return",
+   "api_call": "PyObject_CallFunction",
+   "variable": "tmp",
+   "detail": "Return value of PyObject_CallFunction assigned to 'tmp' is not checked for NULL",
+   "confidence": "medium",
+   "file": "Objects/genericaliasobject.c",
+   "function": "_Py_subs_parameters",
+   "line": 428
+  },
+  {
+   "type": "unchecked_return",
+   "api_call": "PySequence_Tuple",
+   "variable": "tuple_args",
+   "detail": "Return value of PySequence_Tuple assigned to 'tuple_args' is not checked for NULL",
+   "confidence": "medium",
+   "file": "Objects/genericaliasobject.c",
+   "function": "_Py_subs_parameters",
+   "line": 452
+  },
+  {
+   "type": "unchecked_return",
+   "api_call": "PyObject_Call",
+   "variable": "obj",
+   "detail": "Return value of PyObject_Call assigned to 'obj' is not checked for NULL",
+   "confidence": "medium",
+   "file": "Objects/genericaliasobject.c",
+   "function": "ga_call",
+   "line": 645
+  },
+  {
+   "type": "sparse_error_cleanup",
+   "detail": "Error labels (error) don't appear to DECREF any locally-owned references",
+   "confidence": "low",
+   "file": "Objects/interpolationobject.c",
+   "function": "_PyInterpolation_InitTypes",
+   "line": 163
+  },
+  {
+   "type": "unchecked_return",
+   "api_call": "PySequence_GetItem",
+   "variable": "result",
+   "detail": "Return value of PySequence_GetItem assigned to 'result' is not checked for NULL",
+   "confidence": "medium",
+   "file": "Objects/iterobject.c",
+   "function": "iter_iternext",
+   "line": 68
+  },
+  {
+   "type": "unchecked_return",
+   "api_call": "PyUnicode_FromFormat",
+   "variable": "res",
+   "detail": "Return value of PyUnicode_FromFormat assigned to 'res' is not checked for NULL",
+   "confidence": "medium",
+   "file": "Objects/lazyimportobject.c",
+   "function": "lazy_import_repr",
+   "line": 104
+  },
+  {
+   "type": "unchecked_return",
+   "api_call": "PyUnicode_FromFormat",
+   "variable": "result",
+   "detail": "Return value of PyUnicode_FromFormat assigned to 'result' is not checked for NULL",
+   "confidence": "medium",
+   "file": "Objects/odictobject.c",
+   "function": "odict_repr",
+   "line": 1456
+  },
+  {
+   "type": "unchecked_return",
+   "api_call": "PyIter_Next",
+   "variable": "pair",
+   "detail": "Return value of PyIter_Next assigned to 'pair' is not checked for NULL",
+   "confidence": "medium",
+   "file": "Objects/odictobject.c",
+   "function": "mutablemapping_add_pairs",
+   "line": 2232
+  },
+  {
+   "type": "unchecked_return",
+   "api_call": "PyIter_Next",
+   "variable": "unexpected",
+   "detail": "Return value of PyIter_Next assigned to 'unexpected' is not checked for NULL",
+   "confidence": "medium",
+   "file": "Objects/odictobject.c",
+   "function": "mutablemapping_add_pairs",
+   "line": 2255
+  },
+  {
+   "type": "unchecked_return",
+   "api_call": "PyIter_Next",
+   "variable": "key",
+   "detail": "Return value of PyIter_Next assigned to 'key' is not checked for NULL",
+   "confidence": "medium",
+   "file": "Objects/odictobject.c",
+   "function": "mutablemapping_update_arg",
+   "line": 2312
+  },
+  {
+   "type": "unchecked_return",
+   "api_call": "PyObject_GetItem",
+   "variable": "value",
+   "detail": "Return value of PyObject_GetItem assigned to 'value' is not checked for NULL",
+   "confidence": "medium",
+   "file": "Objects/odictobject.c",
+   "function": "mutablemapping_update_arg",
+   "line": 2313
+  },
+  {
+   "type": "unchecked_return",
+   "api_call": "PyDict_Keys",
+   "variable": "names",
+   "detail": "Return value of PyDict_Keys assigned to 'names' is not checked for NULL",
+   "confidence": "medium",
+   "file": "Objects/structseq.c",
+   "function": "structseq_replace",
+   "line": 434
+  },
+  {
+   "type": "unchecked_return",
+   "api_call": "PyIter_Next",
+   "variable": "item",
+   "detail": "Return value of PyIter_Next assigned to 'item' is not checked for NULL",
+   "confidence": "medium",
+   "file": "Objects/templateobject.c",
+   "function": "templateiter_next",
+   "line": 33
+  },
+  {
+   "type": "unchecked_return",
+   "api_call": "PyTuple_New",
+   "variable": "pv",
+   "detail": "Return value of PyTuple_New assigned to 'pv' is not checked for NULL",
+   "confidence": "medium",
+   "file": "Objects/tupleobject.c",
+   "function": "_PyTuple_Resize",
+   "line": 1065
+  },
+  {
+   "type": "unchecked_return",
+   "api_call": "PyList_New",
+   "variable": "args",
+   "detail": "Return value of PyList_New assigned to 'args' is not checked for NULL",
+   "confidence": "medium",
+   "file": "Objects/unionobject.c",
+   "function": "unionbuilder_init",
+   "line": 143
+  },
+  {
+   "type": "unchecked_return",
+   "api_call": "PyList_New",
+   "variable": "unhashable_args",
+   "detail": "Return value of PyList_New assigned to 'unhashable_args' is not checked for NULL",
+   "confidence": "medium",
+   "file": "Objects/unionobject.c",
+   "function": "unionbuilder_add_single_unchecked",
+   "line": 172
+  },
+  {
+   "type": "unchecked_return",
+   "api_call": "PyUnicode_FromFormat",
+   "variable": "repr",
+   "detail": "Return value of PyUnicode_FromFormat assigned to 'repr' is not checked for NULL",
+   "confidence": "medium",
+   "file": "Objects/weakrefobject.c",
+   "function": "weakref_repr",
+   "line": 224
+  },
+  {
+   "type": "unchecked_return",
+   "api_call": "PyUnicode_FromFormat",
+   "variable": "repr",
+   "detail": "Return value of PyUnicode_FromFormat assigned to 'repr' is not checked for NULL",
+   "confidence": "medium",
+   "file": "Objects/weakrefobject.c",
+   "function": "weakref_repr",
+   "line": 229
+  },
+  {
+   "type": "unchecked_return",
+   "api_call": "PyObject_RichCompare",
+   "variable": "res",
+   "detail": "Return value of PyObject_RichCompare assigned to 'res' is not checked for NULL",
+   "confidence": "medium",
+   "file": "Objects/weakrefobject.c",
+   "function": "weakref_richcompare",
+   "line": 263
+  },
+  {
+   "type": "unchecked_return",
+   "api_call": "PyUnicode_FromFormat",
+   "variable": "repr",
+   "detail": "Return value of PyUnicode_FromFormat assigned to 'repr' is not checked for NULL",
+   "confidence": "medium",
+   "file": "Objects/weakrefobject.c",
+   "function": "proxy_repr",
+   "line": 615
+  },
+  {
+   "type": "unchecked_return",
+   "api_call": "PyUnicode_FromFormat",
+   "variable": "repr",
+   "detail": "Return value of PyUnicode_FromFormat assigned to 'repr' is not checked for NULL",
+   "confidence": "medium",
+   "file": "Objects/weakrefobject.c",
+   "function": "proxy_repr",
+   "line": 621
+  },
+  {
+   "type": "unchecked_return",
+   "api_call": "PyObject_RichCompare",
+   "variable": "res",
+   "detail": "Return value of PyObject_RichCompare assigned to 'res' is not checked for NULL",
+   "confidence": "medium",
+   "file": "Objects/weakrefobject.c",
+   "function": "proxy_richcompare",
+   "line": 646
+  },
+  {
+   "type": "unchecked_return",
+   "api_call": "PyIter_Next",
+   "variable": "res",
+   "detail": "Return value of PyIter_Next assigned to 'res' is not checked for NULL",
+   "confidence": "medium",
+   "file": "Objects/weakrefobject.c",
+   "function": "proxy_iternext",
+   "line": 783
+  }
+ ],
+ "summary": {
+  "missing_null_checks": 0,
+  "unchecked_returns": 137,
+  "return_null_no_exception": 5,
+  "unchecked_parse_calls": 0,
+  "total_findings": 148
+ },
+ "_sample_filter": {
+  "sample_files": [
+   "Objects/tupleobject.c",
+   "Objects/genericaliasobject.c",
+   "Objects/unionobject.c",
+   "Objects/templateobject.c",
+   "Objects/descrobject.c",
+   "Objects/odictobject.c",
+   "Objects/weakrefobject.c",
+   "Objects/funcobject.c",
+   "Objects/structseq.c",
+   "Objects/iterobject.c",
+   "Objects/capsule.c",
+   "Objects/interpolationobject.c",
+   "Objects/cellobject.c",
+   "Objects/lazyimportobject.c"
+  ],
+  "objects_total_findings": 148,
+  "sample_findings": 29
+ }
+}

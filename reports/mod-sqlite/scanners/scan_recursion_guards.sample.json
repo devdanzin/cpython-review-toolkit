@@ -1,0 +1,148 @@
+{
+  "project_root": "/home/danzin/projects/cpython",
+  "scan_root": "/home/danzin/projects/cpython",
+  "files_analyzed": 9,
+  "functions_analyzed": 186,
+  "findings": [
+    {
+      "type": "missing_recursion_guard",
+      "function": "pysqlite_row_hash",
+      "slot": "tp_hash",
+      "shape": "field_element_descent",
+      "element_op": "PyObject_Hash",
+      "argument_kind": "receiver",
+      "tail_call": false,
+      "line": 235,
+      "sites": [
+        {
+          "line": 235,
+          "argument_kind": "receiver",
+          "argument": "self->description",
+          "dispatcher": "PyObject_Hash"
+        },
+        {
+          "line": 239,
+          "argument_kind": "receiver",
+          "argument": "self->data",
+          "dispatcher": "PyObject_Hash"
+        }
+      ],
+      "confidence": "high",
+      "detail": "'pysqlite_row_hash' calls PyObject_Hash on a receiver-derived value (fixed arity \u2014 arity is irrelevant to depth, the value is an arbitrary Python object). PyObject_Hash (Objects/object.c:1158) is an element-descent dispatcher with NO recursion guard, so a tp_hash descent is unguarded at every level: a deeply-nested or cyclic object overflows the C stack (SIGSEGV) instead of raising RecursionError. Bracket the descent with Py_EnterRecursiveCall(\" while hashing\")/Py_LeaveRecursiveCall().",
+      "file": "Modules/_sqlite/row.c"
+    }
+  ],
+  "summary": {
+    "total_findings": 1,
+    "missing_recursion_guard": 1,
+    "guarded_by_dispatcher": 0,
+    "by_confidence": {
+      "high": 1
+    },
+    "by_shape": {
+      "field_element_descent": 1
+    },
+    "by_type": {
+      "missing_recursion_guard": 1
+    }
+  },
+  "recursion_prone_slot_functions": 2,
+  "dispatcher_guard_model": {
+    "unguarded": {
+      "PyObject_Hash": "Objects/object.c:1158 \u2014 NO guard",
+      "_PyObject_HashDictKey": "Include/internal/pycore_object.h:840 \u2014 Py_ALWAYS_INLINE alias, tail-calls PyObject_Hash, so equally unguarded"
+    },
+    "guarded": {
+      "PyObject_Repr": "Objects/object.c:759",
+      "PyObject_Str": "Objects/object.c:800",
+      "PyObject_ASCII": "Objects/object.c:759 (via PyObject_Repr)",
+      "PyObject_RichCompare": "Objects/object.c:1099",
+      "PyObject_RichCompareBool": "Objects/object.c:1099 (via PyObject_RichCompare)"
+    },
+    "bound_zero_excluded": [
+      "PyObject_GenericHash",
+      "Py_HashBuffer",
+      "Py_HashPointer",
+      "PyObject_GenericHash",
+      "Py_HashBuffer",
+      "Py_HashPointer",
+      "PyObject_GenericHash",
+      "Py_HashBuffer",
+      "Py_HashPointer",
+      "PyObject_GenericHash",
+      "Py_HashBuffer",
+      "Py_HashPointer",
+      "PyObject_GenericHash",
+      "Py_HashBuffer",
+      "Py_HashPointer",
+      "PyObject_GenericHash",
+      "Py_HashBuffer",
+      "Py_HashPointer",
+      "PyObject_GenericHash",
+      "Py_HashBuffer",
+      "Py_HashPointer",
+      "PyObject_GenericHash",
+      "Py_HashBuffer",
+      "Py_HashPointer",
+      "PyObject_GenericHash",
+      "Py_HashBuffer",
+      "Py_HashPointer"
+    ],
+    "note": "Verified against CPython main @ 3.16.0a0. Only the hash dispatchers lack _Py_EnterRecursiveCallTstate, so only hash descents are unguarded at every level. Self-recursion is unguarded regardless of dispatcher. bound_zero_excluded lists hash spellings deliberately kept out of the vocabulary because they never descend into the object graph (identity, raw pointer, flat byte range)."
+  },
+  "skipped_files": [],
+  "_sample": {
+    "files_requested": [
+      "Modules/_sqlite/connection.c",
+      "Modules/_sqlite/cursor.c",
+      "Modules/_sqlite/module.c",
+      "Modules/_sqlite/blob.c",
+      "Modules/_sqlite/row.c",
+      "Modules/_sqlite/statement.c",
+      "Modules/_sqlite/util.c",
+      "Modules/_sqlite/microprotocols.c",
+      "Modules/_sqlite/prepare_protocol.c"
+    ],
+    "files_scanned": [
+      "Modules/_sqlite/connection.c",
+      "Modules/_sqlite/cursor.c",
+      "Modules/_sqlite/module.c",
+      "Modules/_sqlite/blob.c",
+      "Modules/_sqlite/row.c",
+      "Modules/_sqlite/statement.c",
+      "Modules/_sqlite/util.c",
+      "Modules/_sqlite/microprotocols.c",
+      "Modules/_sqlite/prepare_protocol.c"
+    ],
+    "files_missing": [],
+    "method": "the scanner was RE-RUN over exactly these files; every count in this report is sample-scoped. This is not a post-hoc filter of a corpus-wide scan -- a filtered report keeps corpus-wide denominators next to sample-scoped findings, which makes an unearned zero look earned.",
+    "merge_policy": {
+      "project_root": "carried (constant, not a count)",
+      "scan_root": "carried (constant, not a count)",
+      "files_analyzed": "summed",
+      "functions_analyzed": "summed",
+      "findings": "concatenated",
+      "summary": "merged key-wise",
+      "summary.total_findings": "summed",
+      "summary.missing_recursion_guard": "summed",
+      "summary.guarded_by_dispatcher": "summed",
+      "summary.by_confidence": "merged key-wise",
+      "summary.by_shape": "merged key-wise",
+      "summary.by_type": "merged key-wise",
+      "recursion_prone_slot_functions": "summed",
+      "dispatcher_guard_model": "merged key-wise",
+      "dispatcher_guard_model.unguarded": "merged key-wise",
+      "dispatcher_guard_model.unguarded.PyObject_Hash": "carried (first)",
+      "dispatcher_guard_model.unguarded._PyObject_HashDictKey": "carried (first)",
+      "dispatcher_guard_model.guarded": "merged key-wise",
+      "dispatcher_guard_model.guarded.PyObject_Repr": "carried (first)",
+      "dispatcher_guard_model.guarded.PyObject_Str": "carried (first)",
+      "dispatcher_guard_model.guarded.PyObject_ASCII": "carried (first)",
+      "dispatcher_guard_model.guarded.PyObject_RichCompare": "carried (first)",
+      "dispatcher_guard_model.guarded.PyObject_RichCompareBool": "carried (first)",
+      "dispatcher_guard_model.bound_zero_excluded": "concatenated",
+      "dispatcher_guard_model.note": "carried (first)",
+      "skipped_files": "concatenated"
+    }
+  }
+}

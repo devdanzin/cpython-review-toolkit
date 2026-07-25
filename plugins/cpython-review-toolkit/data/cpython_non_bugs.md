@@ -517,3 +517,28 @@ main @ 3.16.0a0 and is now gated in the scanner.
   reporting each site as a separate FIX misstates the problem. The scanner caps
   T1 at 4 unsynchronised sites across 2 functions per field for exactly this
   reason — report the wholesale case as one POLICY finding instead.
+
+## Error paths — `int_status_never_tested` (issue #28 rule 4)
+
+- **Symmetric cleanup that must run regardless of the status.**
+  `Modules/_pickle.c` `save_frozenset:3796` is the shape:
+
+  ```c
+  if (self->fast && !fast_save_enter(self, obj)) { return -1; }
+  int status = save_frozenset_impl(state, self, obj);
+  if (self->fast && !fast_save_leave(self, obj)) { return -1; }
+  return status;
+  ```
+
+  The scanner's "the region between the assignment and the read is fallible"
+  gate fires on that intervening `return -1;`, but the intervening call is the
+  *leave* half of an enter/leave pair and is **required** to run on the failure
+  path too. Nothing is committed and nothing is skipped, and `status` reaches
+  the caller unchanged. Tell this apart from the real shape by asking what the
+  intervening code *does*: cleanup that must happen either way is correct,
+  whereas `type_set_bases_unlocked:1966` runs `update_all_slots()` with a live
+  exception and skips its own rollback. **1 of the 2 candidates tree-wide is
+  this class** — check it first.
+- **Accumulate-then-return.** `res = f(); Py_DECREF(x); return res;` with only
+  cleanup in between is correct and is already suppressed by the same gate
+  (160 raw assignments across `Objects/` + `Modules/` + `Python/` reduce to 2).

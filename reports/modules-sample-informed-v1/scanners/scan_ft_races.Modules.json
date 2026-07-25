@@ -1,0 +1,610 @@
+{
+  "project_root": "/home/danzin/projects/cpython",
+  "scan_root": "/home/danzin/projects/cpython/Modules",
+  "files_analyzed": 380,
+  "functions_analyzed": 10457,
+  "findings": [
+    {
+      "type": "atomic_plain_asymmetry",
+      "ft_class": "T1",
+      "file": "Modules/_abc.c",
+      "member": "abc_invalidation_counter",
+      "function": "_abcmodule_exec",
+      "line": 947,
+      "confidence": "low",
+      "detail": "Field 'abc_invalidation_counter' is accessed via an atomic macro (_Py_atomic_* / FT_ATOMIC_*) elsewhere in this file but is read/written plainly here \u2014 one access is unsynchronized (cf. itertools count_repr / TSAN-0006). Make every access to a concurrently-shared field atomic, or hold a lock."
+    },
+    {
+      "type": "lazy_init_no_critical_section",
+      "ft_class": "T2",
+      "function": "task_step_impl",
+      "member": "task->task_must_cancel",
+      "line": 3105,
+      "confidence": "medium",
+      "detail": "Lazy init of 'task->task_must_cancel' guarded only by a NULL check, with no critical section. Under free-threading two threads both observe NULL and both compute/store -> leak + torn/lost write (cf. descr_get_qualname / TSAN-0043). Guard with Py_BEGIN_CRITICAL_SECTION or a compare-exchange.",
+      "file": "Modules/_asynciomodule.c"
+    },
+    {
+      "type": "atomic_plain_asymmetry",
+      "ft_class": "T1",
+      "file": "Modules/_bz2module.c",
+      "member": "eof",
+      "function": "decompress",
+      "line": 528,
+      "confidence": "low",
+      "detail": "Field 'eof' is accessed via an atomic macro (_Py_atomic_* / FT_ATOMIC_*) elsewhere in this file but is read/written plainly here \u2014 one access is unsynchronized (cf. itertools count_repr / TSAN-0006). Make every access to a concurrently-shared field atomic, or hold a lock."
+    },
+    {
+      "type": "atomic_plain_asymmetry",
+      "ft_class": "T1",
+      "file": "Modules/_bz2module.c",
+      "member": "needs_input",
+      "function": "_bz2_BZ2Decompressor_impl",
+      "line": 653,
+      "confidence": "low",
+      "detail": "Field 'needs_input' is accessed via an atomic macro (_Py_atomic_* / FT_ATOMIC_*) elsewhere in this file but is read/written plainly here \u2014 one access is unsynchronized (cf. itertools count_repr / TSAN-0006). Make every access to a concurrently-shared field atomic, or hold a lock."
+    },
+    {
+      "type": "lazy_init_no_critical_section",
+      "ft_class": "T2",
+      "function": "decompress",
+      "member": "d->input_buffer",
+      "line": 560,
+      "confidence": "medium",
+      "detail": "Lazy init of 'd->input_buffer' guarded only by a NULL check, with no critical section. Under free-threading two threads both observe NULL and both compute/store -> leak + torn/lost write (cf. descr_get_qualname / TSAN-0043). Guard with Py_BEGIN_CRITICAL_SECTION or a compare-exchange.",
+      "file": "Modules/_bz2module.c"
+    },
+    {
+      "type": "atomic_plain_asymmetry",
+      "ft_class": "T1",
+      "file": "Modules/_collectionsmodule.c",
+      "member": "counter",
+      "function": "dequeiter_new",
+      "line": 2035,
+      "confidence": "low",
+      "detail": "Field 'counter' is accessed via an atomic macro (_Py_atomic_* / FT_ATOMIC_*) elsewhere in this file but is read/written plainly here \u2014 one access is unsynchronized (cf. itertools count_repr / TSAN-0006). Make every access to a concurrently-shared field atomic, or hold a lock."
+    },
+    {
+      "type": "atomic_plain_asymmetry",
+      "ft_class": "T1",
+      "file": "Modules/_csv.c",
+      "member": "field_limit",
+      "function": "csv_exec",
+      "line": 1804,
+      "confidence": "low",
+      "detail": "Field 'field_limit' is accessed via an atomic macro (_Py_atomic_* / FT_ATOMIC_*) elsewhere in this file but is read/written plainly here \u2014 one access is unsynchronized (cf. itertools count_repr / TSAN-0006). Make every access to a concurrently-shared field atomic, or hold a lock."
+    },
+    {
+      "type": "atomic_plain_asymmetry",
+      "ft_class": "T1",
+      "file": "Modules/_datetimemodule.c",
+      "member": "hashcode",
+      "function": "set_date_fields",
+      "line": 912,
+      "confidence": "low",
+      "detail": "Field 'hashcode' is accessed via an atomic macro (_Py_atomic_* / FT_ATOMIC_*) elsewhere in this file but is read/written plainly here \u2014 one access is unsynchronized (cf. itertools count_repr / TSAN-0006). Make every access to a concurrently-shared field atomic, or hold a lock."
+    },
+    {
+      "type": "lazy_init_no_critical_section",
+      "ft_class": "T2",
+      "function": "pydec_format",
+      "member": "state->PyDecimal",
+      "line": 3702,
+      "confidence": "medium",
+      "detail": "Lazy init of 'state->PyDecimal' guarded only by a NULL check, with no critical section. Under free-threading two threads both observe NULL and both compute/store -> leak + torn/lost write (cf. descr_get_qualname / TSAN-0043). Guard with Py_BEGIN_CRITICAL_SECTION or a compare-exchange.",
+      "file": "Modules/_decimal/_decimal.c"
+    },
+    {
+      "type": "iternext_double_decref",
+      "ft_class": "T3",
+      "function": "elementiter_next",
+      "member": "root_element",
+      "line": 2260,
+      "confidence": "high",
+      "detail": "elementiter_next is a tp_iternext that drops an owning reference to the shared self-member 'root_element' (Py_CLEAR / member=NULL + Py_DECREF) with no Py_BEGIN_CRITICAL_SECTION. Under the free-threaded build two concurrent next() calls read the same borrowed sequence and both DECREF it -> double-free (cf. gh-154130 dict, gh-144357 set, gh-153296 StringIO). Wrap the iternext body in Py_BEGIN_CRITICAL_SECTION(self), or elide the drop under #ifndef Py_GIL_DISABLED the way tupleiter_next / listiter_next / reversed_next do.",
+      "file": "Modules/_elementtree.c"
+    },
+    {
+      "type": "lazy_init_no_critical_section",
+      "ft_class": "T2",
+      "function": "placeholder_new",
+      "member": "state->placeholder",
+      "line": 105,
+      "confidence": "medium",
+      "detail": "Lazy init of 'state->placeholder' guarded only by a NULL check, with no critical section. Under free-threading two threads both observe NULL and both compute/store -> leak + torn/lost write (cf. descr_get_qualname / TSAN-0043). Guard with Py_BEGIN_CRITICAL_SECTION or a compare-exchange.",
+      "file": "Modules/_functoolsmodule.c"
+    },
+    {
+      "type": "atomic_plain_asymmetry",
+      "ft_class": "T1",
+      "file": "Modules/_hashopenssl.c",
+      "member": "evp",
+      "function": "py_hashentry_t_destroy_value",
+      "line": 231,
+      "confidence": "low",
+      "detail": "Field 'evp' is accessed via an atomic macro (_Py_atomic_* / FT_ATOMIC_*) elsewhere in this file but is read/written plainly here \u2014 one access is unsynchronized (cf. itertools count_repr / TSAN-0006). Make every access to a concurrently-shared field atomic, or hold a lock."
+    },
+    {
+      "type": "atomic_plain_asymmetry",
+      "ft_class": "T1",
+      "file": "Modules/_hashopenssl.c",
+      "member": "evp_nosecurity",
+      "function": "py_hashentry_t_destroy_value",
+      "line": 235,
+      "confidence": "low",
+      "detail": "Field 'evp_nosecurity' is accessed via an atomic macro (_Py_atomic_* / FT_ATOMIC_*) elsewhere in this file but is read/written plainly here \u2014 one access is unsynchronized (cf. itertools count_repr / TSAN-0006). Make every access to a concurrently-shared field atomic, or hold a lock."
+    },
+    {
+      "type": "lazy_init_no_critical_section",
+      "ft_class": "T2",
+      "function": "_channelqueue_put",
+      "member": "queue->first",
+      "line": 719,
+      "confidence": "medium",
+      "detail": "Lazy init of 'queue->first' guarded only by a NULL check, with no critical section. Under free-threading two threads both observe NULL and both compute/store -> leak + torn/lost write (cf. descr_get_qualname / TSAN-0043). Guard with Py_BEGIN_CRITICAL_SECTION or a compare-exchange.",
+      "file": "Modules/_interpchannelsmodule.c"
+    },
+    {
+      "type": "lazy_init_no_critical_section",
+      "ft_class": "T2",
+      "function": "set_newline",
+      "member": "self->readnl",
+      "line": 930,
+      "confidence": "medium",
+      "detail": "Lazy init of 'self->readnl' guarded only by a NULL check, with no critical section. Under free-threading two threads both observe NULL and both compute/store -> leak + torn/lost write (cf. descr_get_qualname / TSAN-0043). Guard with Py_BEGIN_CRITICAL_SECTION or a compare-exchange.",
+      "file": "Modules/_io/textio.c"
+    },
+    {
+      "type": "atomic_plain_asymmetry",
+      "ft_class": "T1",
+      "file": "Modules/_lzmamodule.c",
+      "member": "eof",
+      "function": "decompress",
+      "line": 1058,
+      "confidence": "low",
+      "detail": "Field 'eof' is accessed via an atomic macro (_Py_atomic_* / FT_ATOMIC_*) elsewhere in this file but is read/written plainly here \u2014 one access is unsynchronized (cf. itertools count_repr / TSAN-0006). Make every access to a concurrently-shared field atomic, or hold a lock."
+    },
+    {
+      "type": "atomic_plain_asymmetry",
+      "ft_class": "T1",
+      "file": "Modules/_lzmamodule.c",
+      "member": "check",
+      "function": "_lzma_LZMADecompressor_impl",
+      "line": 1255,
+      "confidence": "low",
+      "detail": "Field 'check' is accessed via an atomic macro (_Py_atomic_* / FT_ATOMIC_*) elsewhere in this file but is read/written plainly here \u2014 one access is unsynchronized (cf. itertools count_repr / TSAN-0006). Make every access to a concurrently-shared field atomic, or hold a lock."
+    },
+    {
+      "type": "atomic_plain_asymmetry",
+      "ft_class": "T1",
+      "file": "Modules/_lzmamodule.c",
+      "member": "needs_input",
+      "function": "_lzma_LZMADecompressor_impl",
+      "line": 1256,
+      "confidence": "low",
+      "detail": "Field 'needs_input' is accessed via an atomic macro (_Py_atomic_* / FT_ATOMIC_*) elsewhere in this file but is read/written plainly here \u2014 one access is unsynchronized (cf. itertools count_repr / TSAN-0006). Make every access to a concurrently-shared field atomic, or hold a lock."
+    },
+    {
+      "type": "lazy_init_no_critical_section",
+      "ft_class": "T2",
+      "function": "decompress",
+      "member": "d->input_buffer",
+      "line": 1102,
+      "confidence": "medium",
+      "detail": "Lazy init of 'd->input_buffer' guarded only by a NULL check, with no critical section. Under free-threading two threads both observe NULL and both compute/store -> leak + torn/lost write (cf. descr_get_qualname / TSAN-0043). Guard with Py_BEGIN_CRITICAL_SECTION or a compare-exchange.",
+      "file": "Modules/_lzmamodule.c"
+    },
+    {
+      "type": "lazy_init_no_critical_section",
+      "ft_class": "T2",
+      "function": "_PyMemoTable_ResizeTable",
+      "member": "self->mt_table",
+      "line": 886,
+      "confidence": "medium",
+      "detail": "Lazy init of 'self->mt_table' guarded only by a NULL check, with no critical section. Under free-threading two threads both observe NULL and both compute/store -> leak + torn/lost write (cf. descr_get_qualname / TSAN-0043). Guard with Py_BEGIN_CRITICAL_SECTION or a compare-exchange.",
+      "file": "Modules/_pickle.c"
+    },
+    {
+      "type": "lazy_init_no_critical_section",
+      "ft_class": "T2",
+      "function": "_Unpickler_MemoPut",
+      "member": "self->memo_dict",
+      "line": 1636,
+      "confidence": "medium",
+      "detail": "Lazy init of 'self->memo_dict' guarded only by a NULL check, with no critical section. Under free-threading two threads both observe NULL and both compute/store -> leak + torn/lost write (cf. descr_get_qualname / TSAN-0043). Guard with Py_BEGIN_CRITICAL_SECTION or a compare-exchange.",
+      "file": "Modules/_pickle.c"
+    },
+    {
+      "type": "lazy_init_no_critical_section",
+      "ft_class": "T2",
+      "function": "fast_save_enter",
+      "member": "self->fast_memo",
+      "line": 2188,
+      "confidence": "medium",
+      "detail": "Lazy init of 'self->fast_memo' guarded only by a NULL check, with no critical section. Under free-threading two threads both observe NULL and both compute/store -> leak + torn/lost write (cf. descr_get_qualname / TSAN-0043). Guard with Py_BEGIN_CRITICAL_SECTION or a compare-exchange.",
+      "file": "Modules/_pickle.c"
+    },
+    {
+      "type": "lazy_init_no_critical_section",
+      "ft_class": "T2",
+      "function": "_pickle_Pickler___init___impl",
+      "member": "self->memo",
+      "line": 5059,
+      "confidence": "medium",
+      "detail": "Lazy init of 'self->memo' guarded only by a NULL check, with no critical section. Under free-threading two threads both observe NULL and both compute/store -> leak + torn/lost write (cf. descr_get_qualname / TSAN-0043). Guard with Py_BEGIN_CRITICAL_SECTION or a compare-exchange.",
+      "file": "Modules/_pickle.c"
+    },
+    {
+      "type": "lazy_init_no_critical_section",
+      "ft_class": "T2",
+      "function": "process_thread_sample",
+      "member": "entry->pending_rle",
+      "line": 974,
+      "confidence": "medium",
+      "detail": "Lazy init of 'entry->pending_rle' guarded only by a NULL check, with no critical section. Under free-threading two threads both observe NULL and both compute/store -> leak + torn/lost write (cf. descr_get_qualname / TSAN-0043). Guard with Py_BEGIN_CRITICAL_SECTION or a compare-exchange.",
+      "file": "Modules/_remote_debugging/binary_io_writer.c"
+    },
+    {
+      "type": "lazy_init_no_critical_section",
+      "ft_class": "T2",
+      "function": "frame_cache_store",
+      "member": "entry->thread_id_obj",
+      "line": 354,
+      "confidence": "medium",
+      "detail": "Lazy init of 'entry->thread_id_obj' guarded only by a NULL check, with no critical section. Under free-threading two threads both observe NULL and both compute/store -> leak + torn/lost write (cf. descr_get_qualname / TSAN-0043). Guard with Py_BEGIN_CRITICAL_SECTION or a compare-exchange.",
+      "file": "Modules/_remote_debugging/frame_cache.c"
+    },
+    {
+      "type": "lazy_init_no_critical_section",
+      "ft_class": "T2",
+      "function": "RemoteDebugging_GetStateFromObject",
+      "member": "unwinder->cached_state",
+      "line": 193,
+      "confidence": "medium",
+      "detail": "Lazy init of 'unwinder->cached_state' guarded only by a NULL check, with no critical section. Under free-threading two threads both observe NULL and both compute/store -> leak + torn/lost write (cf. descr_get_qualname / TSAN-0043). Guard with Py_BEGIN_CRITICAL_SECTION or a compare-exchange.",
+      "file": "Modules/_remote_debugging/module.c"
+    },
+    {
+      "type": "lazy_init_no_critical_section",
+      "ft_class": "T2",
+      "function": "pysqlite_connection_init_impl",
+      "member": "self->initialized",
+      "line": 246,
+      "confidence": "medium",
+      "detail": "Lazy init of 'self->initialized' guarded only by a NULL check, with no critical section. Under free-threading two threads both observe NULL and both compute/store -> leak + torn/lost write (cf. descr_get_qualname / TSAN-0043). Guard with Py_BEGIN_CRITICAL_SECTION or a compare-exchange.",
+      "file": "Modules/_sqlite/connection.c"
+    },
+    {
+      "type": "iternext_double_decref",
+      "ft_class": "T3",
+      "function": "pysqlite_cursor_iternext",
+      "member": "statement",
+      "line": 1164,
+      "confidence": "high",
+      "detail": "pysqlite_cursor_iternext is a tp_iternext that drops an owning reference to the shared self-member 'statement' (Py_CLEAR / member=NULL + Py_DECREF) with no Py_BEGIN_CRITICAL_SECTION. Under the free-threaded build two concurrent next() calls read the same borrowed sequence and both DECREF it -> double-free (cf. gh-154130 dict, gh-144357 set, gh-153296 StringIO). Wrap the iternext body in Py_BEGIN_CRITICAL_SECTION(self), or elide the drop under #ifndef Py_GIL_DISABLED the way tupleiter_next / listiter_next / reversed_next do.",
+      "file": "Modules/_sqlite/cursor.c"
+    },
+    {
+      "type": "atomic_plain_asymmetry",
+      "ft_class": "T1",
+      "file": "Modules/_sre/sre.c",
+      "member": "compile_template",
+      "function": "sre_traverse",
+      "line": 3579,
+      "confidence": "low",
+      "detail": "Field 'compile_template' is accessed via an atomic macro (_Py_atomic_* / FT_ATOMIC_*) elsewhere in this file but is read/written plainly here \u2014 one access is unsynchronized (cf. itertools count_repr / TSAN-0006). Make every access to a concurrently-shared field atomic, or hold a lock."
+    },
+    {
+      "type": "iternext_double_decref",
+      "ft_class": "T3",
+      "function": "unpackiter_iternext",
+      "member": "so",
+      "line": 2270,
+      "confidence": "high",
+      "detail": "unpackiter_iternext is a tp_iternext that drops an owning reference to the shared self-member 'so' (Py_CLEAR / member=NULL + Py_DECREF) with no Py_BEGIN_CRITICAL_SECTION. Under the free-threaded build two concurrent next() calls read the same borrowed sequence and both DECREF it -> double-free (cf. gh-154130 dict, gh-144357 set, gh-153296 StringIO). Wrap the iternext body in Py_BEGIN_CRITICAL_SECTION(self), or elide the drop under #ifndef Py_GIL_DISABLED the way tupleiter_next / listiter_next / reversed_next do.",
+      "file": "Modules/_struct.c"
+    },
+    {
+      "type": "atomic_plain_asymmetry",
+      "ft_class": "T1",
+      "file": "Modules/_testinternalcapi/test_cases.c.h",
+      "member": "op",
+      "function": null,
+      "line": 455,
+      "confidence": "low",
+      "detail": "Field 'op' is accessed via an atomic macro (_Py_atomic_* / FT_ATOMIC_*) elsewhere in this file but is read/written plainly here \u2014 one access is unsynchronized (cf. itertools count_repr / TSAN-0006). Make every access to a concurrently-shared field atomic, or hold a lock."
+    },
+    {
+      "type": "atomic_plain_asymmetry",
+      "ft_class": "T1",
+      "file": "Modules/_testinternalcapi/test_cases.c.h",
+      "member": "me_value",
+      "function": null,
+      "line": 9233,
+      "confidence": "low",
+      "detail": "Field 'me_value' is accessed via an atomic macro (_Py_atomic_* / FT_ATOMIC_*) elsewhere in this file but is read/written plainly here \u2014 one access is unsynchronized (cf. itertools count_repr / TSAN-0006). Make every access to a concurrently-shared field atomic, or hold a lock."
+    },
+    {
+      "type": "atomic_plain_asymmetry",
+      "ft_class": "T1",
+      "file": "Modules/_testinternalcapi/test_cases.c.h",
+      "member": "gi_frame_state",
+      "function": null,
+      "line": 11511,
+      "confidence": "low",
+      "detail": "Field 'gi_frame_state' is accessed via an atomic macro (_Py_atomic_* / FT_ATOMIC_*) elsewhere in this file but is read/written plainly here \u2014 one access is unsynchronized (cf. itertools count_repr / TSAN-0006). Make every access to a concurrently-shared field atomic, or hold a lock."
+    },
+    {
+      "type": "atomic_plain_asymmetry",
+      "ft_class": "T1",
+      "file": "Modules/_testinternalcapi/test_cases.c.h",
+      "member": "ma_keys",
+      "function": null,
+      "line": 12285,
+      "confidence": "low",
+      "detail": "Field 'ma_keys' is accessed via an atomic macro (_Py_atomic_* / FT_ATOMIC_*) elsewhere in this file but is read/written plainly here \u2014 one access is unsynchronized (cf. itertools count_repr / TSAN-0006). Make every access to a concurrently-shared field atomic, or hold a lock."
+    },
+    {
+      "type": "atomic_plain_asymmetry",
+      "ft_class": "T1",
+      "file": "Modules/_testinternalcapi/test_cases.c.h",
+      "member": "me_key",
+      "function": null,
+      "line": 12295,
+      "confidence": "low",
+      "detail": "Field 'me_key' is accessed via an atomic macro (_Py_atomic_* / FT_ATOMIC_*) elsewhere in this file but is read/written plainly here \u2014 one access is unsynchronized (cf. itertools count_repr / TSAN-0006). Make every access to a concurrently-shared field atomic, or hold a lock."
+    },
+    {
+      "type": "lazy_init_no_critical_section",
+      "ft_class": "T2",
+      "function": "Example_setattr",
+      "member": "self->x_attr",
+      "line": 98,
+      "confidence": "medium",
+      "detail": "Lazy init of 'self->x_attr' guarded only by a NULL check, with no critical section. Under free-threading two threads both observe NULL and both compute/store -> leak + torn/lost write (cf. descr_get_qualname / TSAN-0043). Guard with Py_BEGIN_CRITICAL_SECTION or a compare-exchange.",
+      "file": "Modules/_testmultiphase.c"
+    },
+    {
+      "type": "atomic_plain_asymmetry",
+      "ft_class": "T1",
+      "file": "Modules/_threadmodule.c",
+      "member": "lock",
+      "function": "_thread_lock_release_impl",
+      "line": 885,
+      "confidence": "low",
+      "detail": "Field 'lock' is accessed via an atomic macro (_Py_atomic_* / FT_ATOMIC_*) elsewhere in this file but is read/written plainly here \u2014 one access is unsynchronized (cf. itertools count_repr / TSAN-0006). Make every access to a concurrently-shared field atomic, or hold a lock."
+    },
+    {
+      "type": "lazy_init_no_critical_section",
+      "ft_class": "T2",
+      "function": "PyTclObject_string",
+      "member": "self->string",
+      "line": 881,
+      "confidence": "medium",
+      "detail": "Lazy init of 'self->string' guarded only by a NULL check, with no critical section. Under free-threading two threads both observe NULL and both compute/store -> leak + torn/lost write (cf. descr_get_qualname / TSAN-0043). Guard with Py_BEGIN_CRITICAL_SECTION or a compare-exchange.",
+      "file": "Modules/_tkinter.c"
+    },
+    {
+      "type": "iternext_double_decref",
+      "ft_class": "T3",
+      "function": "arrayiter_next",
+      "member": "ao",
+      "line": 3247,
+      "confidence": "high",
+      "detail": "arrayiter_next is a tp_iternext that drops an owning reference to the shared self-member 'ao' (Py_CLEAR / member=NULL + Py_DECREF) with no Py_BEGIN_CRITICAL_SECTION. Under the free-threaded build two concurrent next() calls read the same borrowed sequence and both DECREF it -> double-free (cf. gh-154130 dict, gh-144357 set, gh-153296 StringIO). Wrap the iternext body in Py_BEGIN_CRITICAL_SECTION(self), or elide the drop under #ifndef Py_GIL_DISABLED the way tupleiter_next / listiter_next / reversed_next do.",
+      "file": "Modules/arraymodule.c"
+    },
+    {
+      "type": "lazy_init_no_critical_section",
+      "ft_class": "T2",
+      "function": "array_array___reduce_ex___impl",
+      "member": "state->array_reconstructor",
+      "line": 2510,
+      "confidence": "medium",
+      "detail": "Lazy init of 'state->array_reconstructor' guarded only by a NULL check, with no critical section. Under free-threading two threads both observe NULL and both compute/store -> leak + torn/lost write (cf. descr_get_qualname / TSAN-0043). Guard with Py_BEGIN_CRITICAL_SECTION or a compare-exchange.",
+      "file": "Modules/arraymodule.c"
+    },
+    {
+      "type": "lazy_init_no_critical_section",
+      "ft_class": "T2",
+      "function": "array_buffer_getbuf",
+      "member": "view->buf",
+      "line": 2893,
+      "confidence": "medium",
+      "detail": "Lazy init of 'view->buf' guarded only by a NULL check, with no critical section. Under free-threading two threads both observe NULL and both compute/store -> leak + torn/lost write (cf. descr_get_qualname / TSAN-0043). Guard with Py_BEGIN_CRITICAL_SECTION or a compare-exchange.",
+      "file": "Modules/arraymodule.c"
+    },
+    {
+      "type": "lazy_init_no_critical_section",
+      "ft_class": "T2",
+      "function": "doProlog",
+      "member": "parser->m_declEntity",
+      "line": 5704,
+      "confidence": "medium",
+      "detail": "Lazy init of 'parser->m_declEntity' guarded only by a NULL check, with no critical section. Under free-threading two threads both observe NULL and both compute/store -> leak + torn/lost write (cf. descr_get_qualname / TSAN-0043). Guard with Py_BEGIN_CRITICAL_SECTION or a compare-exchange.",
+      "file": "Modules/expat/xmlparse.c"
+    },
+    {
+      "type": "atomic_plain_asymmetry",
+      "ft_class": "T1",
+      "file": "Modules/gcmodule.c",
+      "member": "young",
+      "function": "gc_set_threshold_impl",
+      "line": 172,
+      "confidence": "low",
+      "detail": "Field 'young' is accessed via an atomic macro (_Py_atomic_* / FT_ATOMIC_*) elsewhere in this file but is read/written plainly here \u2014 one access is unsynchronized (cf. itertools count_repr / TSAN-0006). Make every access to a concurrently-shared field atomic, or hold a lock."
+    },
+    {
+      "type": "atomic_plain_asymmetry",
+      "ft_class": "T1",
+      "file": "Modules/itertoolsmodule.c",
+      "member": "index",
+      "function": "itertools_cycle_impl",
+      "line": 1247,
+      "confidence": "low",
+      "detail": "Field 'index' is accessed via an atomic macro (_Py_atomic_* / FT_ATOMIC_*) elsewhere in this file but is read/written plainly here \u2014 one access is unsynchronized (cf. itertools count_repr / TSAN-0006). Make every access to a concurrently-shared field atomic, or hold a lock."
+    },
+    {
+      "type": "atomic_plain_asymmetry",
+      "ft_class": "T1",
+      "file": "Modules/itertoolsmodule.c",
+      "member": "cnt",
+      "function": "islice_next",
+      "line": 1710,
+      "confidence": "low",
+      "detail": "Field 'cnt' is accessed via an atomic macro (_Py_atomic_* / FT_ATOMIC_*) elsewhere in this file but is read/written plainly here \u2014 one access is unsynchronized (cf. itertools count_repr / TSAN-0006). Make every access to a concurrently-shared field atomic, or hold a lock."
+    },
+    {
+      "type": "iternext_double_decref",
+      "ft_class": "T3",
+      "function": "pairwise_next",
+      "member": "it",
+      "line": 361,
+      "confidence": "high",
+      "detail": "pairwise_next is a tp_iternext that drops an owning reference to the shared self-member 'it' (Py_CLEAR / member=NULL + Py_DECREF) with no Py_BEGIN_CRITICAL_SECTION. Under the free-threaded build two concurrent next() calls read the same borrowed sequence and both DECREF it -> double-free (cf. gh-154130 dict, gh-144357 set, gh-153296 StringIO). Wrap the iternext body in Py_BEGIN_CRITICAL_SECTION(self), or elide the drop under #ifndef Py_GIL_DISABLED the way tupleiter_next / listiter_next / reversed_next do.",
+      "file": "Modules/itertoolsmodule.c"
+    },
+    {
+      "type": "iternext_double_decref",
+      "ft_class": "T3",
+      "function": "groupby_next",
+      "member": "currgrouper",
+      "line": 537,
+      "confidence": "high",
+      "detail": "groupby_next is a tp_iternext that drops an owning reference to the shared self-member 'currgrouper' (Py_CLEAR / member=NULL + Py_DECREF) with no Py_BEGIN_CRITICAL_SECTION. Under the free-threaded build two concurrent next() calls read the same borrowed sequence and both DECREF it -> double-free (cf. gh-154130 dict, gh-144357 set, gh-153296 StringIO). Wrap the iternext body in Py_BEGIN_CRITICAL_SECTION(self), or elide the drop under #ifndef Py_GIL_DISABLED the way tupleiter_next / listiter_next / reversed_next do.",
+      "file": "Modules/itertoolsmodule.c"
+    },
+    {
+      "type": "iternext_double_decref",
+      "ft_class": "T3",
+      "function": "_grouper_next",
+      "member": "currvalue",
+      "line": 692,
+      "confidence": "high",
+      "detail": "_grouper_next is a tp_iternext that drops an owning reference to the shared self-member 'currvalue' (Py_CLEAR / member=NULL + Py_DECREF) with no Py_BEGIN_CRITICAL_SECTION. Under the free-threaded build two concurrent next() calls read the same borrowed sequence and both DECREF it -> double-free (cf. gh-154130 dict, gh-144357 set, gh-153296 StringIO). Wrap the iternext body in Py_BEGIN_CRITICAL_SECTION(self), or elide the drop under #ifndef Py_GIL_DISABLED the way tupleiter_next / listiter_next / reversed_next do.",
+      "file": "Modules/itertoolsmodule.c"
+    },
+    {
+      "type": "iternext_double_decref",
+      "ft_class": "T3",
+      "function": "islice_next",
+      "member": "it",
+      "line": 1732,
+      "confidence": "high",
+      "detail": "islice_next is a tp_iternext that drops an owning reference to the shared self-member 'it' (Py_CLEAR / member=NULL + Py_DECREF) with no Py_BEGIN_CRITICAL_SECTION. Under the free-threaded build two concurrent next() calls read the same borrowed sequence and both DECREF it -> double-free (cf. gh-154130 dict, gh-144357 set, gh-153296 StringIO). Wrap the iternext body in Py_BEGIN_CRITICAL_SECTION(self), or elide the drop under #ifndef Py_GIL_DISABLED the way tupleiter_next / listiter_next / reversed_next do.",
+      "file": "Modules/itertoolsmodule.c"
+    },
+    {
+      "type": "lazy_init_no_critical_section",
+      "ft_class": "T2",
+      "function": "count_nextlong",
+      "member": "lz->long_cnt",
+      "line": 3622,
+      "confidence": "medium",
+      "detail": "Lazy init of 'lz->long_cnt' guarded only by a NULL check, with no critical section. Under free-threading two threads both observe NULL and both compute/store -> leak + torn/lost write (cf. descr_get_qualname / TSAN-0043). Guard with Py_BEGIN_CRITICAL_SECTION or a compare-exchange.",
+      "file": "Modules/itertoolsmodule.c"
+    },
+    {
+      "type": "lazy_init_no_critical_section",
+      "ft_class": "T2",
+      "function": "xmlparse_buffer_text_setter",
+      "member": "self->buffer",
+      "line": 1810,
+      "confidence": "medium",
+      "detail": "Lazy init of 'self->buffer' guarded only by a NULL check, with no critical section. Under free-threading two threads both observe NULL and both compute/store -> leak + torn/lost write (cf. descr_get_qualname / TSAN-0043). Guard with Py_BEGIN_CRITICAL_SECTION or a compare-exchange.",
+      "file": "Modules/pyexpat.c"
+    },
+    {
+      "type": "lazy_init_no_critical_section",
+      "ft_class": "T2",
+      "function": "update_ufd_array",
+      "member": "self->ufds",
+      "line": 460,
+      "confidence": "medium",
+      "detail": "Lazy init of 'self->ufds' guarded only by a NULL check, with no critical section. Under free-threading two threads both observe NULL and both compute/store -> leak + torn/lost write (cf. descr_get_qualname / TSAN-0043). Guard with Py_BEGIN_CRITICAL_SECTION or a compare-exchange.",
+      "file": "Modules/selectmodule.c"
+    },
+    {
+      "type": "lazy_init_no_critical_section",
+      "ft_class": "T2",
+      "function": "Xxo_setattr",
+      "member": "self->x_attr",
+      "line": 106,
+      "confidence": "medium",
+      "detail": "Lazy init of 'self->x_attr' guarded only by a NULL check, with no critical section. Under free-threading two threads both observe NULL and both compute/store -> leak + torn/lost write (cf. descr_get_qualname / TSAN-0043). Guard with Py_BEGIN_CRITICAL_SECTION or a compare-exchange.",
+      "file": "Modules/xxlimited_35.c"
+    },
+    {
+      "type": "lazy_init_no_critical_section",
+      "ft_class": "T2",
+      "function": "Xxo_setattro",
+      "member": "self->x_attr",
+      "line": 196,
+      "confidence": "medium",
+      "detail": "Lazy init of 'self->x_attr' guarded only by a NULL check, with no critical section. Under free-threading two threads both observe NULL and both compute/store -> leak + torn/lost write (cf. descr_get_qualname / TSAN-0043). Guard with Py_BEGIN_CRITICAL_SECTION or a compare-exchange.",
+      "file": "Modules/xxlimited_3_13.c"
+    },
+    {
+      "type": "lazy_init_no_critical_section",
+      "ft_class": "T2",
+      "function": "Xxo_setattr",
+      "member": "self->x_attr",
+      "line": 85,
+      "confidence": "medium",
+      "detail": "Lazy init of 'self->x_attr' guarded only by a NULL check, with no critical section. Under free-threading two threads both observe NULL and both compute/store -> leak + torn/lost write (cf. descr_get_qualname / TSAN-0043). Guard with Py_BEGIN_CRITICAL_SECTION or a compare-exchange.",
+      "file": "Modules/xxmodule.c"
+    },
+    {
+      "type": "atomic_plain_asymmetry",
+      "ft_class": "T1",
+      "file": "Modules/zlibmodule.c",
+      "member": "eof",
+      "function": "newcompobject",
+      "line": 273,
+      "confidence": "low",
+      "detail": "Field 'eof' is accessed via an atomic macro (_Py_atomic_* / FT_ATOMIC_*) elsewhere in this file but is read/written plainly here \u2014 one access is unsynchronized (cf. itertools count_repr / TSAN-0006). Make every access to a concurrently-shared field atomic, or hold a lock."
+    },
+    {
+      "type": "atomic_plain_asymmetry",
+      "ft_class": "T1",
+      "file": "Modules/zlibmodule.c",
+      "member": "needs_input",
+      "function": "zlib__ZlibDecompressor_impl",
+      "line": 1747,
+      "confidence": "low",
+      "detail": "Field 'needs_input' is accessed via an atomic macro (_Py_atomic_* / FT_ATOMIC_*) elsewhere in this file but is read/written plainly here \u2014 one access is unsynchronized (cf. itertools count_repr / TSAN-0006). Make every access to a concurrently-shared field atomic, or hold a lock."
+    },
+    {
+      "type": "lazy_init_no_critical_section",
+      "ft_class": "T2",
+      "function": "decompress",
+      "member": "self->input_buffer",
+      "line": 1655,
+      "confidence": "medium",
+      "detail": "Lazy init of 'self->input_buffer' guarded only by a NULL check, with no critical section. Under free-threading two threads both observe NULL and both compute/store -> leak + torn/lost write (cf. descr_get_qualname / TSAN-0043). Guard with Py_BEGIN_CRITICAL_SECTION or a compare-exchange.",
+      "file": "Modules/zlibmodule.c"
+    }
+  ],
+  "summary": {
+    "total_findings": 58,
+    "by_class": {
+      "T1": 23,
+      "T2": 27,
+      "T3": 8
+    },
+    "by_type": {
+      "atomic_plain_asymmetry": 23,
+      "lazy_init_no_critical_section": 27,
+      "iternext_double_decref": 8
+    },
+    "by_confidence": {
+      "low": 23,
+      "medium": 27,
+      "high": 8
+    }
+  },
+  "iternext_functions": 40,
+  "lock_held_functions": 81,
+  "files_with_ft_regions": 36,
+  "skipped_files": []
+}

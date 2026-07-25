@@ -1,0 +1,189 @@
+{
+  "project_root": "/home/danzin/projects/cpython",
+  "scan_root": "/home/danzin/projects/cpython",
+  "files_analyzed": 7,
+  "functions_analyzed": 289,
+  "findings": [
+    {
+      "type": "guarded_writer_unguarded_reader",
+      "ft_class": "T1",
+      "file": "Modules/_io/bufferedio.c",
+      "member": "buffered.abs_pos",
+      "function": "_buffered_raw_tell",
+      "line": 800,
+      "guarded_twin": "_buffered_raw_seek:833",
+      "confidence": "low",
+      "detail": "'buffered.abs_pos' (`self->abs_pos`) is accessed under a critical section at _buffered_raw_seek:833 but is written plainly here, with nothing synchronising it. A lock held by only some accessors of a field serialises nothing: the guarded and unguarded accessors race each other. This is the shape of gh-153298 (ga_parameters / CPY-0025), gh-128714 (func.__annotations__ / CPY-0029) and gh-153908 (itertools count_repr). Py_ssize_t does not tear on LP64, so the visible effect is a stale value rather than memory unsafety \u2014 one FT_ATOMIC_* on each access is the fix. Guarded twin: _buffered_raw_seek:833."
+    },
+    {
+      "type": "guarded_writer_unguarded_reader",
+      "ft_class": "T1",
+      "file": "Modules/_io/bufferedio.c",
+      "member": "buffered.buffer",
+      "function": "_buffered_init",
+      "line": 846,
+      "guarded_twin": "_io__Buffered_close_impl:595",
+      "confidence": "medium",
+      "detail": "'buffered.buffer' (`self->buffer`) is accessed under a critical section at _io__Buffered_close_impl:595 but is read plainly here, with nothing synchronising it. A lock held by only some accessors of a field serialises nothing: the guarded and unguarded accessors race each other. This is the shape of gh-153298 (ga_parameters / CPY-0025), gh-128714 (func.__annotations__ / CPY-0029) and gh-153908 (itertools count_repr). The field is a pointer and the guarded twin can free it, so the unguarded reader can hand a freed object to arbitrary Python \u2014 a use-after-free, which an atomic load cannot fix; take the same critical section. Guarded twin: _io__Buffered_close_impl:595."
+    },
+    {
+      "type": "guarded_writer_unguarded_reader",
+      "ft_class": "T1",
+      "file": "Modules/_io/bufferedio.c",
+      "member": "buffered.buffer",
+      "function": "_buffered_init",
+      "line": 847,
+      "guarded_twin": "_io__Buffered_close_impl:595",
+      "confidence": "medium",
+      "detail": "'buffered.buffer' (`self->buffer`) is accessed under a critical section at _io__Buffered_close_impl:595 but is read plainly here, with nothing synchronising it. A lock held by only some accessors of a field serialises nothing: the guarded and unguarded accessors race each other. This is the shape of gh-153298 (ga_parameters / CPY-0025), gh-128714 (func.__annotations__ / CPY-0029) and gh-153908 (itertools count_repr). The field is a pointer and the guarded twin can free it, so the unguarded reader can hand a freed object to arbitrary Python \u2014 a use-after-free, which an atomic load cannot fix; take the same critical section. Guarded twin: _io__Buffered_close_impl:595."
+    },
+    {
+      "type": "guarded_writer_unguarded_reader",
+      "ft_class": "T1",
+      "file": "Modules/_io/bufferedio.c",
+      "member": "buffered.buffer",
+      "function": "_buffered_init",
+      "line": 849,
+      "guarded_twin": "_io__Buffered_close_impl:595",
+      "confidence": "medium",
+      "detail": "'buffered.buffer' (`self->buffer`) is accessed under a critical section at _io__Buffered_close_impl:595 but is read plainly here, with nothing synchronising it. A lock held by only some accessors of a field serialises nothing: the guarded and unguarded accessors race each other. This is the shape of gh-153298 (ga_parameters / CPY-0025), gh-128714 (func.__annotations__ / CPY-0029) and gh-153908 (itertools count_repr). The field is a pointer and the guarded twin can free it, so the unguarded reader can hand a freed object to arbitrary Python \u2014 a use-after-free, which an atomic load cannot fix; take the same critical section. Guarded twin: _io__Buffered_close_impl:595."
+    },
+    {
+      "type": "guarded_writer_unguarded_reader",
+      "ft_class": "T1",
+      "file": "Modules/_io/bufferedio.c",
+      "member": "buffered.read_end",
+      "function": "_bufferedreader_reset_buf",
+      "line": 1580,
+      "guarded_twin": "_io__Buffered_close_impl:603",
+      "confidence": "low",
+      "detail": "'buffered.read_end' (`self->read_end`) is accessed under a critical section at _io__Buffered_close_impl:603 but is written plainly here, with nothing synchronising it. A lock held by only some accessors of a field serialises nothing: the guarded and unguarded accessors race each other. This is the shape of gh-153298 (ga_parameters / CPY-0025), gh-128714 (func.__annotations__ / CPY-0029) and gh-153908 (itertools count_repr). Py_ssize_t does not tear on LP64, so the visible effect is a stale value rather than memory unsafety \u2014 one FT_ATOMIC_* on each access is the fix. Guarded twin: _io__Buffered_close_impl:603."
+    },
+    {
+      "type": "guarded_writer_unguarded_reader",
+      "ft_class": "T1",
+      "file": "Modules/_io/bufferedio.c",
+      "member": "buffered.write_pos",
+      "function": "_bufferedwriter_reset_buf",
+      "line": 1927,
+      "guarded_twin": "_bufferedwriter_flush_unlocked:2052",
+      "confidence": "low",
+      "detail": "'buffered.write_pos' (`self->write_pos`) is accessed under a critical section at _bufferedwriter_flush_unlocked:2052 but is written plainly here, with nothing synchronising it. A lock held by only some accessors of a field serialises nothing: the guarded and unguarded accessors race each other. This is the shape of gh-153298 (ga_parameters / CPY-0025), gh-128714 (func.__annotations__ / CPY-0029) and gh-153908 (itertools count_repr). Py_ssize_t does not tear on LP64, so the visible effect is a stale value rather than memory unsafety \u2014 one FT_ATOMIC_* on each access is the fix. Guarded twin: _bufferedwriter_flush_unlocked:2052."
+    },
+    {
+      "type": "guarded_writer_unguarded_reader",
+      "ft_class": "T1",
+      "file": "Modules/_io/bufferedio.c",
+      "member": "buffered.write_end",
+      "function": "_bufferedwriter_reset_buf",
+      "line": 1928,
+      "guarded_twin": "_io_BufferedWriter_write_impl:2124",
+      "confidence": "low",
+      "detail": "'buffered.write_end' (`self->write_end`) is accessed under a critical section at _io_BufferedWriter_write_impl:2124 but is written plainly here, with nothing synchronising it. A lock held by only some accessors of a field serialises nothing: the guarded and unguarded accessors race each other. This is the shape of gh-153298 (ga_parameters / CPY-0025), gh-128714 (func.__annotations__ / CPY-0029) and gh-153908 (itertools count_repr). Py_ssize_t does not tear on LP64, so the visible effect is a stale value rather than memory unsafety \u2014 one FT_ATOMIC_* on each access is the fix. Guarded twin: _io_BufferedWriter_write_impl:2124."
+    },
+    {
+      "type": "guarded_writer_unguarded_reader",
+      "ft_class": "T1",
+      "file": "Modules/_io/textio.c",
+      "member": "nldecoder_object.seennl",
+      "function": "incrementalnewlinedecoder_newlines_get",
+      "line": 644,
+      "guarded_twin": "_PyIncrementalNewlineDecoder_decode:511",
+      "confidence": "low",
+      "detail": "'nldecoder_object.seennl' (`self->seennl`) is accessed under a critical section at _PyIncrementalNewlineDecoder_decode:511 but is read plainly here, with nothing synchronising it. A lock held by only some accessors of a field serialises nothing: the guarded and unguarded accessors race each other. This is the shape of gh-153298 (ga_parameters / CPY-0025), gh-128714 (func.__annotations__ / CPY-0029) and gh-153908 (itertools count_repr). Py_ssize_t does not tear on LP64, so the visible effect is a stale value rather than memory unsafety \u2014 one FT_ATOMIC_* on each access is the fix. Guarded twin: _PyIncrementalNewlineDecoder_decode:511."
+    },
+    {
+      "type": "guarded_writer_unguarded_reader",
+      "ft_class": "T1",
+      "file": "Modules/_io/textio.c",
+      "member": "textio.encoding_start_of_stream",
+      "function": "utf16_encode",
+      "line": 826,
+      "guarded_twin": "_textiowrapper_fix_encoder_state:1064",
+      "confidence": "low",
+      "detail": "'textio.encoding_start_of_stream' (`self->encoding_start_of_stream`) is accessed under a critical section at _textiowrapper_fix_encoder_state:1064 but is read plainly here, with nothing synchronising it. A lock held by only some accessors of a field serialises nothing: the guarded and unguarded accessors race each other. This is the shape of gh-153298 (ga_parameters / CPY-0025), gh-128714 (func.__annotations__ / CPY-0029) and gh-153908 (itertools count_repr). Py_ssize_t does not tear on LP64, so the visible effect is a stale value rather than memory unsafety \u2014 one FT_ATOMIC_* on each access is the fix. Guarded twin: _textiowrapper_fix_encoder_state:1064."
+    },
+    {
+      "type": "guarded_writer_unguarded_reader",
+      "ft_class": "T1",
+      "file": "Modules/_io/textio.c",
+      "member": "textio.encoding_start_of_stream",
+      "function": "utf32_encode",
+      "line": 855,
+      "guarded_twin": "_textiowrapper_fix_encoder_state:1064",
+      "confidence": "low",
+      "detail": "'textio.encoding_start_of_stream' (`self->encoding_start_of_stream`) is accessed under a critical section at _textiowrapper_fix_encoder_state:1064 but is read plainly here, with nothing synchronising it. A lock held by only some accessors of a field serialises nothing: the guarded and unguarded accessors race each other. This is the shape of gh-153298 (ga_parameters / CPY-0025), gh-128714 (func.__annotations__ / CPY-0029) and gh-153908 (itertools count_repr). Py_ssize_t does not tear on LP64, so the visible effect is a stale value rather than memory unsafety \u2014 one FT_ATOMIC_* on each access is the fix. Guarded twin: _textiowrapper_fix_encoder_state:1064."
+    },
+    {
+      "type": "lazy_init_no_critical_section",
+      "ft_class": "T2",
+      "function": "set_newline",
+      "member": "self->readnl",
+      "line": 930,
+      "confidence": "medium",
+      "detail": "Lazy init of 'self->readnl' guarded only by a NULL check, with no critical section. Under free-threading two threads both observe NULL and both compute/store -> leak + torn/lost write (cf. descr_get_qualname / TSAN-0043). Guard with Py_BEGIN_CRITICAL_SECTION or a compare-exchange.",
+      "file": "Modules/_io/textio.c"
+    }
+  ],
+  "summary": {
+    "total_findings": 11,
+    "by_class": {
+      "T1": 10,
+      "T2": 1
+    },
+    "by_type": {
+      "guarded_writer_unguarded_reader": 10,
+      "lazy_init_no_critical_section": 1
+    },
+    "by_confidence": {
+      "low": 7,
+      "medium": 4
+    }
+  },
+  "iternext_functions": 7,
+  "lock_held_functions": 13,
+  "files_with_ft_regions": 1,
+  "skipped_files": [],
+  "_sample": {
+    "files_requested": [
+      "Modules/_io/textio.c",
+      "Modules/_io/bufferedio.c",
+      "Modules/_io/bytesio.c",
+      "Modules/_io/fileio.c",
+      "Modules/_io/stringio.c",
+      "Modules/_io/iobase.c",
+      "Modules/_io/_iomodule.c"
+    ],
+    "files_scanned": [
+      "Modules/_io/textio.c",
+      "Modules/_io/bufferedio.c",
+      "Modules/_io/bytesio.c",
+      "Modules/_io/fileio.c",
+      "Modules/_io/stringio.c",
+      "Modules/_io/iobase.c",
+      "Modules/_io/_iomodule.c"
+    ],
+    "files_missing": [],
+    "method": "the scanner was RE-RUN over exactly these files; every count in this report is sample-scoped. This is not a post-hoc filter of a corpus-wide scan -- a filtered report keeps corpus-wide denominators next to sample-scoped findings, which makes an unearned zero look earned.",
+    "merge_policy": {
+      "project_root": "carried (constant, not a count)",
+      "scan_root": "carried (constant, not a count)",
+      "files_analyzed": "summed",
+      "functions_analyzed": "summed",
+      "findings": "concatenated",
+      "summary": "merged key-wise",
+      "summary.total_findings": "summed",
+      "summary.by_class": "merged key-wise",
+      "summary.by_class.T1": "summed",
+      "summary.by_type": "merged key-wise",
+      "summary.by_type.guarded_writer_unguarded_reader": "summed",
+      "summary.by_confidence": "merged key-wise",
+      "summary.by_confidence.medium": "summed",
+      "summary.by_confidence.low": "summed",
+      "iternext_functions": "summed",
+      "lock_held_functions": "summed",
+      "files_with_ft_regions": "summed",
+      "skipped_files": "concatenated"
+    }
+  }
+}

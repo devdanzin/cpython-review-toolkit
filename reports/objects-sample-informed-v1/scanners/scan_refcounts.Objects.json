@@ -1,0 +1,975 @@
+{
+  "project_root": "/home/danzin/projects/cpython",
+  "scan_root": "/home/danzin/projects/cpython/Objects",
+  "files_analyzed": 123,
+  "functions_analyzed": 3814,
+  "findings": [
+    {
+      "type": "potential_leak",
+      "api_call": "PyObject_GetItem",
+      "variable": "result",
+      "detail": "New reference from PyObject_GetItem assigned to 'result' is never DECREF'd, stolen, or returned",
+      "confidence": "high",
+      "file": "Objects/abstract.c",
+      "function": "PyMapping_GetOptionalItem",
+      "line": 213
+    },
+    {
+      "type": "potential_leak",
+      "api_call": "PyIter_Next",
+      "variable": "item",
+      "detail": "New reference from PyIter_Next assigned to 'item' is never DECREF'd, stolen, or returned",
+      "confidence": "high",
+      "file": "Objects/abstract.c",
+      "function": "PySequence_Tuple",
+      "line": 2047
+    },
+    {
+      "type": "potential_leak",
+      "api_call": "PyBytes_FromStringAndSize",
+      "variable": "ob_bytes_object",
+      "detail": "New reference from PyBytes_FromStringAndSize assigned to 'ob_bytes_object' is never DECREF'd, stolen, or returned",
+      "confidence": "high",
+      "file": "Objects/bytearrayobject.c",
+      "function": "PyByteArray_FromStringAndSize",
+      "line": 171
+    },
+    {
+      "type": "potential_leak",
+      "api_call": "PyBytes_FromStringAndSize",
+      "variable": "result",
+      "detail": "New reference from PyBytes_FromStringAndSize assigned to 'result' is never DECREF'd, stolen, or returned",
+      "confidence": "high",
+      "file": "Objects/bytesobject.c",
+      "function": "formatfloat",
+      "line": 484
+    },
+    {
+      "type": "potential_leak_on_error",
+      "api_call": "PyBytes_FromStringAndSize",
+      "variable": "result",
+      "detail": "New reference 'result' from PyBytes_FromStringAndSize returned on success but not DECREF'd in error cleanup",
+      "confidence": "medium",
+      "file": "Objects/bytesobject.c",
+      "function": "_PyBytes_Concat",
+      "line": 1569
+    },
+    {
+      "type": "potential_leak",
+      "api_call": "PyBytes_FromStringAndSize",
+      "variable": "pv",
+      "detail": "New reference from PyBytes_FromStringAndSize assigned to 'pv' is never DECREF'd, stolen, or returned",
+      "confidence": "high",
+      "file": "Objects/bytesobject.c",
+      "function": "_PyBytes_Resize",
+      "line": 3376
+    },
+    {
+      "type": "potential_leak",
+      "api_call": "PyBytes_FromStringAndSize",
+      "variable": "obj",
+      "detail": "New reference from PyBytes_FromStringAndSize assigned to 'obj' is never DECREF'd, stolen, or returned",
+      "confidence": "high",
+      "file": "Objects/bytesobject.c",
+      "function": "byteswriter_resize",
+      "line": 3661
+    },
+    {
+      "type": "potential_leak_on_error",
+      "api_call": "PyBytes_FromStringAndSize",
+      "variable": "result",
+      "detail": "New reference 'result' from PyBytes_FromStringAndSize returned on success but not DECREF'd in error cleanup",
+      "confidence": "medium",
+      "file": "Objects/bytesobject.c",
+      "function": "PyBytesWriter_FinishWithSize",
+      "line": 3773
+    },
+    {
+      "type": "potential_leak",
+      "api_call": "PyTuple_New",
+      "variable": "kwnames",
+      "detail": "New reference from PyTuple_New assigned to 'kwnames' is never DECREF'd, stolen, or returned",
+      "confidence": "high",
+      "file": "Objects/call.c",
+      "function": "_PyStack_UnpackDict",
+      "line": 1034
+    },
+    {
+      "type": "potential_leak",
+      "api_call": "PyObject_GetAttrString",
+      "variable": "object2",
+      "detail": "New reference from PyObject_GetAttrString assigned to 'object2' is never DECREF'd, stolen, or returned",
+      "confidence": "high",
+      "file": "Objects/capsule.c",
+      "function": "PyCapsule_Import",
+      "line": 255
+    },
+    {
+      "type": "new_missing_member_init",
+      "detail": "tp_new 'PyCell_New' uses non-zeroing allocator PyObject_GC_New() without initializing pointer members to NULL \u2014 object.__new__() without __init__() will leave garbage pointers",
+      "confidence": "medium",
+      "file": "Objects/cellobject.c",
+      "function": "PyCell_New",
+      "line": 13
+    },
+    {
+      "type": "potential_leak_on_error",
+      "api_call": "PyLong_FromSsize_t",
+      "variable": "return_value",
+      "detail": "New reference 'return_value' from PyLong_FromSsize_t returned on success but not DECREF'd in error cleanup",
+      "confidence": "medium",
+      "file": "Objects/clinic/unicodeobject.c.h",
+      "function": "unicode_count",
+      "line": 188
+    },
+    {
+      "type": "potential_leak_on_error",
+      "api_call": "PyLong_FromSsize_t",
+      "variable": "return_value",
+      "detail": "New reference 'return_value' from PyLong_FromSsize_t returned on success but not DECREF'd in error cleanup",
+      "confidence": "medium",
+      "file": "Objects/clinic/unicodeobject.c.h",
+      "function": "unicode_find",
+      "line": 415
+    },
+    {
+      "type": "potential_leak_on_error",
+      "api_call": "PyLong_FromSsize_t",
+      "variable": "return_value",
+      "detail": "New reference 'return_value' from PyLong_FromSsize_t returned on success but not DECREF'd in error cleanup",
+      "confidence": "medium",
+      "file": "Objects/clinic/unicodeobject.c.h",
+      "function": "unicode_index",
+      "line": 471
+    },
+    {
+      "type": "potential_leak_on_error",
+      "api_call": "PyLong_FromSsize_t",
+      "variable": "return_value",
+      "detail": "New reference 'return_value' from PyLong_FromSsize_t returned on success but not DECREF'd in error cleanup",
+      "confidence": "medium",
+      "file": "Objects/clinic/unicodeobject.c.h",
+      "function": "unicode_rfind",
+      "line": 1122
+    },
+    {
+      "type": "potential_leak_on_error",
+      "api_call": "PyLong_FromSsize_t",
+      "variable": "return_value",
+      "detail": "New reference 'return_value' from PyLong_FromSsize_t returned on success but not DECREF'd in error cleanup",
+      "confidence": "medium",
+      "file": "Objects/clinic/unicodeobject.c.h",
+      "function": "unicode_rindex",
+      "line": 1178
+    },
+    {
+      "type": "potential_double_free",
+      "api_call": "steal+decref",
+      "variable": "v",
+      "detail": "Variable 'v' is passed to a reference-stealing API and also DECREF'd \u2014 potential double-free",
+      "confidence": "medium",
+      "file": "Objects/codeobject.c",
+      "function": "intern_constants",
+      "line": 235
+    },
+    {
+      "type": "potential_leak",
+      "api_call": "PyBytes_FromStringAndSize",
+      "variable": "code",
+      "detail": "New reference from PyBytes_FromStringAndSize assigned to 'code' is never DECREF'd, stolen, or returned",
+      "confidence": "high",
+      "file": "Objects/codeobject.c",
+      "function": "_PyCode_GetCode",
+      "line": 2231
+    },
+    {
+      "type": "potential_leak_on_error",
+      "api_call": "PyTuple_Pack",
+      "variable": "key",
+      "detail": "New reference 'key' from PyTuple_Pack returned on success but not DECREF'd in error cleanup",
+      "confidence": "medium",
+      "file": "Objects/codeobject.c",
+      "function": "_PyCode_ConstantKey",
+      "line": 2973
+    },
+    {
+      "type": "potential_leak_on_error",
+      "api_call": "PyUnicode_FromFormat",
+      "variable": "result",
+      "detail": "New reference 'result' from PyUnicode_FromFormat returned on success but not DECREF'd in error cleanup",
+      "confidence": "medium",
+      "file": "Objects/complexobject.c",
+      "function": "complex_repr",
+      "line": 616
+    },
+    {
+      "type": "potential_leak_on_error",
+      "api_call": "PyObject_RichCompare",
+      "variable": "sub_res",
+      "detail": "New reference 'sub_res' from PyObject_RichCompare returned on success but not DECREF'd in error cleanup",
+      "confidence": "medium",
+      "file": "Objects/complexobject.c",
+      "function": "complex_richcompare",
+      "line": 835
+    },
+    {
+      "type": "new_missing_member_init",
+      "detail": "tp_new 'PyDictProxy_New' uses non-zeroing allocator PyObject_GC_New() without initializing pointer members to NULL \u2014 object.__new__() without __init__() will leave garbage pointers",
+      "confidence": "medium",
+      "file": "Objects/descrobject.c",
+      "function": "PyDictProxy_New",
+      "line": 1283
+    },
+    {
+      "type": "new_missing_member_init",
+      "detail": "tp_new 'PyWrapper_New' uses non-zeroing allocator PyObject_GC_New() without initializing pointer members to NULL \u2014 object.__new__() without __init__() will leave garbage pointers",
+      "confidence": "medium",
+      "file": "Objects/descrobject.c",
+      "function": "PyWrapper_New",
+      "line": 1510
+    },
+    {
+      "type": "new_missing_member_init",
+      "detail": "tp_new '_PyDictView_New' uses non-zeroing allocator PyObject_GC_New() without initializing pointer members to NULL \u2014 object.__new__() without __init__() will leave garbage pointers",
+      "confidence": "medium",
+      "file": "Objects/dictobject.c",
+      "function": "_PyDictView_New",
+      "line": 6473
+    },
+    {
+      "type": "potential_leak_on_error",
+      "api_call": "PyUnicode_FromFormat",
+      "variable": "result",
+      "detail": "New reference 'result' from PyUnicode_FromFormat returned on success but not DECREF'd in error cleanup",
+      "confidence": "medium",
+      "file": "Objects/dictobject.c",
+      "function": "dictview_repr",
+      "line": 6606
+    },
+    {
+      "type": "potential_leak_on_error",
+      "api_call": "PyDict_New",
+      "variable": "dict",
+      "detail": "New reference 'dict' from PyDict_New returned on success but not DECREF'd in error cleanup",
+      "confidence": "medium",
+      "file": "Objects/dictobject.c",
+      "function": "ensure_nonmanaged_dict",
+      "line": 8088
+    },
+    {
+      "type": "potential_leak",
+      "api_call": "PyLong_FromSsize_t",
+      "variable": "en_longindex",
+      "detail": "New reference from PyLong_FromSsize_t assigned to 'en_longindex' is never DECREF'd, stolen, or returned",
+      "confidence": "high",
+      "file": "Objects/enumobject.c",
+      "function": "increment_longindex_lock_held",
+      "line": 180
+    },
+    {
+      "type": "potential_leak",
+      "api_call": "PyNumber_Add",
+      "variable": "stepped_up",
+      "detail": "New reference from PyNumber_Add assigned to 'stepped_up' is never DECREF'd, stolen, or returned",
+      "confidence": "high",
+      "file": "Objects/enumobject.c",
+      "function": "increment_longindex_lock_held",
+      "line": 189
+    },
+    {
+      "type": "potential_leak",
+      "api_call": "PyTuple_New",
+      "variable": "args",
+      "detail": "New reference from PyTuple_New assigned to 'args' is never DECREF'd, stolen, or returned",
+      "confidence": "high",
+      "file": "Objects/exceptions.c",
+      "function": "BaseException_new",
+      "line": 68
+    },
+    {
+      "type": "potential_leak",
+      "api_call": "PySequence_Tuple",
+      "variable": "seq",
+      "detail": "New reference from PySequence_Tuple assigned to 'seq' is never DECREF'd, stolen, or returned",
+      "confidence": "high",
+      "file": "Objects/exceptions.c",
+      "function": "BaseException_args_set_impl",
+      "line": 356
+    },
+    {
+      "type": "potential_leak",
+      "api_call": "PyUnicode_FromString",
+      "variable": "msg",
+      "detail": "New reference from PyUnicode_FromString assigned to 'msg' is never DECREF'd, stolen, or returned",
+      "confidence": "high",
+      "file": "Objects/exceptions.c",
+      "function": "_PyExc_CreateExceptionGroup",
+      "line": 1006
+    },
+    {
+      "type": "potential_leak",
+      "api_call": "PyLong_FromLong",
+      "variable": "myerrno",
+      "detail": "New reference from PyLong_FromLong assigned to 'myerrno' is never DECREF'd, stolen, or returned",
+      "confidence": "high",
+      "file": "Objects/exceptions.c",
+      "function": "oserror_parse_args",
+      "line": 2088
+    },
+    {
+      "type": "potential_leak",
+      "api_call": "PyTuple_New",
+      "variable": "newargs",
+      "detail": "New reference from PyTuple_New assigned to 'newargs' is never DECREF'd, stolen, or returned",
+      "confidence": "high",
+      "file": "Objects/exceptions.c",
+      "function": "oserror_parse_args",
+      "line": 2091
+    },
+    {
+      "type": "potential_leak",
+      "api_call": "PyTuple_GetSlice",
+      "variable": "subslice",
+      "detail": "New reference from PyTuple_GetSlice assigned to 'subslice' is never DECREF'd, stolen, or returned",
+      "confidence": "high",
+      "file": "Objects/exceptions.c",
+      "function": "oserror_init",
+      "line": 2141
+    },
+    {
+      "type": "potential_leak",
+      "api_call": "PyUnicode_FromString",
+      "variable": "value",
+      "detail": "New reference from PyUnicode_FromString assigned to 'value' is never DECREF'd, stolen, or returned",
+      "confidence": "high",
+      "file": "Objects/exceptions.c",
+      "function": "unicode_error_set_reason_impl",
+      "line": 3186
+    },
+    {
+      "type": "potential_leak_on_error",
+      "api_call": "PyUnicode_FromFormat",
+      "variable": "result",
+      "detail": "New reference 'result' from PyUnicode_FromFormat returned on success but not DECREF'd in error cleanup",
+      "confidence": "medium",
+      "file": "Objects/exceptions.c",
+      "function": "UnicodeEncodeError_str",
+      "line": 3783
+    },
+    {
+      "type": "potential_leak",
+      "api_call": "PyBytes_FromStringAndSize",
+      "variable": "object",
+      "detail": "New reference from PyBytes_FromStringAndSize assigned to 'object' is never DECREF'd, stolen, or returned",
+      "confidence": "high",
+      "file": "Objects/exceptions.c",
+      "function": "UnicodeDecodeError_init",
+      "line": 3841
+    },
+    {
+      "type": "potential_leak_on_error",
+      "api_call": "PyUnicode_FromFormat",
+      "variable": "result",
+      "detail": "New reference 'result' from PyUnicode_FromFormat returned on success but not DECREF'd in error cleanup",
+      "confidence": "medium",
+      "file": "Objects/exceptions.c",
+      "function": "UnicodeDecodeError_str",
+      "line": 3896
+    },
+    {
+      "type": "potential_leak_on_error",
+      "api_call": "PyUnicode_FromFormat",
+      "variable": "result",
+      "detail": "New reference 'result' from PyUnicode_FromFormat returned on success but not DECREF'd in error cleanup",
+      "confidence": "medium",
+      "file": "Objects/exceptions.c",
+      "function": "UnicodeTranslateError_str",
+      "line": 4004
+    },
+    {
+      "type": "potential_leak",
+      "api_call": "PyDict_New",
+      "variable": "errnomap",
+      "detail": "New reference from PyDict_New assigned to 'errnomap' is never DECREF'd, stolen, or returned",
+      "confidence": "high",
+      "file": "Objects/exceptions.c",
+      "function": "_PyExc_InitState",
+      "line": 4543
+    },
+    {
+      "type": "potential_leak",
+      "api_call": "PyUnicode_Substring",
+      "variable": "v",
+      "detail": "New reference from PyUnicode_Substring assigned to 'v' is never DECREF'd, stolen, or returned",
+      "confidence": "high",
+      "file": "Objects/fileobject.c",
+      "function": "PyFile_GetLine",
+      "line": 95
+    },
+    {
+      "type": "potential_leak",
+      "api_call": "PyTuple_New",
+      "variable": "new_tuple",
+      "detail": "New reference from PyTuple_New assigned to 'new_tuple' is never DECREF'd, stolen, or returned",
+      "confidence": "high",
+      "file": "Objects/frameobject.c",
+      "function": "add_overwritten_fast_local",
+      "line": 233
+    },
+    {
+      "type": "potential_leak",
+      "api_call": "PyDict_New",
+      "variable": "extra",
+      "detail": "New reference from PyDict_New assigned to 'extra' is never DECREF'd, stolen, or returned",
+      "confidence": "high",
+      "file": "Objects/frameobject.c",
+      "function": "framelocalsproxy_setitem",
+      "line": 307
+    },
+    {
+      "type": "potential_leak",
+      "api_call": "PyDict_New",
+      "variable": "f_locals",
+      "detail": "New reference from PyDict_New assigned to 'f_locals' is never DECREF'd, stolen, or returned",
+      "confidence": "high",
+      "file": "Objects/frameobject.c",
+      "function": "frame_locals_get_impl",
+      "line": 980
+    },
+    {
+      "type": "potential_leak",
+      "api_call": "PyDict_New",
+      "variable": "f_locals",
+      "detail": "New reference from PyDict_New assigned to 'f_locals' is never DECREF'd, stolen, or returned",
+      "confidence": "high",
+      "file": "Objects/frameobject.c",
+      "function": "_PyFrame_GetLocals",
+      "line": 2286
+    },
+    {
+      "type": "potential_leak",
+      "api_call": "PyDict_New",
+      "variable": "func_annotations",
+      "detail": "New reference from PyDict_New assigned to 'func_annotations' is never DECREF'd, stolen, or returned",
+      "confidence": "high",
+      "file": "Objects/funcobject.c",
+      "function": "function___annotations___get_impl",
+      "line": 884
+    },
+    {
+      "type": "potential_leak",
+      "api_call": "PyObject_CallFunction",
+      "variable": "tmp",
+      "detail": "New reference from PyObject_CallFunction assigned to 'tmp' is never DECREF'd, stolen, or returned",
+      "confidence": "high",
+      "file": "Objects/genericaliasobject.c",
+      "function": "_Py_subs_parameters",
+      "line": 428
+    },
+    {
+      "type": "potential_double_free",
+      "api_call": "steal+decref",
+      "variable": "arg",
+      "detail": "Variable 'arg' is passed to a reference-stealing API and also DECREF'd \u2014 potential double-free",
+      "confidence": "medium",
+      "file": "Objects/genericaliasobject.c",
+      "function": "_Py_subs_parameters",
+      "line": 517
+    },
+    {
+      "type": "potential_leak",
+      "api_call": "PyObject_Call",
+      "variable": "obj",
+      "detail": "New reference from PyObject_Call assigned to 'obj' is never DECREF'd, stolen, or returned",
+      "confidence": "high",
+      "file": "Objects/genericaliasobject.c",
+      "function": "ga_call",
+      "line": 645
+    },
+    {
+      "type": "potential_leak",
+      "api_call": "PyObject_Vectorcall",
+      "variable": "obj",
+      "detail": "New reference from PyObject_Vectorcall assigned to 'obj' is never DECREF'd, stolen, or returned",
+      "confidence": "high",
+      "file": "Objects/genericaliasobject.c",
+      "function": "ga_vectorcall",
+      "line": 653
+    },
+    {
+      "type": "new_missing_member_init",
+      "detail": "tp_new 'async_gen_asend_new' uses non-zeroing allocator PyObject_GC_New() without initializing pointer members to NULL \u2014 object.__new__() without __init__() will leave garbage pointers",
+      "confidence": "medium",
+      "file": "Objects/genobject.c",
+      "function": "async_gen_asend_new",
+      "line": 2163
+    },
+    {
+      "type": "new_missing_member_init",
+      "detail": "tp_new 'async_gen_athrow_new' uses non-zeroing allocator PyObject_GC_New() without initializing pointer members to NULL \u2014 object.__new__() without __init__() will leave garbage pointers",
+      "confidence": "medium",
+      "file": "Objects/genobject.c",
+      "function": "async_gen_athrow_new",
+      "line": 2607
+    },
+    {
+      "type": "new_missing_member_init",
+      "detail": "tp_new 'interpolation_new_impl' uses non-zeroing allocator PyObject_GC_New() without initializing pointer members to NULL \u2014 object.__new__() without __init__() will leave garbage pointers",
+      "confidence": "medium",
+      "file": "Objects/interpolationobject.c",
+      "function": "interpolation_new_impl",
+      "line": 63
+    },
+    {
+      "type": "new_missing_member_init",
+      "detail": "tp_new 'PyCallIter_New' uses non-zeroing allocator PyObject_GC_New() without initializing pointer members to NULL \u2014 object.__new__() without __init__() will leave garbage pointers",
+      "confidence": "medium",
+      "file": "Objects/iterobject.c",
+      "function": "PyCallIter_New",
+      "line": 194
+    },
+    {
+      "type": "new_missing_member_init",
+      "detail": "tp_new 'PyAnextAwaitable_New' uses non-zeroing allocator PyObject_GC_New() without initializing pointer members to NULL \u2014 object.__new__() without __init__() will leave garbage pointers",
+      "confidence": "medium",
+      "file": "Objects/iterobject.c",
+      "function": "PyAnextAwaitable_New",
+      "line": 531
+    },
+    {
+      "type": "potential_leak",
+      "api_call": "PyList_New",
+      "variable": "list",
+      "detail": "New reference from PyList_New assigned to 'list' is never DECREF'd, stolen, or returned",
+      "confidence": "high",
+      "file": "Objects/listobject.c",
+      "function": "listiter_reduce_general",
+      "line": 4302
+    },
+    {
+      "type": "potential_leak",
+      "api_call": "PyObject_GetAttrString",
+      "variable": "unpack_from",
+      "detail": "New reference from PyObject_GetAttrString assigned to 'unpack_from' is never DECREF'd, stolen, or returned",
+      "confidence": "high",
+      "file": "Objects/memoryobject.c",
+      "function": "struct_get_unpacker",
+      "line": 2172
+    },
+    {
+      "type": "potential_leak",
+      "api_call": "PyDict_New",
+      "variable": "md_dict",
+      "detail": "New reference from PyDict_New assigned to 'md_dict' is never DECREF'd, stolen, or returned",
+      "confidence": "high",
+      "file": "Objects/moduleobject.c",
+      "function": "new_module_notrack",
+      "line": 189
+    },
+    {
+      "type": "potential_leak_on_error",
+      "api_call": "PyObject_CallOneArg",
+      "variable": "result",
+      "detail": "New reference 'result' from PyObject_CallOneArg returned on success but not DECREF'd in error cleanup",
+      "confidence": "medium",
+      "file": "Objects/moduleobject.c",
+      "function": "_Py_module_getattro_impl",
+      "line": 1402
+    },
+    {
+      "type": "potential_leak",
+      "api_call": "PyDict_New",
+      "variable": "ns_dict",
+      "detail": "New reference from PyDict_New assigned to 'ns_dict' is never DECREF'd, stolen, or returned",
+      "confidence": "high",
+      "file": "Objects/namespaceobject.c",
+      "function": "namespace_new",
+      "line": 34
+    },
+    {
+      "type": "potential_leak_on_error",
+      "api_call": "PyUnicode_FromFormat",
+      "variable": "repr",
+      "detail": "New reference 'repr' from PyUnicode_FromFormat returned on success but not DECREF'd in error cleanup",
+      "confidence": "medium",
+      "file": "Objects/namespaceobject.c",
+      "function": "namespace_repr",
+      "line": 161
+    },
+    {
+      "type": "potential_leak_on_error",
+      "api_call": "PyUnicode_FromFormat",
+      "variable": "result",
+      "detail": "New reference 'result' from PyUnicode_FromFormat returned on success but not DECREF'd in error cleanup",
+      "confidence": "medium",
+      "file": "Objects/object.c",
+      "function": "_PyObject_FunctionStr",
+      "line": 1001
+    },
+    {
+      "type": "potential_leak",
+      "api_call": "PyObject_GetAttr",
+      "variable": "method",
+      "detail": "New reference from PyObject_GetAttr assigned to 'method' is never DECREF'd, stolen, or returned",
+      "confidence": "high",
+      "file": "Objects/object.c",
+      "function": "_PyObject_GetMethod",
+      "line": 1668
+    },
+    {
+      "type": "potential_leak",
+      "api_call": "PyObject_GetAttr",
+      "variable": "res",
+      "detail": "New reference from PyObject_GetAttr assigned to 'res' is never DECREF'd, stolen, or returned",
+      "confidence": "high",
+      "file": "Objects/object.c",
+      "function": "_PyObject_GetMethodStackRef",
+      "line": 1770
+    },
+    {
+      "type": "potential_leak",
+      "api_call": "PyList_New",
+      "variable": "list",
+      "detail": "New reference from PyList_New assigned to 'list' is never DECREF'd, stolen, or returned",
+      "confidence": "high",
+      "file": "Objects/object.c",
+      "function": "Py_ReprEnter",
+      "line": 3120
+    },
+    {
+      "type": "potential_leak_on_error",
+      "api_call": "PyTuple_Pack",
+      "variable": "result",
+      "detail": "New reference 'result' from PyTuple_Pack returned on success but not DECREF'd in error cleanup",
+      "confidence": "medium",
+      "file": "Objects/odictobject.c",
+      "function": "OrderedDict___reduce___impl",
+      "line": 1011
+    },
+    {
+      "type": "potential_leak_on_error",
+      "api_call": "PyUnicode_FromFormat",
+      "variable": "result",
+      "detail": "New reference 'result' from PyUnicode_FromFormat returned on success but not DECREF'd in error cleanup",
+      "confidence": "medium",
+      "file": "Objects/odictobject.c",
+      "function": "odict_repr",
+      "line": 1456
+    },
+    {
+      "type": "potential_leak_on_error",
+      "api_call": "PyNumber_Add",
+      "variable": "result",
+      "detail": "New reference 'result' from PyNumber_Add returned on success but not DECREF'd in error cleanup",
+      "confidence": "medium",
+      "file": "Objects/rangeobject.c",
+      "function": "compute_range_length",
+      "line": 303
+    },
+    {
+      "type": "potential_leak",
+      "api_call": "PyNumber_Subtract",
+      "variable": "new_len",
+      "detail": "New reference from PyNumber_Subtract assigned to 'new_len' is never DECREF'd, stolen, or returned",
+      "confidence": "high",
+      "file": "Objects/rangeobject.c",
+      "function": "longrange_iterator___setstate___impl",
+      "line": 1129
+    },
+    {
+      "type": "potential_leak",
+      "api_call": "PyNumber_Subtract",
+      "variable": "new_len",
+      "detail": "New reference from PyNumber_Subtract assigned to 'new_len' is never DECREF'd, stolen, or returned",
+      "confidence": "high",
+      "file": "Objects/rangeobject.c",
+      "function": "longrangeiter_next_lock_held",
+      "line": 1170
+    },
+    {
+      "type": "potential_leak",
+      "api_call": "PyUnicode_Substring",
+      "variable": "tmp",
+      "detail": "New reference from PyUnicode_Substring assigned to 'tmp' is never DECREF'd, stolen, or returned",
+      "confidence": "high",
+      "file": "Objects/setobject.c",
+      "function": "set_repr_lock_held",
+      "line": 790
+    },
+    {
+      "type": "potential_leak_on_error",
+      "api_call": "PyUnicode_FromFormat",
+      "variable": "result",
+      "detail": "New reference 'result' from PyUnicode_FromFormat returned on success but not DECREF'd in error cleanup",
+      "confidence": "medium",
+      "file": "Objects/setobject.c",
+      "function": "set_repr_lock_held",
+      "line": 801
+    },
+    {
+      "type": "potential_leak_on_error",
+      "api_call": "PyTuple_Pack",
+      "variable": "result",
+      "detail": "New reference 'result' from PyTuple_Pack returned on success but not DECREF'd in error cleanup",
+      "confidence": "medium",
+      "file": "Objects/setobject.c",
+      "function": "set___reduce___impl",
+      "line": 2732
+    },
+    {
+      "type": "potential_leak",
+      "api_call": "PyLong_FromSsize_t",
+      "variable": "end",
+      "detail": "New reference from PyLong_FromSsize_t assigned to 'end' is never DECREF'd, stolen, or returned",
+      "confidence": "high",
+      "file": "Objects/sliceobject.c",
+      "function": "_PySlice_FromIndices",
+      "line": 166
+    },
+    {
+      "type": "potential_leak",
+      "api_call": "PyNumber_Add",
+      "variable": "tmp",
+      "detail": "New reference from PyNumber_Add assigned to 'tmp' is never DECREF'd, stolen, or returned",
+      "confidence": "high",
+      "file": "Objects/sliceobject.c",
+      "function": "_PySlice_GetLongIndices",
+      "line": 474
+    },
+    {
+      "type": "potential_leak_on_error",
+      "api_call": "PyTuple_Pack",
+      "variable": "tuple",
+      "detail": "New reference 'tuple' from PyTuple_Pack returned on success but not DECREF'd in error cleanup",
+      "confidence": "medium",
+      "file": "Objects/stringlib/unicode_format.h",
+      "function": "formatteriter_next",
+      "line": 1045
+    },
+    {
+      "type": "potential_leak",
+      "api_call": "PyTuple_New",
+      "variable": "pv",
+      "detail": "New reference from PyTuple_New assigned to 'pv' is never DECREF'd, stolen, or returned",
+      "confidence": "high",
+      "file": "Objects/tupleobject.c",
+      "function": "_PyTuple_Resize",
+      "line": 1065
+    },
+    {
+      "type": "potential_leak",
+      "api_call": "PySequence_Tuple",
+      "variable": "new_slots",
+      "detail": "New reference from PySequence_Tuple assigned to 'new_slots' is never DECREF'd, stolen, or returned",
+      "confidence": "high",
+      "file": "Objects/typeobject.c",
+      "function": "type_new_get_slots",
+      "line": 4883
+    },
+    {
+      "type": "potential_leak",
+      "api_call": "PyTuple_Pack",
+      "variable": "new_bases",
+      "detail": "New reference from PyTuple_Pack assigned to 'new_bases' is never DECREF'd, stolen, or returned",
+      "confidence": "high",
+      "file": "Objects/typeobject.c",
+      "function": "type_new_get_bases",
+      "line": 4998
+    },
+    {
+      "type": "potential_leak",
+      "api_call": "PyDict_New",
+      "variable": "tp_dict",
+      "detail": "New reference from PyDict_New assigned to 'tp_dict' is never DECREF'd, stolen, or returned",
+      "confidence": "high",
+      "file": "Objects/typeobject.c",
+      "function": "type_setattro",
+      "line": 6818
+    },
+    {
+      "type": "potential_leak",
+      "api_call": "PyDict_Copy",
+      "variable": "temp",
+      "detail": "New reference from PyDict_Copy assigned to 'temp' is never DECREF'd, stolen, or returned",
+      "confidence": "high",
+      "file": "Objects/typeobject.c",
+      "function": "object___dir___impl",
+      "line": 8510
+    },
+    {
+      "type": "potential_leak_on_error",
+      "api_call": "PyDict_Keys",
+      "variable": "result",
+      "detail": "New reference 'result' from PyDict_Keys returned on success but not DECREF'd in error cleanup",
+      "confidence": "medium",
+      "file": "Objects/typeobject.c",
+      "function": "object___dir___impl",
+      "line": 8525
+    },
+    {
+      "type": "potential_leak",
+      "api_call": "PyTuple_Pack",
+      "variable": "bases",
+      "detail": "New reference from PyTuple_Pack assigned to 'bases' is never DECREF'd, stolen, or returned",
+      "confidence": "high",
+      "file": "Objects/typeobject.c",
+      "function": "type_ready_set_bases",
+      "line": 9115
+    },
+    {
+      "type": "potential_leak",
+      "api_call": "PyDict_New",
+      "variable": "dict",
+      "detail": "New reference from PyDict_New assigned to 'dict' is never DECREF'd, stolen, or returned",
+      "confidence": "high",
+      "file": "Objects/typeobject.c",
+      "function": "type_ready_set_dict",
+      "line": 9133
+    },
+    {
+      "type": "new_missing_member_init",
+      "detail": "tp_new 'paramspecattr_new' uses non-zeroing allocator PyObject_GC_New() without initializing pointer members to NULL \u2014 object.__new__() without __init__() will leave garbage pointers",
+      "confidence": "medium",
+      "file": "Objects/typevarobject.c",
+      "function": "paramspecattr_new",
+      "line": 1002
+    },
+    {
+      "type": "potential_leak_on_error",
+      "api_call": "PyObject_Call",
+      "variable": "result",
+      "detail": "New reference 'result' from PyObject_Call returned on success but not DECREF'd in error cleanup",
+      "confidence": "medium",
+      "file": "Objects/typevarobject.c",
+      "function": "call_typing_args_kwargs",
+      "line": 2324
+    },
+    {
+      "type": "potential_leak",
+      "api_call": "PyBytes_FromStringAndSize",
+      "variable": "r1",
+      "detail": "New reference from PyBytes_FromStringAndSize assigned to 'r1' is never DECREF'd, stolen, or returned",
+      "confidence": "high",
+      "file": "Objects/unicode_format.c",
+      "function": "_PyUnicode_FormatLong",
+      "line": 274
+    },
+    {
+      "type": "potential_leak",
+      "api_call": "PyUnicode_Substring",
+      "variable": "key",
+      "detail": "New reference from PyUnicode_Substring assigned to 'key' is never DECREF'd, stolen, or returned",
+      "confidence": "high",
+      "file": "Objects/unicode_format.c",
+      "function": "unicode_format_arg_parse",
+      "line": 500
+    },
+    {
+      "type": "potential_leak",
+      "api_call": "PyObject_GetItem",
+      "variable": "args",
+      "detail": "New reference from PyObject_GetItem assigned to 'args' is never DECREF'd, stolen, or returned",
+      "confidence": "high",
+      "file": "Objects/unicode_format.c",
+      "function": "unicode_format_arg_parse",
+      "line": 508
+    },
+    {
+      "type": "potential_leak",
+      "api_call": "PyObject_ASCII",
+      "variable": "p_str",
+      "detail": "New reference from PyObject_ASCII assigned to 'p_str' is never DECREF'd, stolen, or returned",
+      "confidence": "high",
+      "file": "Objects/unicode_format.c",
+      "function": "unicode_format_arg_format",
+      "line": 716
+    },
+    {
+      "type": "potential_leak",
+      "api_call": "PyDict_New",
+      "variable": "interned",
+      "detail": "New reference from PyDict_New assigned to 'interned' is never DECREF'd, stolen, or returned",
+      "confidence": "high",
+      "file": "Objects/unicodeobject.c",
+      "function": "init_interned_dict",
+      "line": 301
+    },
+    {
+      "type": "potential_leak_on_error",
+      "api_call": "PyBytes_FromStringAndSize",
+      "variable": "v",
+      "detail": "New reference 'v' from PyBytes_FromStringAndSize returned on success but not DECREF'd in error cleanup",
+      "confidence": "medium",
+      "file": "Objects/unicodeobject.c",
+      "function": "_PyUnicode_EncodeUTF32",
+      "line": 5969
+    },
+    {
+      "type": "potential_leak_on_error",
+      "api_call": "PyBytes_FromStringAndSize",
+      "variable": "v",
+      "detail": "New reference 'v' from PyBytes_FromStringAndSize returned on success but not DECREF'd in error cleanup",
+      "confidence": "medium",
+      "file": "Objects/unicodeobject.c",
+      "function": "_PyUnicode_EncodeUTF16",
+      "line": 6306
+    },
+    {
+      "type": "potential_leak",
+      "api_call": "PyObject_CallFunction",
+      "variable": "exceptionObject",
+      "detail": "New reference from PyObject_CallFunction assigned to 'exceptionObject' is never DECREF'd, stolen, or returned",
+      "confidence": "high",
+      "file": "Objects/unicodeobject.c",
+      "function": "make_encode_exception",
+      "line": 7090
+    },
+    {
+      "type": "potential_leak",
+      "api_call": "PyList_New",
+      "variable": "args",
+      "detail": "New reference from PyList_New assigned to 'args' is never DECREF'd, stolen, or returned",
+      "confidence": "high",
+      "file": "Objects/unionobject.c",
+      "function": "unionbuilder_init",
+      "line": 143
+    },
+    {
+      "type": "potential_leak",
+      "api_call": "PySet_New",
+      "variable": "hashable_args",
+      "detail": "New reference from PySet_New assigned to 'hashable_args' is never DECREF'd, stolen, or returned",
+      "confidence": "high",
+      "file": "Objects/unionobject.c",
+      "function": "unionbuilder_init",
+      "line": 147
+    },
+    {
+      "type": "init_not_reinit_safe",
+      "detail": "tp_init 'unionbuilder_init' allocates (PyList_New, PySet_New) and assigns to ub->args, ub->hashable_args, ub->is_checked, ub->unhashable_args without a re-init guard \u2014 second __init__() call will leak resources",
+      "confidence": "high",
+      "file": "Objects/unionobject.c",
+      "function": "unionbuilder_init",
+      "line": 142
+    },
+    {
+      "type": "potential_leak",
+      "api_call": "PyList_New",
+      "variable": "unhashable_args",
+      "detail": "New reference from PyList_New assigned to 'unhashable_args' is never DECREF'd, stolen, or returned",
+      "confidence": "high",
+      "file": "Objects/unionobject.c",
+      "function": "unionbuilder_add_single_unchecked",
+      "line": 172
+    }
+  ],
+  "summary": {
+    "potential_leaks": 85,
+    "potential_double_frees": 2,
+    "init_not_reinit_safe": 1,
+    "new_missing_member_init": 10,
+    "total_findings": 98,
+    "high_confidence": 58,
+    "medium_confidence": 40
+  }
+}

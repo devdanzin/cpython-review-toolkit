@@ -1,0 +1,86 @@
+{
+  "project_root": "/home/danzin/projects/cpython",
+  "scan_root": "/home/danzin/projects/cpython/Objects",
+  "files_analyzed": 123,
+  "functions_analyzed": 3073,
+  "findings": [
+    {
+      "type": "blocking_with_gil",
+      "api_call": "fwrite",
+      "detail": "Blocking call fwrite() without releasing GIL (no Py_BEGIN_ALLOW_THREADS)",
+      "confidence": "medium",
+      "file": "Objects/object.c",
+      "function": "PyObject_Print",
+      "line": 671
+    },
+    {
+      "type": "blocking_with_gil",
+      "api_call": "fflush",
+      "detail": "Blocking call fflush() without releasing GIL (no Py_BEGIN_ALLOW_THREADS)",
+      "confidence": "medium",
+      "file": "Objects/object.c",
+      "function": "PyObject_Dump",
+      "line": 724
+    },
+    {
+      "type": "blocking_with_gil",
+      "api_call": "fflush",
+      "detail": "Blocking call fflush() without releasing GIL (no Py_BEGIN_ALLOW_THREADS)",
+      "confidence": "medium",
+      "file": "Objects/object.c",
+      "function": "PyObject_Dump",
+      "line": 731
+    },
+    {
+      "type": "blocking_with_gil",
+      "api_call": "fflush",
+      "detail": "Blocking call fflush() without releasing GIL (no Py_BEGIN_ALLOW_THREADS)",
+      "confidence": "medium",
+      "file": "Objects/object.c",
+      "function": "PyObject_Dump",
+      "line": 740
+    },
+    {
+      "type": "blocking_with_gil",
+      "api_call": "fflush",
+      "detail": "Blocking call fflush() without releasing GIL (no Py_BEGIN_ALLOW_THREADS)",
+      "confidence": "medium",
+      "file": "Objects/object.c",
+      "function": "PyObject_Dump",
+      "line": 746
+    },
+    {
+      "type": "blocking_with_gil",
+      "api_call": "fflush",
+      "detail": "Blocking call fflush() without releasing GIL (no Py_BEGIN_ALLOW_THREADS)",
+      "confidence": "medium",
+      "file": "Objects/object.c",
+      "function": "PyObject_Dump",
+      "line": 752
+    },
+    {
+      "type": "blocking_with_gil",
+      "api_call": "fgets",
+      "detail": "Blocking call fgets() without releasing GIL (no Py_BEGIN_ALLOW_THREADS)",
+      "confidence": "medium",
+      "file": "Objects/obmalloc.c",
+      "function": "_pymalloc_system_hugepage_size",
+      "line": 561
+    },
+    {
+      "type": "blocking_with_gil",
+      "api_call": "fflush",
+      "detail": "Blocking call fflush() without releasing GIL (no Py_BEGIN_ALLOW_THREADS)",
+      "confidence": "medium",
+      "file": "Objects/obmalloc.c",
+      "function": "_PyObject_DebugDumpAddress",
+      "line": 3477
+    }
+  ],
+  "summary": {
+    "mismatched_pairs": 0,
+    "api_without_gil": 0,
+    "blocking_with_gil": 8,
+    "total_findings": 8
+  }
+}

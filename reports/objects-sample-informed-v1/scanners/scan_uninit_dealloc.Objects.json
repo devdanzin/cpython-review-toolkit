@@ -1,0 +1,88 @@
+{
+  "project_root": "/home/danzin/projects/cpython",
+  "scan_root": "/home/danzin/projects/cpython/Objects",
+  "files_analyzed": 113,
+  "functions_analyzed": 4627,
+  "findings": [
+    {
+      "type": "dealloc_of_uninitialized_object",
+      "function": "PyByteArray_FromStringAndSize",
+      "variable": "new",
+      "allocator": "PyObject_New",
+      "line": 164,
+      "confidence": "medium",
+      "detail": "'new' is allocated via the non-zeroing PyObject_New() and freed on an error path (Py_DECREF/Py_XDECREF/Py_CLEAR) before its members are NULL-initialized \u2014 tp_dealloc/tp_clear then reads uninitialized member pointers (crash, esp. under OOM). Zero the object right after allocation (memset or `new->member = NULL;` before the first fallible call).",
+      "file": "Objects/bytearrayobject.c"
+    },
+    {
+      "type": "dealloc_of_uninitialized_object",
+      "function": "_PyCode_New",
+      "variable": "co",
+      "allocator": "PyObject_GC_NewVar",
+      "line": 736,
+      "confidence": "medium",
+      "detail": "'co' is allocated via the non-zeroing PyObject_GC_NewVar() and freed on an error path (Py_DECREF/Py_XDECREF/Py_CLEAR) before its members are NULL-initialized \u2014 tp_dealloc/tp_clear then reads uninitialized member pointers (crash, esp. under OOM). Zero the object right after allocation (memset or `co->member = NULL;` before the first fallible call).",
+      "file": "Objects/codeobject.c"
+    },
+    {
+      "type": "dealloc_of_uninitialized_object",
+      "function": "_PyCode_New",
+      "variable": "co",
+      "allocator": "PyObject_NewVar",
+      "line": 738,
+      "confidence": "medium",
+      "detail": "'co' is allocated via the non-zeroing PyObject_NewVar() and freed on an error path (Py_DECREF/Py_XDECREF/Py_CLEAR) before its members are NULL-initialized \u2014 tp_dealloc/tp_clear then reads uninitialized member pointers (crash, esp. under OOM). Zero the object right after allocation (memset or `co->member = NULL;` before the first fallible call).",
+      "file": "Objects/codeobject.c"
+    },
+    {
+      "type": "dealloc_of_uninitialized_object",
+      "function": "odictiter_new",
+      "variable": "di",
+      "allocator": "PyObject_GC_New",
+      "line": 1945,
+      "confidence": "medium",
+      "detail": "'di' is allocated via the non-zeroing PyObject_GC_New() and freed on an error path (Py_DECREF/Py_XDECREF/Py_CLEAR) before its members are NULL-initialized \u2014 tp_dealloc/tp_clear then reads uninitialized member pointers (crash, esp. under OOM). Zero the object right after allocation (memset or `di->member = NULL;` before the first fallible call).",
+      "file": "Objects/odictobject.c"
+    },
+    {
+      "type": "dealloc_of_uninitialized_object",
+      "function": "formatter_field_name_split",
+      "variable": "it",
+      "allocator": "PyObject_New",
+      "line": 1254,
+      "confidence": "medium",
+      "detail": "'it' is allocated via the non-zeroing PyObject_New() and freed on an error path (Py_DECREF/Py_XDECREF/Py_CLEAR) before its members are NULL-initialized \u2014 tp_dealloc/tp_clear then reads uninitialized member pointers (crash, esp. under OOM). Zero the object right after allocation (memset or `it->member = NULL;` before the first fallible call).",
+      "file": "Objects/stringlib/unicode_format.h"
+    },
+    {
+      "type": "dealloc_of_uninitialized_object",
+      "function": "template_iter",
+      "variable": "iter",
+      "allocator": "PyObject_GC_New",
+      "line": 225,
+      "confidence": "medium",
+      "detail": "'iter' is allocated via the non-zeroing PyObject_GC_New() and freed on an error path (Py_DECREF/Py_XDECREF/Py_CLEAR) before its members are NULL-initialized \u2014 tp_dealloc/tp_clear then reads uninitialized member pointers (crash, esp. under OOM). Zero the object right after allocation (memset or `iter->member = NULL;` before the first fallible call).",
+      "file": "Objects/templateobject.c"
+    },
+    {
+      "type": "dealloc_of_uninitialized_object",
+      "function": "slot_bf_getbuffer",
+      "variable": "wrapper",
+      "allocator": "PyObject_GC_New",
+      "line": 11343,
+      "confidence": "medium",
+      "detail": "'wrapper' is allocated via the non-zeroing PyObject_GC_New() and freed on an error path (Py_DECREF/Py_XDECREF/Py_CLEAR) before its members are NULL-initialized \u2014 tp_dealloc/tp_clear then reads uninitialized member pointers (crash, esp. under OOM). Zero the object right after allocation (memset or `wrapper->member = NULL;` before the first fallible call).",
+      "file": "Objects/typeobject.c"
+    }
+  ],
+  "summary": {
+    "total_findings": 7,
+    "by_allocator": {
+      "PyObject_New": 2,
+      "PyObject_GC_NewVar": 1,
+      "PyObject_NewVar": 1,
+      "PyObject_GC_New": 3
+    }
+  },
+  "skipped_files": []
+}

@@ -1,0 +1,28 @@
+{
+  "project_root": "/home/danzin/projects/cpython",
+  "scan_root": "/home/danzin/projects/cpython/Objects",
+  "files_analyzed": 113,
+  "functions_analyzed": 4627,
+  "findings": [
+    {
+      "type": "critical_section_end_on_error",
+      "function": "dict_merge",
+      "line": 4380,
+      "classification": "FIX",
+      "confidence": "high",
+      "detail": "return at line 4380 in 'dict_merge' leaves the critical section opened by Py_BEGIN_CRITICAL_SECTION(a) at line 4321 without calling Py_END_CRITICAL_SECTION() first \u2014 the per-object lock leaks on this path. Call Py_END_CRITICAL_SECTION() before the exit (or restructure so the exit is inside the section's END).",
+      "file": "Objects/dictobject.c"
+    }
+  ],
+  "summary": {
+    "total_findings": 1,
+    "by_type": {
+      "critical_section_end_on_error": 1
+    },
+    "by_classification": {
+      "FIX": 1
+    }
+  },
+  "critical_section_functions": 245,
+  "skipped_files": []
+}

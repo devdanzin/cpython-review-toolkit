@@ -1,0 +1,56 @@
+{
+  "project_root": "/home/danzin/projects/cpython",
+  "scan_root": "/home/danzin/projects/cpython",
+  "files_analyzed": 1,
+  "functions_analyzed": 417,
+  "findings": [
+    {
+      "type": "init_bypass_null_deref",
+      "function": "super_descr_get",
+      "field": "type",
+      "sink": "Py_NewRef",
+      "reason": "new_bypass",
+      "line": 12806,
+      "confidence": "medium",
+      "detail": "'type' is Py_INCREF'd via Py_NewRef() with no NULL guard, but it can be NULL via a __new__/subclass bypass of tp_init (T.__new__(T) leaves it NULL). A guard such as 'type != Py_None' or 'Py_IsNone(type)' does NOT protect this \u2014 after the bypass the field is NULL. Add 'if (type == NULL)' (or initialize it in tp_new) before the deref.",
+      "file": "Objects/typeobject.c"
+    }
+  ],
+  "summary": {
+    "total_findings": 1,
+    "by_confidence": {
+      "medium": 1
+    },
+    "by_reason": {
+      "new_bypass": 1
+    }
+  },
+  "files_with_nullable_fields": 1,
+  "total_nullable_fields": 3,
+  "nullable_fields_by_reason": {
+    "new_bypass": 3
+  },
+  "skipped_files": [],
+  "_sample": {
+    "files_requested": [
+      "Objects/typeobject.c"
+    ],
+    "files_scanned": [
+      "Objects/typeobject.c"
+    ],
+    "files_missing": [],
+    "method": "the scanner was RE-RUN over exactly these files; every count in this report is sample-scoped. This is not a post-hoc filter of a corpus-wide scan -- a filtered report keeps corpus-wide denominators next to sample-scoped findings, which makes an unearned zero look earned.",
+    "merge_policy": {
+      "project_root": "carried (constant, not a count)",
+      "scan_root": "carried (constant, not a count)",
+      "files_analyzed": "summed",
+      "functions_analyzed": "summed",
+      "findings": "concatenated",
+      "summary": "merged key-wise",
+      "files_with_nullable_fields": "summed",
+      "total_nullable_fields": "summed",
+      "nullable_fields_by_reason": "merged key-wise",
+      "skipped_files": "concatenated"
+    }
+  }
+}

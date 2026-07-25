@@ -661,9 +661,147 @@ class TestAnalyze(unittest.TestCase):
                 "unconditional_pyerr_clear",
                 "pylong_sentinel_no_errcheck",
                 "unchecked_parse_calls",
+                "int_status_never_tested",
                 "total_findings",
             ):
                 self.assertIn(key, result["summary"])
+
+
+# ---------------------------------------------------------------------------
+# int_status_never_tested (issue #28 rule 4)
+# ---------------------------------------------------------------------------
+#
+# The "value returned directly" suppression is correct for a *pointer* -- the
+# callee's exception propagates untouched -- and wrong for an **int status**,
+# because `return res` at the *end* of the function stops nothing in between.
+
+# Objects/typeobject.c type_set_bases_unlocked:1966, reproduced as CPY-0070:
+# SIGABRT on debug, silent permanent corruption on release.
+TYPE_SET_BASES = (
+    "static int\n"
+    "add_all_subclasses(PyTypeObject *type, PyObject *bases)\n"
+    "{\n"
+    "    int res = 0;\n"
+    "    if (add_subclass(type, type) < 0) {\n"
+    "        res = -1;\n"
+    "    }\n"
+    "    return res;\n"
+    "}\n"
+    "\n"
+    "static int\n"
+    "type_set_bases_unlocked(PyTypeObject *type, PyObject *new_bases)\n"
+    "{\n"
+    "    PyObject *old_bases = lookup_tp_bases(type);\n"
+    "    int res;\n"
+    "    if (lookup_tp_bases(type) == new_bases) {\n"
+    "        remove_all_subclasses(type, old_bases);\n"
+    "        res = add_all_subclasses(type, new_bases);\n"
+    "        if (update_all_slots(type) < 0) {\n"
+    "            goto bail;\n"
+    "        }\n"
+    "        _PyType_Modified_Unlocked(type);\n"
+    "    }\n"
+    "    else {\n"
+    "        res = 0;\n"
+    "    }\n"
+    "    Py_DECREF(old_bases);\n"
+    "    return res;\n"
+    "\n"
+    "  bail:\n"
+    "    return -1;\n"
+    "}\n"
+)
+
+
+class TestIntStatusNeverTested(unittest.TestCase):
+    KIND = "int_status_never_tested"
+
+    def _scan(self, code, path="Objects/typeobject.c"):
+        with TempProject({path: code}) as root:
+            return _types(mod.analyze(str(root)), self.KIND)
+
+    def test_the_reproduced_shape(self):
+        found = self._scan(TYPE_SET_BASES)
+        self.assertEqual(len(found), 1, found)
+        self.assertEqual(found[0]["function"], "type_set_bases_unlocked")
+        self.assertEqual(found[0]["api_call"], "add_all_subclasses")
+        self.assertEqual(found[0]["variable"], "res")
+        self.assertEqual(found[0]["confidence"], "high")
+
+    def test_a_sibling_branch_assignment_is_not_a_rebind(self):
+        """`else { res = 0; }` is mutually exclusive with the assignment, so it
+        does not end the flagged value's life."""
+        self.assertEqual(len(self._scan(TYPE_SET_BASES)), 1)
+
+    def test_testing_the_status_suppresses(self):
+        fixed = TYPE_SET_BASES.replace(
+            "        res = add_all_subclasses(type, new_bases);\n",
+            "        res = add_all_subclasses(type, new_bases);\n"
+            "        if (res < 0) {\n"
+            "            goto bail;\n"
+            "        }\n",
+        )
+        self.assertEqual(self._scan(fixed), [])
+
+    def test_assignment_inside_its_own_condition_is_a_test(self):
+        code = (
+            "static int\n"
+            "ok(PyObject *d, PyObject *k, PyObject *v)\n"
+            "{\n"
+            "    int res;\n"
+            "    if ((res = PyDict_SetItem(d, k, v)) < 0) {\n"
+            "        return -1;\n"
+            "    }\n"
+            "    commit(d);\n"
+            "    return res;\n"
+            "}\n"
+        )
+        self.assertEqual(self._scan(code), [])
+
+    def test_accumulate_then_return_is_correct_code(self):
+        """Only cleanup between the assignment and the read."""
+        code = (
+            "static int\n"
+            "tidy(PyObject *d, PyObject *k, PyObject *v, PyObject *tmp)\n"
+            "{\n"
+            "    int res = PyDict_SetItem(d, k, v);\n"
+            "    Py_DECREF(tmp);\n"
+            "    return res;\n"
+            "}\n"
+        )
+        self.assertEqual(self._scan(code), [])
+
+    def test_pointer_result_is_left_to_the_pointer_rule(self):
+        """For a pointer, `return p` really does propagate the exception."""
+        code = (
+            "static PyObject *\n"
+            "fwd(PyObject *d, PyObject *k)\n"
+            "{\n"
+            "    PyObject *res = PyDict_GetItemWithError(d, k);\n"
+            "    commit(d);\n"
+            "    return res;\n"
+            "}\n"
+        )
+        self.assertEqual(self._scan(code), [])
+
+    def test_int_status_callees_are_discovered_not_tabulated(self):
+        """add_all_subclasses signals failure through a `res` it sets to -1,
+        never with a literal `return -1;`."""
+        callees = mod.int_status_callees(mod.find_functions(TYPE_SET_BASES))
+        self.assertIn("add_all_subclasses", callees)
+        self.assertIn("PyDict_SetItem", callees)
+
+    def test_void_helper_is_not_an_int_status_callee(self):
+        code = (
+            "static void\n"
+            "remove_all_subclasses(PyTypeObject *type, PyObject *bases)\n"
+            "{\n"
+            "    int x = -1;\n"
+            "    (void)x;\n"
+            "}\n"
+        )
+        callees = mod.int_status_callees(mod.find_functions(code))
+        self.assertNotIn("remove_all_subclasses", callees)
 
 
 if __name__ == "__main__":

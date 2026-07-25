@@ -1,0 +1,487 @@
+{
+  "project_root": "/home/danzin/projects/cpython",
+  "scan_root": "/home/danzin/projects/cpython/Objects",
+  "files_analyzed": 113,
+  "functions_analyzed": 4627,
+  "findings": [
+    {
+      "type": "atomic_plain_asymmetry",
+      "ft_class": "T1",
+      "file": "Objects/bytearrayobject.c",
+      "member": "ob_alloc",
+      "line": 218,
+      "confidence": "low",
+      "detail": "Field 'ob_alloc' is accessed via an atomic macro (_Py_atomic_* / FT_ATOMIC_*) elsewhere in this file but is read/written plainly here \u2014 one access is unsynchronized (cf. itertools count_repr / TSAN-0006). Make every access to a concurrently-shared field atomic, or hold a lock.",
+      "duplicate_count": 1,
+      "duplicate_locations": [
+        {
+          "file": "Objects/bytearrayobject.c",
+          "line": 3121
+        }
+      ]
+    },
+    {
+      "type": "lazy_init_no_critical_section",
+      "ft_class": "T2",
+      "function": "bytearray___init___impl",
+      "member": "self->ob_bytes_object",
+      "line": 920,
+      "confidence": "medium",
+      "detail": "Lazy init of 'self->ob_bytes_object' guarded only by a NULL check, with no critical section. Under free-threading two threads both observe NULL and both compute/store -> leak + torn/lost write (cf. gh descr_get_qualname / TSAN-0043). Guard with Py_BEGIN_CRITICAL_SECTION or a compare-exchange.",
+      "file": "Objects/bytearrayobject.c"
+    },
+    {
+      "type": "atomic_plain_asymmetry",
+      "ft_class": "T1",
+      "file": "Objects/bytesobject.c",
+      "member": "ob_shash",
+      "line": 60,
+      "confidence": "low",
+      "detail": "Field 'ob_shash' is accessed via an atomic macro (_Py_atomic_* / FT_ATOMIC_*) elsewhere in this file but is read/written plainly here \u2014 one access is unsynchronized (cf. itertools count_repr / TSAN-0006). Make every access to a concurrently-shared field atomic, or hold a lock."
+    },
+    {
+      "type": "atomic_plain_asymmetry",
+      "ft_class": "T1",
+      "file": "Objects/codeobject.c",
+      "member": "_co_cached",
+      "line": 357,
+      "confidence": "low",
+      "detail": "Field '_co_cached' is accessed via an atomic macro (_Py_atomic_* / FT_ATOMIC_*) elsewhere in this file but is read/written plainly here \u2014 one access is unsynchronized (cf. itertools count_repr / TSAN-0006). Make every access to a concurrently-shared field atomic, or hold a lock.",
+      "duplicate_count": 6,
+      "duplicate_locations": [
+        {
+          "file": "Objects/codeobject.c",
+          "line": 364
+        },
+        {
+          "file": "Objects/codeobject.c",
+          "line": 559
+        },
+        {
+          "file": "Objects/codeobject.c",
+          "line": 563
+        },
+        {
+          "file": "Objects/codeobject.c",
+          "line": 570
+        },
+        {
+          "file": "Objects/codeobject.c",
+          "line": 1532
+        },
+        {
+          "file": "Objects/codeobject.c",
+          "line": 2382
+        }
+      ]
+    },
+    {
+      "type": "lazy_init_no_critical_section",
+      "ft_class": "T2",
+      "function": "descr_get_qualname",
+      "member": "descr->d_qualname",
+      "line": 622,
+      "confidence": "medium",
+      "detail": "Lazy init of 'descr->d_qualname' guarded only by a NULL check, with no critical section. Under free-threading two threads both observe NULL and both compute/store -> leak + torn/lost write (cf. gh descr_get_qualname / TSAN-0043). Guard with Py_BEGIN_CRITICAL_SECTION or a compare-exchange.",
+      "file": "Objects/descrobject.c"
+    },
+    {
+      "type": "atomic_plain_asymmetry",
+      "ft_class": "T1",
+      "file": "Objects/dictobject.c",
+      "member": "dk_nentries",
+      "line": 248,
+      "confidence": "low",
+      "detail": "Field 'dk_nentries' is accessed via an atomic macro (_Py_atomic_* / FT_ATOMIC_*) elsewhere in this file but is read/written plainly here \u2014 one access is unsynchronized (cf. itertools count_repr / TSAN-0006). Make every access to a concurrently-shared field atomic, or hold a lock.",
+      "duplicate_count": 18,
+      "duplicate_locations": [
+        {
+          "file": "Objects/dictobject.c",
+          "line": 249
+        },
+        {
+          "file": "Objects/dictobject.c",
+          "line": 262
+        },
+        {
+          "file": "Objects/dictobject.c",
+          "line": 283
+        },
+        {
+          "file": "Objects/dictobject.c",
+          "line": 289
+        },
+        {
+          "file": "Objects/dictobject.c",
+          "line": 557
+        },
+        {
+          "file": "Objects/dictobject.c",
+          "line": 674
+        },
+        {
+          "file": "Objects/dictobject.c",
+          "line": 687
+        },
+        {
+          "file": "Objects/dictobject.c",
+          "line": 687
+        },
+        {
+          "file": "Objects/dictobject.c",
+          "line": 691
+        },
+        {
+          "file": "Objects/dictobject.c",
+          "line": 922
+        },
+        {
+          "file": "Objects/dictobject.c",
+          "line": 924
+        },
+        {
+          "file": "Objects/dictobject.c",
+          "line": 1016
+        },
+        {
+          "file": "Objects/dictobject.c",
+          "line": 2267
+        },
+        {
+          "file": "Objects/dictobject.c",
+          "line": 4525
+        },
+        {
+          "file": "Objects/dictobject.c",
+          "line": 5628
+        },
+        {
+          "file": "Objects/dictobject.c",
+          "line": 5633
+        },
+        {
+          "file": "Objects/dictobject.c",
+          "line": 7273
+        },
+        {
+          "file": "Objects/dictobject.c",
+          "line": 8160
+        }
+      ]
+    },
+    {
+      "type": "atomic_plain_asymmetry",
+      "ft_class": "T1",
+      "file": "Objects/enumobject.c",
+      "member": "en_index",
+      "line": 63,
+      "confidence": "low",
+      "detail": "Field 'en_index' is accessed via an atomic macro (_Py_atomic_* / FT_ATOMIC_*) elsewhere in this file but is read/written plainly here \u2014 one access is unsynchronized (cf. itertools count_repr / TSAN-0006). Make every access to a concurrently-shared field atomic, or hold a lock.",
+      "duplicate_count": 1,
+      "duplicate_locations": [
+        {
+          "file": "Objects/enumobject.c",
+          "line": 401
+        }
+      ]
+    },
+    {
+      "type": "lazy_init_no_critical_section",
+      "ft_class": "T2",
+      "function": "_PyFrame_GetLocals",
+      "member": "frame->f_locals",
+      "line": 2282,
+      "confidence": "medium",
+      "detail": "Lazy init of 'frame->f_locals' guarded only by a NULL check, with no critical section. Under free-threading two threads both observe NULL and both compute/store -> leak + torn/lost write (cf. gh descr_get_qualname / TSAN-0043). Guard with Py_BEGIN_CRITICAL_SECTION or a compare-exchange.",
+      "file": "Objects/frameobject.c"
+    },
+    {
+      "type": "lazy_init_no_critical_section",
+      "ft_class": "T2",
+      "function": "ga_getitem",
+      "member": "alias->parameters",
+      "line": 581,
+      "confidence": "medium",
+      "detail": "Lazy init of 'alias->parameters' guarded only by a NULL check, with no critical section. Under free-threading two threads both observe NULL and both compute/store -> leak + torn/lost write (cf. gh descr_get_qualname / TSAN-0043). Guard with Py_BEGIN_CRITICAL_SECTION or a compare-exchange.",
+      "file": "Objects/genericaliasobject.c"
+    },
+    {
+      "type": "atomic_plain_asymmetry",
+      "ft_class": "T1",
+      "file": "Objects/genobject.c",
+      "member": "gi_name",
+      "line": 85,
+      "confidence": "low",
+      "detail": "Field 'gi_name' is accessed via an atomic macro (_Py_atomic_* / FT_ATOMIC_*) elsewhere in this file but is read/written plainly here \u2014 one access is unsynchronized (cf. itertools count_repr / TSAN-0006). Make every access to a concurrently-shared field atomic, or hold a lock.",
+      "duplicate_count": 2,
+      "duplicate_locations": [
+        {
+          "file": "Objects/genobject.c",
+          "line": 86
+        },
+        {
+          "file": "Objects/genobject.c",
+          "line": 87
+        }
+      ]
+    },
+    {
+      "type": "iternext_double_decref",
+      "ft_class": "T3",
+      "function": "iter_iternext",
+      "line": 77,
+      "confidence": "high",
+      "detail": "'iter_iternext' is a tp_iternext that drops an owning reference to a shared self-member (Py_CLEAR / member=NULL + Py_DECREF) with no Py_BEGIN_CRITICAL_SECTION. Under the free-threaded build two concurrent next() calls read the same borrowed sequence and both DECREF it -> double-free (cf. gh-154130 dict, gh-144357 set, gh-153296 StringIO). Wrap the iternext body in Py_BEGIN_CRITICAL_SECTION(self).",
+      "file": "Objects/iterobject.c",
+      "duplicate_count": 1,
+      "duplicate_locations": [
+        {
+          "file": "Objects/iterobject.c",
+          "line": 241
+        }
+      ]
+    },
+    {
+      "type": "atomic_plain_asymmetry",
+      "ft_class": "T1",
+      "file": "Objects/listobject.c",
+      "member": "allocated",
+      "line": 46,
+      "confidence": "low",
+      "detail": "Field 'allocated' is accessed via an atomic macro (_Py_atomic_* / FT_ATOMIC_*) elsewhere in this file but is read/written plainly here \u2014 one access is unsynchronized (cf. itertools count_repr / TSAN-0006). Make every access to a concurrently-shared field atomic, or hold a lock.",
+      "duplicate_count": 2,
+      "duplicate_locations": [
+        {
+          "file": "Objects/listobject.c",
+          "line": 100
+        },
+        {
+          "file": "Objects/listobject.c",
+          "line": 4042
+        }
+      ]
+    },
+    {
+      "type": "atomic_plain_asymmetry",
+      "ft_class": "T1",
+      "file": "Objects/memoryobject.c",
+      "member": "exports",
+      "line": 81,
+      "confidence": "low",
+      "detail": "Field 'exports' is accessed via an atomic macro (_Py_atomic_* / FT_ATOMIC_*) elsewhere in this file but is read/written plainly here \u2014 one access is unsynchronized (cf. itertools count_repr / TSAN-0006). Make every access to a concurrently-shared field atomic, or hold a lock."
+    },
+    {
+      "type": "iternext_double_decref",
+      "ft_class": "T3",
+      "function": "memoryiter_next",
+      "line": 3639,
+      "confidence": "high",
+      "detail": "'memoryiter_next' is a tp_iternext that drops an owning reference to a shared self-member (Py_CLEAR / member=NULL + Py_DECREF) with no Py_BEGIN_CRITICAL_SECTION. Under the free-threaded build two concurrent next() calls read the same borrowed sequence and both DECREF it -> double-free (cf. gh-154130 dict, gh-144357 set, gh-153296 StringIO). Wrap the iternext body in Py_BEGIN_CRITICAL_SECTION(self).",
+      "file": "Objects/memoryobject.c"
+    },
+    {
+      "type": "atomic_plain_asymmetry",
+      "ft_class": "T1",
+      "file": "Objects/object.c",
+      "member": "reftotal",
+      "line": 94,
+      "confidence": "low",
+      "detail": "Field 'reftotal' is accessed via an atomic macro (_Py_atomic_* / FT_ATOMIC_*) elsewhere in this file but is read/written plainly here \u2014 one access is unsynchronized (cf. itertools count_repr / TSAN-0006). Make every access to a concurrently-shared field atomic, or hold a lock.",
+      "duplicate_count": 4,
+      "duplicate_locations": [
+        {
+          "file": "Objects/object.c",
+          "line": 439
+        },
+        {
+          "file": "Objects/object.c",
+          "line": 2746
+        },
+        {
+          "file": "Objects/object.c",
+          "line": 2747
+        },
+        {
+          "file": "Objects/object.c",
+          "line": 2749
+        }
+      ]
+    },
+    {
+      "type": "atomic_plain_asymmetry",
+      "ft_class": "T1",
+      "file": "Objects/setobject.c",
+      "member": "key",
+      "line": 109,
+      "confidence": "low",
+      "detail": "Field 'key' is accessed via an atomic macro (_Py_atomic_* / FT_ATOMIC_*) elsewhere in this file but is read/written plainly here \u2014 one access is unsynchronized (cf. itertools count_repr / TSAN-0006). Make every access to a concurrently-shared field atomic, or hold a lock.",
+      "duplicate_count": 5,
+      "duplicate_locations": [
+        {
+          "file": "Objects/setobject.c",
+          "line": 142
+        },
+        {
+          "file": "Objects/setobject.c",
+          "line": 153
+        },
+        {
+          "file": "Objects/setobject.c",
+          "line": 266
+        },
+        {
+          "file": "Objects/setobject.c",
+          "line": 314
+        },
+        {
+          "file": "Objects/setobject.c",
+          "line": 1062
+        }
+      ]
+    },
+    {
+      "type": "atomic_plain_asymmetry",
+      "ft_class": "T1",
+      "file": "Objects/tupleobject.c",
+      "member": "it_index",
+      "line": 1165,
+      "confidence": "low",
+      "detail": "Field 'it_index' is accessed via an atomic macro (_Py_atomic_* / FT_ATOMIC_*) elsewhere in this file but is read/written plainly here \u2014 one access is unsynchronized (cf. itertools count_repr / TSAN-0006). Make every access to a concurrently-shared field atomic, or hold a lock."
+    },
+    {
+      "type": "atomic_plain_asymmetry",
+      "ft_class": "T1",
+      "file": "Objects/typeobject.c",
+      "member": "version",
+      "line": 988,
+      "confidence": "low",
+      "detail": "Field 'version' is accessed via an atomic macro (_Py_atomic_* / FT_ATOMIC_*) elsewhere in this file but is read/written plainly here \u2014 one access is unsynchronized (cf. itertools count_repr / TSAN-0006). Make every access to a concurrently-shared field atomic, or hold a lock.",
+      "duplicate_count": 4,
+      "duplicate_locations": [
+        {
+          "file": "Objects/typeobject.c",
+          "line": 989
+        },
+        {
+          "file": "Objects/typeobject.c",
+          "line": 990
+        },
+        {
+          "file": "Objects/typeobject.c",
+          "line": 1136
+        },
+        {
+          "file": "Objects/typeobject.c",
+          "line": 1140
+        }
+      ]
+    },
+    {
+      "type": "lazy_init_no_critical_section",
+      "ft_class": "T2",
+      "function": "type_from_slots_or_spec",
+      "member": "type->tp_dealloc",
+      "line": 5697,
+      "confidence": "medium",
+      "detail": "Lazy init of 'type->tp_dealloc' guarded only by a NULL check, with no critical section. Under free-threading two threads both observe NULL and both compute/store -> leak + torn/lost write (cf. gh descr_get_qualname / TSAN-0043). Guard with Py_BEGIN_CRITICAL_SECTION or a compare-exchange.",
+      "file": "Objects/typeobject.c",
+      "duplicate_count": 8,
+      "duplicate_locations": [
+        {
+          "file": "Objects/typeobject.c",
+          "line": 8747
+        },
+        {
+          "file": "Objects/typeobject.c",
+          "line": 8749
+        },
+        {
+          "file": "Objects/typeobject.c",
+          "line": 9294
+        },
+        {
+          "file": "Objects/typeobject.c",
+          "line": 9297
+        },
+        {
+          "file": "Objects/typeobject.c",
+          "line": 9300
+        },
+        {
+          "file": "Objects/typeobject.c",
+          "line": 9303
+        },
+        {
+          "file": "Objects/typeobject.c",
+          "line": 9306
+        },
+        {
+          "file": "Objects/typeobject.c",
+          "line": 9477
+        }
+      ]
+    },
+    {
+      "type": "lazy_init_no_critical_section",
+      "ft_class": "T2",
+      "function": "unicode_format_arg_parse",
+      "member": "ctx->args_owned",
+      "line": 504,
+      "confidence": "medium",
+      "detail": "Lazy init of 'ctx->args_owned' guarded only by a NULL check, with no critical section. Under free-threading two threads both observe NULL and both compute/store -> leak + torn/lost write (cf. gh descr_get_qualname / TSAN-0043). Guard with Py_BEGIN_CRITICAL_SECTION or a compare-exchange.",
+      "file": "Objects/unicode_format.c"
+    },
+    {
+      "type": "atomic_plain_asymmetry",
+      "ft_class": "T1",
+      "file": "Objects/unicodeobject.c",
+      "member": "unicode",
+      "line": 547,
+      "confidence": "low",
+      "detail": "Field 'unicode' is accessed via an atomic macro (_Py_atomic_* / FT_ATOMIC_*) elsewhere in this file but is read/written plainly here \u2014 one access is unsynchronized (cf. itertools count_repr / TSAN-0006). Make every access to a concurrently-shared field atomic, or hold a lock."
+    },
+    {
+      "type": "iternext_double_decref",
+      "ft_class": "T3",
+      "function": "unicode_ascii_iter_next",
+      "line": 14984,
+      "confidence": "high",
+      "detail": "'unicode_ascii_iter_next' is a tp_iternext that drops an owning reference to a shared self-member (Py_CLEAR / member=NULL + Py_DECREF) with no Py_BEGIN_CRITICAL_SECTION. Under the free-threaded build two concurrent next() calls read the same borrowed sequence and both DECREF it -> double-free (cf. gh-154130 dict, gh-144357 set, gh-153296 StringIO). Wrap the iternext body in Py_BEGIN_CRITICAL_SECTION(self).",
+      "file": "Objects/unicodeobject.c"
+    },
+    {
+      "type": "lazy_init_no_critical_section",
+      "ft_class": "T2",
+      "function": "unionbuilder_add_single_unchecked",
+      "member": "ub->unhashable_args",
+      "line": 171,
+      "confidence": "medium",
+      "detail": "Lazy init of 'ub->unhashable_args' guarded only by a NULL check, with no critical section. Under free-threading two threads both observe NULL and both compute/store -> leak + torn/lost write (cf. gh descr_get_qualname / TSAN-0043). Guard with Py_BEGIN_CRITICAL_SECTION or a compare-exchange.",
+      "file": "Objects/unionobject.c"
+    },
+    {
+      "type": "atomic_plain_asymmetry",
+      "ft_class": "T1",
+      "file": "Objects/weakrefobject.c",
+      "member": "wr_object",
+      "line": 65,
+      "confidence": "low",
+      "detail": "Field 'wr_object' is accessed via an atomic macro (_Py_atomic_* / FT_ATOMIC_*) elsewhere in this file but is read/written plainly here \u2014 one access is unsynchronized (cf. itertools count_repr / TSAN-0006). Make every access to a concurrently-shared field atomic, or hold a lock."
+    }
+  ],
+  "summary": {
+    "total_findings": 24,
+    "by_class": {
+      "T1": 14,
+      "T2": 7,
+      "T3": 3
+    },
+    "by_confidence": {
+      "low": 14,
+      "medium": 7,
+      "high": 3
+    }
+  },
+  "iternext_functions": 17,
+  "skipped_files": []
+}

@@ -1,0 +1,153 @@
+{
+ "project_root": "/home/danzin/projects/cpython",
+ "scan_root": "/home/danzin/projects/cpython/Modules",
+ "files_analyzed": 380,
+ "functions_analyzed": 10457,
+ "findings": [
+  {
+   "type": "recursion_descent_guarded_by_dispatcher",
+   "function": "deque_richcompare",
+   "slot": "tp_richcompare",
+   "shape": "guarded_dispatcher_descent",
+   "element_op": "PyObject_RichCompareBool",
+   "guarded_by": [
+    "Objects/object.c:1099 (via PyObject_RichCompare)"
+   ],
+   "line": 1706,
+   "confidence": "low",
+   "detail": "'deque_richcompare' (tp_richcompare) descends into elements via PyObject_RichCompareBool, which wrap _Py_EnterRecursiveCallTstate at Objects/object.c:1099 (via PyObject_RichCompare). The descent is therefore bounded by the interpreter recursion limit and raises RecursionError, not SIGSEGV. Reported for auditability only \u2014 promote to a real finding only if you can show the slot is reached by a route that bypasses its dispatcher.",
+   "file": "Modules/_collectionsmodule.c"
+  },
+  {
+   "type": "missing_recursion_guard",
+   "function": "delta_hash",
+   "slot": "tp_hash",
+   "shape": "field_element_descent",
+   "element_op": "PyObject_Hash",
+   "argument_kind": "receiver",
+   "tail_call": false,
+   "line": 2568,
+   "sites": [
+    {
+     "line": 2568,
+     "argument_kind": "receiver",
+     "argument": "temp"
+    }
+   ],
+   "confidence": "high",
+   "detail": "'delta_hash' calls PyObject_Hash on a receiver-derived value (fixed arity \u2014 arity is irrelevant to depth, the value is an arbitrary Python object). PyObject_Hash (Objects/object.c:1158) is the one element-descent dispatcher with NO recursion guard, so a tp_hash descent is unguarded at every level: a deeply-nested or cyclic object overflows the C stack (SIGSEGV) instead of raising RecursionError. Bracket the descent with Py_EnterRecursiveCall(\" while hashing\")/Py_LeaveRecursiveCall().",
+   "file": "Modules/_datetimemodule.c"
+  },
+  {
+   "type": "missing_recursion_guard",
+   "function": "time_hash",
+   "slot": "tp_hash",
+   "shape": "hash_entry_point",
+   "element_op": "PyObject_Hash",
+   "argument_kind": "unknown",
+   "tail_call": false,
+   "line": 5145,
+   "sites": [
+    {
+     "line": 5145,
+     "argument_kind": "unknown",
+     "argument": "temp2"
+    }
+   ],
+   "confidence": "low",
+   "detail": "'time_hash' calls PyObject_Hash on a caller-supplied value \u2014 this adds exactly one C frame, so it is an entry point into the unguarded hash graph rather than an additive descent. PyObject_Hash (Objects/object.c:1158) is the one element-descent dispatcher with NO recursion guard, so a tp_hash descent is unguarded at every level: a deeply-nested or cyclic object overflows the C stack (SIGSEGV) instead of raising RecursionError. Bracket the descent with Py_EnterRecursiveCall(\" while hashing\")/Py_LeaveRecursiveCall().",
+   "file": "Modules/_datetimemodule.c"
+  },
+  {
+   "type": "missing_recursion_guard",
+   "function": "datetime_hash",
+   "slot": "tp_hash",
+   "shape": "hash_entry_point",
+   "element_op": "PyObject_Hash",
+   "argument_kind": "unknown",
+   "tail_call": false,
+   "line": 6724,
+   "sites": [
+    {
+     "line": 6724,
+     "argument_kind": "unknown",
+     "argument": "temp2"
+    }
+   ],
+   "confidence": "low",
+   "detail": "'datetime_hash' calls PyObject_Hash on a caller-supplied value \u2014 this adds exactly one C frame, so it is an entry point into the unguarded hash graph rather than an additive descent. PyObject_Hash (Objects/object.c:1158) is the one element-descent dispatcher with NO recursion guard, so a tp_hash descent is unguarded at every level: a deeply-nested or cyclic object overflows the C stack (SIGSEGV) instead of raising RecursionError. Bracket the descent with Py_EnterRecursiveCall(\" while hashing\")/Py_LeaveRecursiveCall().",
+   "file": "Modules/_datetimemodule.c"
+  },
+  {
+   "type": "missing_recursion_guard",
+   "function": "random_seed",
+   "slot": "not_a_slot",
+   "shape": "hash_entry_point",
+   "element_op": "PyObject_Hash",
+   "argument_kind": "parameter",
+   "tail_call": false,
+   "line": 329,
+   "sites": [
+    {
+     "line": 329,
+     "argument_kind": "parameter",
+     "argument": "arg"
+    }
+   ],
+   "confidence": "low",
+   "detail": "'random_seed' calls PyObject_Hash on a caller-supplied value \u2014 this adds exactly one C frame, so it is an entry point into the unguarded hash graph rather than an additive descent. PyObject_Hash (Objects/object.c:1158) is the one element-descent dispatcher with NO recursion guard, so a tp_hash descent is unguarded at every level: a deeply-nested or cyclic object overflows the C stack (SIGSEGV) instead of raising RecursionError. Bracket the descent with Py_EnterRecursiveCall(\" while hashing\")/Py_LeaveRecursiveCall().",
+   "file": "Modules/_randommodule.c"
+  }
+ ],
+ "summary": {
+  "total_findings": 13,
+  "missing_recursion_guard": 11,
+  "guarded_by_dispatcher": 2,
+  "by_confidence": {
+   "low": 9,
+   "high": 4
+  },
+  "by_shape": {
+   "guarded_dispatcher_descent": 2,
+   "field_element_descent": 4,
+   "hash_entry_point": 7
+  },
+  "by_type": {
+   "recursion_descent_guarded_by_dispatcher": 2,
+   "missing_recursion_guard": 11
+  }
+ },
+ "recursion_prone_slot_functions": 124,
+ "dispatcher_guard_model": {
+  "unguarded": {
+   "PyObject_Hash": "Objects/object.c:1158 \u2014 NO guard"
+  },
+  "guarded": {
+   "PyObject_Repr": "Objects/object.c:759",
+   "PyObject_Str": "Objects/object.c:800",
+   "PyObject_ASCII": "Objects/object.c:759 (via PyObject_Repr)",
+   "PyObject_RichCompare": "Objects/object.c:1099",
+   "PyObject_RichCompareBool": "Objects/object.c:1099 (via PyObject_RichCompare)"
+  },
+  "note": "Verified against CPython main @ 3.16.0a0. Only PyObject_Hash lacks _Py_EnterRecursiveCallTstate, so only hash descents are unguarded at every level. Self-recursion is unguarded regardless of dispatcher."
+ },
+ "skipped_files": [],
+ "_sample_filter": {
+  "sample_files": [
+   "Modules/_pickle.c",
+   "Modules/_datetimemodule.c",
+   "Modules/_elementtree.c",
+   "Modules/itertoolsmodule.c",
+   "Modules/_struct.c",
+   "Modules/_collectionsmodule.c",
+   "Modules/_zoneinfo.c",
+   "Modules/_json.c",
+   "Modules/_csv.c",
+   "Modules/_heapqmodule.c",
+   "Modules/_randommodule.c",
+   "Modules/_queuemodule.c"
+  ],
+  "modules_total": 13,
+  "sample_total": 5
+ }
+}

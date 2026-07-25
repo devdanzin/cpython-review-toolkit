@@ -1,0 +1,61 @@
+{
+  "project_root": "/home/danzin/projects/cpython",
+  "scan_root": "/home/danzin/projects/cpython/Modules",
+  "files_analyzed": 484,
+  "functions_analyzed": 8968,
+  "findings": [
+    {
+      "type": "owner_freed_before_use",
+      "api_call": "Py_DECREF",
+      "variable": "del",
+      "line": 108,
+      "detail": "Py_DECREF(del) at line 106 may release the last reference; 'del' is then dereferenced here. Hoist the read above the release, or hold a reference across it",
+      "confidence": "medium",
+      "file": "Modules/_testcapi/gc.c",
+      "function": "slot_tp_del"
+    },
+    {
+      "type": "owner_freed_before_use",
+      "api_call": "Py_DECREF",
+      "variable": "exporter",
+      "line": 35,
+      "detail": "Py_DECREF(exporter) at line 33 may release the last reference; 'exporter' is then dereferenced here. Hoist the read above the release, or hold a reference across it",
+      "confidence": "medium",
+      "file": "Modules/_testlimitedcapi/slots.c",
+      "function": "demo_releasebuffer"
+    },
+    {
+      "type": "borrowed_ref_across_call",
+      "api_call": "PyIter_Next",
+      "variable": "it",
+      "line": 3988,
+      "detail": "'it' is a borrowed reference from PyTuple_GET_ITEM; PyIter_Next can run arbitrary Python between the read and this Py_DECREF(it), so ownership is released through a pointer this function never owned and may no longer be valid. INCREF before the call, or re-read the owner after it",
+      "confidence": "medium",
+      "file": "Modules/itertoolsmodule.c",
+      "function": "zip_longest_next_lock_held"
+    },
+    {
+      "type": "borrowed_ref_across_call",
+      "api_call": "PyIter_Next",
+      "variable": "it",
+      "line": 4018,
+      "detail": "'it' is a borrowed reference from PyTuple_GET_ITEM; PyIter_Next can run arbitrary Python between the read and this Py_DECREF(it), so ownership is released through a pointer this function never owned and may no longer be valid. INCREF before the call, or re-read the owner after it",
+      "confidence": "medium",
+      "file": "Modules/itertoolsmodule.c",
+      "function": "zip_longest_next_lock_held"
+    }
+  ],
+  "summary": {
+    "potential_leaks": 0,
+    "potential_double_frees": 0,
+    "stale_slot_decref": 0,
+    "owner_freed_before_use": 2,
+    "borrowed_ref_across_call": 2,
+    "init_not_reinit_safe": 0,
+    "new_missing_member_init": 0,
+    "total_findings": 4,
+    "high_confidence": 0,
+    "medium_confidence": 4,
+    "low_confidence": 0
+  }
+}

@@ -1,0 +1,1143 @@
+{
+  "project_root": "/home/danzin/projects/cpython",
+  "scan_root": "/home/danzin/projects/cpython/Objects",
+  "files_analyzed": 123,
+  "functions_analyzed": 3073,
+  "findings": [
+    {
+      "type": "unchecked_alloc",
+      "api_call": "PyObject_GetItem",
+      "variable": "result",
+      "detail": "Allocation via PyObject_GetItem assigned to 'result' is not checked for NULL",
+      "confidence": "medium",
+      "file": "Objects/abstract.c",
+      "function": "PyMapping_GetOptionalItem",
+      "line": 213
+    },
+    {
+      "type": "unchecked_alloc",
+      "api_call": "PySequence_List",
+      "variable": "v",
+      "detail": "Allocation via PySequence_List assigned to 'v' is not checked for NULL",
+      "confidence": "medium",
+      "file": "Objects/abstract.c",
+      "function": "PySequence_Fast",
+      "line": 2123
+    },
+    {
+      "type": "unchecked_alloc",
+      "api_call": "PyObject_GetItem",
+      "variable": "r",
+      "detail": "Allocation via PyObject_GetItem assigned to 'r' is not checked for NULL",
+      "confidence": "medium",
+      "file": "Objects/abstract.c",
+      "function": "PyMapping_GetItemString",
+      "line": 2317
+    },
+    {
+      "type": "unchecked_alloc",
+      "api_call": "PySequence_List",
+      "variable": "result",
+      "detail": "Allocation via PySequence_List assigned to 'result' is not checked for NULL",
+      "confidence": "medium",
+      "file": "Objects/abstract.c",
+      "function": "method_output_as_list",
+      "line": 2452
+    },
+    {
+      "type": "unchecked_alloc",
+      "api_call": "PyBytes_FromStringAndSize",
+      "variable": "ob_bytes_object",
+      "detail": "Allocation via PyBytes_FromStringAndSize assigned to 'ob_bytes_object' is not checked for NULL",
+      "confidence": "medium",
+      "file": "Objects/bytearrayobject.c",
+      "function": "PyByteArray_FromStringAndSize",
+      "line": 171
+    },
+    {
+      "type": "unchecked_alloc",
+      "api_call": "PyUnicode_FromFormat",
+      "variable": "res",
+      "detail": "Allocation via PyUnicode_FromFormat assigned to 'res' is not checked for NULL",
+      "confidence": "medium",
+      "file": "Objects/bytearrayobject.c",
+      "function": "bytearray_repr_lock_held",
+      "line": 1122
+    },
+    {
+      "type": "unchecked_alloc",
+      "api_call": "PyBytes_FromStringAndSize",
+      "variable": "pv",
+      "detail": "Allocation via PyBytes_FromStringAndSize assigned to 'pv' is not checked for NULL",
+      "confidence": "medium",
+      "file": "Objects/bytesobject.c",
+      "function": "_PyBytes_Resize",
+      "line": 3376
+    },
+    {
+      "type": "unchecked_alloc",
+      "api_call": "PyObject_Realloc",
+      "variable": "pv",
+      "detail": "Allocation via PyObject_Realloc assigned to 'pv' is not checked for NULL",
+      "confidence": "medium",
+      "file": "Objects/bytesobject.c",
+      "function": "_PyBytes_Resize",
+      "line": 3386
+    },
+    {
+      "type": "unchecked_alloc",
+      "api_call": "PyBytes_FromStringAndSize",
+      "variable": "obj",
+      "detail": "Allocation via PyBytes_FromStringAndSize assigned to 'obj' is not checked for NULL",
+      "confidence": "medium",
+      "file": "Objects/bytesobject.c",
+      "function": "byteswriter_resize",
+      "line": 3661
+    },
+    {
+      "type": "unchecked_alloc",
+      "api_call": "PyBytes_FromStringAndSize",
+      "variable": "result",
+      "detail": "Allocation via PyBytes_FromStringAndSize assigned to 'result' is not checked for NULL",
+      "confidence": "medium",
+      "file": "Objects/bytesobject.c",
+      "function": "PyBytesWriter_FinishWithSize",
+      "line": 3773
+    },
+    {
+      "type": "unchecked_alloc",
+      "api_call": "PyObject_GetAttrString",
+      "variable": "object2",
+      "detail": "Allocation via PyObject_GetAttrString assigned to 'object2' is not checked for NULL",
+      "confidence": "medium",
+      "file": "Objects/capsule.c",
+      "function": "PyCapsule_Import",
+      "line": 255
+    },
+    {
+      "type": "unchecked_alloc",
+      "api_call": "PyUnicode_FromFormat",
+      "variable": "res",
+      "detail": "Allocation via PyUnicode_FromFormat assigned to 'res' is not checked for NULL",
+      "confidence": "medium",
+      "file": "Objects/cellobject.c",
+      "function": "cell_repr",
+      "line": 122
+    },
+    {
+      "type": "unchecked_alloc",
+      "api_call": "PyUnicode_FromFormat",
+      "variable": "result",
+      "detail": "Allocation via PyUnicode_FromFormat assigned to 'result' is not checked for NULL",
+      "confidence": "medium",
+      "file": "Objects/classobject.c",
+      "function": "method_repr",
+      "line": 271
+    },
+    {
+      "type": "unchecked_alloc",
+      "api_call": "PyUnicode_FromFormat",
+      "variable": "result",
+      "detail": "Allocation via PyUnicode_FromFormat assigned to 'result' is not checked for NULL",
+      "confidence": "medium",
+      "file": "Objects/classobject.c",
+      "function": "instancemethod_repr",
+      "line": 485
+    },
+    {
+      "type": "unchecked_alloc",
+      "api_call": "PyMem_Calloc",
+      "variable": "flags",
+      "detail": "Allocation via PyMem_Calloc assigned to 'flags' is not checked for NULL",
+      "confidence": "medium",
+      "file": "Objects/codeobject.c",
+      "function": "get_indices_in_use",
+      "line": 3455
+    },
+    {
+      "type": "unchecked_alloc",
+      "api_call": "PyUnicode_FromFormat",
+      "variable": "result",
+      "detail": "Allocation via PyUnicode_FromFormat assigned to 'result' is not checked for NULL",
+      "confidence": "medium",
+      "file": "Objects/complexobject.c",
+      "function": "complex_repr",
+      "line": 616
+    },
+    {
+      "type": "unchecked_alloc",
+      "api_call": "PyUnicode_FromFormat",
+      "variable": "res",
+      "detail": "Allocation via PyUnicode_FromFormat assigned to 'res' is not checked for NULL",
+      "confidence": "medium",
+      "file": "Objects/descrobject.c",
+      "function": "calculate_qualname",
+      "line": 613
+    },
+    {
+      "type": "unchecked_alloc",
+      "api_call": "PyIter_Next",
+      "variable": "key",
+      "detail": "Allocation via PyIter_Next assigned to 'key' is not checked for NULL",
+      "confidence": "medium",
+      "file": "Objects/dictobject.c",
+      "function": "dict_merge",
+      "line": 4340
+    },
+    {
+      "type": "unchecked_alloc",
+      "api_call": "PyIter_Next",
+      "variable": "key",
+      "detail": "Allocation via PyIter_Next assigned to 'key' is not checked for NULL",
+      "confidence": "medium",
+      "file": "Objects/dictobject.c",
+      "function": "dict_merge",
+      "line": 4340
+    },
+    {
+      "type": "unchecked_alloc",
+      "api_call": "PyUnicode_FromFormat",
+      "variable": "result",
+      "detail": "Allocation via PyUnicode_FromFormat assigned to 'result' is not checked for NULL",
+      "confidence": "medium",
+      "file": "Objects/dictobject.c",
+      "function": "dictview_repr",
+      "line": 6606
+    },
+    {
+      "type": "unchecked_alloc",
+      "api_call": "PyIter_Next",
+      "variable": "key",
+      "detail": "Allocation via PyIter_Next assigned to 'key' is not checked for NULL",
+      "confidence": "medium",
+      "file": "Objects/dictobject.c",
+      "function": "_PyDictView_Intersect",
+      "line": 6739
+    },
+    {
+      "type": "unchecked_alloc",
+      "api_call": "PyIter_Next",
+      "variable": "item",
+      "detail": "Allocation via PyIter_Next assigned to 'item' is not checked for NULL",
+      "confidence": "medium",
+      "file": "Objects/dictobject.c",
+      "function": "dictviews_isdisjoint",
+      "line": 6959
+    },
+    {
+      "type": "unchecked_alloc",
+      "api_call": "PyDict_New",
+      "variable": "dict",
+      "detail": "Allocation via PyDict_New assigned to 'dict' is not checked for NULL",
+      "confidence": "medium",
+      "file": "Objects/dictobject.c",
+      "function": "_PyObject_MaterializeManagedDict_LockHeld",
+      "line": 7369
+    },
+    {
+      "type": "unchecked_alloc",
+      "api_call": "PyDict_New",
+      "variable": "dict",
+      "detail": "Allocation via PyDict_New assigned to 'dict' is not checked for NULL",
+      "confidence": "medium",
+      "file": "Objects/dictobject.c",
+      "function": "ensure_nonmanaged_dict",
+      "line": 8088
+    },
+    {
+      "type": "unchecked_alloc",
+      "api_call": "PyUnicode_FromFormat",
+      "variable": "res",
+      "detail": "Allocation via PyUnicode_FromFormat assigned to 'res' is not checked for NULL",
+      "confidence": "medium",
+      "file": "Objects/dictobject.c",
+      "function": "frozendict_repr",
+      "line": 8397
+    },
+    {
+      "type": "unchecked_alloc",
+      "api_call": "PyTuple_New",
+      "variable": "args",
+      "detail": "Allocation via PyTuple_New assigned to 'args' is not checked for NULL",
+      "confidence": "medium",
+      "file": "Objects/exceptions.c",
+      "function": "BaseException_new",
+      "line": 68
+    },
+    {
+      "type": "unchecked_alloc",
+      "api_call": "PyObject_Str",
+      "variable": "res",
+      "detail": "Allocation via PyObject_Str assigned to 'res' is not checked for NULL",
+      "confidence": "medium",
+      "file": "Objects/exceptions.c",
+      "function": "BaseException_str",
+      "line": 172
+    },
+    {
+      "type": "unchecked_alloc",
+      "api_call": "PyObject_Str",
+      "variable": "res",
+      "detail": "Allocation via PyObject_Str assigned to 'res' is not checked for NULL",
+      "confidence": "medium",
+      "file": "Objects/exceptions.c",
+      "function": "BaseException_str",
+      "line": 175
+    },
+    {
+      "type": "unchecked_alloc",
+      "api_call": "PyUnicode_FromFormat",
+      "variable": "res",
+      "detail": "Allocation via PyUnicode_FromFormat assigned to 'res' is not checked for NULL",
+      "confidence": "medium",
+      "file": "Objects/exceptions.c",
+      "function": "BaseException_repr",
+      "line": 192
+    },
+    {
+      "type": "unchecked_alloc",
+      "api_call": "PyUnicode_FromFormat",
+      "variable": "res",
+      "detail": "Allocation via PyUnicode_FromFormat assigned to 'res' is not checked for NULL",
+      "confidence": "medium",
+      "file": "Objects/exceptions.c",
+      "function": "BaseException_repr",
+      "line": 196
+    },
+    {
+      "type": "unchecked_alloc",
+      "api_call": "PyObject_CallObject",
+      "variable": "result",
+      "detail": "Allocation via PyObject_CallObject assigned to 'result' is not checked for NULL",
+      "confidence": "medium",
+      "file": "Objects/exceptions.c",
+      "function": "_PyExc_CreateExceptionGroup",
+      "line": 1014
+    },
+    {
+      "type": "unchecked_alloc",
+      "api_call": "PyUnicode_FromFormat",
+      "variable": "repr",
+      "detail": "Allocation via PyUnicode_FromFormat assigned to 'repr' is not checked for NULL",
+      "confidence": "medium",
+      "file": "Objects/exceptions.c",
+      "function": "BaseExceptionGroup_repr",
+      "line": 1111
+    },
+    {
+      "type": "unchecked_alloc",
+      "api_call": "PyTuple_New",
+      "variable": "args",
+      "detail": "Allocation via PyTuple_New assigned to 'args' is not checked for NULL",
+      "confidence": "medium",
+      "file": "Objects/exceptions.c",
+      "function": "OSError_new",
+      "line": 2251
+    },
+    {
+      "type": "unchecked_alloc",
+      "api_call": "PyUnicode_FromFormat",
+      "variable": "result",
+      "detail": "Allocation via PyUnicode_FromFormat assigned to 'result' is not checked for NULL",
+      "confidence": "medium",
+      "file": "Objects/exceptions.c",
+      "function": "SyntaxError_str",
+      "line": 2928
+    },
+    {
+      "type": "unchecked_alloc",
+      "api_call": "PyUnicode_FromFormat",
+      "variable": "result",
+      "detail": "Allocation via PyUnicode_FromFormat assigned to 'result' is not checked for NULL",
+      "confidence": "medium",
+      "file": "Objects/exceptions.c",
+      "function": "SyntaxError_str",
+      "line": 2933
+    },
+    {
+      "type": "unchecked_alloc",
+      "api_call": "PyUnicode_FromFormat",
+      "variable": "result",
+      "detail": "Allocation via PyUnicode_FromFormat assigned to 'result' is not checked for NULL",
+      "confidence": "medium",
+      "file": "Objects/exceptions.c",
+      "function": "SyntaxError_str",
+      "line": 2937
+    },
+    {
+      "type": "unchecked_alloc",
+      "api_call": "PyUnicode_FromFormat",
+      "variable": "result",
+      "detail": "Allocation via PyUnicode_FromFormat assigned to 'result' is not checked for NULL",
+      "confidence": "medium",
+      "file": "Objects/exceptions.c",
+      "function": "UnicodeEncodeError_str",
+      "line": 3775
+    },
+    {
+      "type": "unchecked_alloc",
+      "api_call": "PyUnicode_FromFormat",
+      "variable": "result",
+      "detail": "Allocation via PyUnicode_FromFormat assigned to 'result' is not checked for NULL",
+      "confidence": "medium",
+      "file": "Objects/exceptions.c",
+      "function": "UnicodeEncodeError_str",
+      "line": 3783
+    },
+    {
+      "type": "unchecked_alloc",
+      "api_call": "PyUnicode_FromFormat",
+      "variable": "result",
+      "detail": "Allocation via PyUnicode_FromFormat assigned to 'result' is not checked for NULL",
+      "confidence": "medium",
+      "file": "Objects/exceptions.c",
+      "function": "UnicodeDecodeError_str",
+      "line": 3888
+    },
+    {
+      "type": "unchecked_alloc",
+      "api_call": "PyUnicode_FromFormat",
+      "variable": "result",
+      "detail": "Allocation via PyUnicode_FromFormat assigned to 'result' is not checked for NULL",
+      "confidence": "medium",
+      "file": "Objects/exceptions.c",
+      "function": "UnicodeDecodeError_str",
+      "line": 3896
+    },
+    {
+      "type": "unchecked_alloc",
+      "api_call": "PyUnicode_FromFormat",
+      "variable": "result",
+      "detail": "Allocation via PyUnicode_FromFormat assigned to 'result' is not checked for NULL",
+      "confidence": "medium",
+      "file": "Objects/exceptions.c",
+      "function": "UnicodeTranslateError_str",
+      "line": 3997
+    },
+    {
+      "type": "unchecked_alloc",
+      "api_call": "PyUnicode_FromFormat",
+      "variable": "result",
+      "detail": "Allocation via PyUnicode_FromFormat assigned to 'result' is not checked for NULL",
+      "confidence": "medium",
+      "file": "Objects/exceptions.c",
+      "function": "UnicodeTranslateError_str",
+      "line": 4004
+    },
+    {
+      "type": "unchecked_alloc",
+      "api_call": "PyLong_FromLong",
+      "variable": "_code",
+      "detail": "Allocation via PyLong_FromLong assigned to '_code' is not checked for NULL",
+      "confidence": "medium",
+      "file": "Objects/exceptions.c",
+      "function": "_PyExc_InitState",
+      "line": 4532
+    },
+    {
+      "type": "unchecked_alloc",
+      "api_call": "PyDict_New",
+      "variable": "errnomap",
+      "detail": "Allocation via PyDict_New assigned to 'errnomap' is not checked for NULL",
+      "confidence": "medium",
+      "file": "Objects/exceptions.c",
+      "function": "_PyExc_InitState",
+      "line": 4543
+    },
+    {
+      "type": "unchecked_alloc",
+      "api_call": "PyObject_CallFunction",
+      "variable": "f",
+      "detail": "Allocation via PyObject_CallFunction assigned to 'f' is not checked for NULL",
+      "confidence": "medium",
+      "file": "Objects/fileobject.c",
+      "function": "PyFile_OpenCodeObject",
+      "line": 515
+    },
+    {
+      "type": "unchecked_alloc",
+      "api_call": "PyIter_Next",
+      "variable": "key",
+      "detail": "Allocation via PyIter_Next assigned to 'key' is not checked for NULL",
+      "confidence": "medium",
+      "file": "Objects/frameobject.c",
+      "function": "framelocalsproxy_merge",
+      "line": 344
+    },
+    {
+      "type": "unchecked_alloc",
+      "api_call": "PyObject_Repr",
+      "variable": "repr",
+      "detail": "Allocation via PyObject_Repr assigned to 'repr' is not checked for NULL",
+      "confidence": "medium",
+      "file": "Objects/frameobject.c",
+      "function": "framelocalsproxy_repr",
+      "line": 534
+    },
+    {
+      "type": "unchecked_alloc",
+      "api_call": "PyUnicode_FromFormat",
+      "variable": "result",
+      "detail": "Allocation via PyUnicode_FromFormat assigned to 'result' is not checked for NULL",
+      "confidence": "medium",
+      "file": "Objects/frameobject.c",
+      "function": "frame_repr",
+      "line": 2054
+    },
+    {
+      "type": "unchecked_alloc",
+      "api_call": "PyDict_New",
+      "variable": "f_locals",
+      "detail": "Allocation via PyDict_New assigned to 'f_locals' is not checked for NULL",
+      "confidence": "medium",
+      "file": "Objects/frameobject.c",
+      "function": "_PyFrame_GetLocals",
+      "line": 2286
+    },
+    {
+      "type": "unchecked_alloc",
+      "api_call": "PySequence_Tuple",
+      "variable": "tuple_args",
+      "detail": "Allocation via PySequence_Tuple assigned to 'tuple_args' is not checked for NULL",
+      "confidence": "medium",
+      "file": "Objects/genericaliasobject.c",
+      "function": "_Py_make_parameters",
+      "line": 190
+    },
+    {
+      "type": "unchecked_alloc",
+      "api_call": "PyObject_CallFunction",
+      "variable": "tmp",
+      "detail": "Allocation via PyObject_CallFunction assigned to 'tmp' is not checked for NULL",
+      "confidence": "medium",
+      "file": "Objects/genericaliasobject.c",
+      "function": "_Py_subs_parameters",
+      "line": 425
+    },
+    {
+      "type": "unchecked_alloc",
+      "api_call": "PyObject_CallFunction",
+      "variable": "tmp",
+      "detail": "Allocation via PyObject_CallFunction assigned to 'tmp' is not checked for NULL",
+      "confidence": "medium",
+      "file": "Objects/genericaliasobject.c",
+      "function": "_Py_subs_parameters",
+      "line": 428
+    },
+    {
+      "type": "unchecked_alloc",
+      "api_call": "PySequence_Tuple",
+      "variable": "tuple_args",
+      "detail": "Allocation via PySequence_Tuple assigned to 'tuple_args' is not checked for NULL",
+      "confidence": "medium",
+      "file": "Objects/genericaliasobject.c",
+      "function": "_Py_subs_parameters",
+      "line": 452
+    },
+    {
+      "type": "unchecked_alloc",
+      "api_call": "PyObject_Call",
+      "variable": "obj",
+      "detail": "Allocation via PyObject_Call assigned to 'obj' is not checked for NULL",
+      "confidence": "medium",
+      "file": "Objects/genericaliasobject.c",
+      "function": "ga_call",
+      "line": 645
+    },
+    {
+      "type": "unchecked_alloc",
+      "api_call": "PyUnicode_FromFormat",
+      "variable": "res",
+      "detail": "Allocation via PyUnicode_FromFormat assigned to 'res' is not checked for NULL",
+      "confidence": "medium",
+      "file": "Objects/lazyimportobject.c",
+      "function": "lazy_import_repr",
+      "line": 104
+    },
+    {
+      "type": "unchecked_alloc",
+      "api_call": "PyMem_Calloc",
+      "variable": "ob_item",
+      "detail": "Allocation via PyMem_Calloc assigned to 'ob_item' is not checked for NULL",
+      "confidence": "medium",
+      "file": "Objects/listobject.c",
+      "function": "PyList_New",
+      "line": 266
+    },
+    {
+      "type": "unchecked_alloc",
+      "api_call": "PyMem_New",
+      "variable": "ob_item",
+      "detail": "Allocation via PyMem_New assigned to 'ob_item' is not checked for NULL",
+      "confidence": "medium",
+      "file": "Objects/listobject.c",
+      "function": "list_new_prealloc",
+      "line": 296
+    },
+    {
+      "type": "unchecked_alloc",
+      "api_call": "PyMem_Malloc",
+      "variable": "keys",
+      "detail": "Allocation via PyMem_Malloc assigned to 'keys' is not checked for NULL",
+      "confidence": "medium",
+      "file": "Objects/listobject.c",
+      "function": "merge_getmem",
+      "line": 2302
+    },
+    {
+      "type": "unchecked_alloc",
+      "api_call": "PyList_New",
+      "variable": "res",
+      "detail": "Allocation via PyList_New assigned to 'res' is not checked for NULL",
+      "confidence": "medium",
+      "file": "Objects/listobject.c",
+      "function": "list_slice_wrap",
+      "line": 3656
+    },
+    {
+      "type": "unchecked_alloc",
+      "api_call": "PyLong_FromLong",
+      "variable": "z",
+      "detail": "Allocation via PyLong_FromLong assigned to 'z' is not checked for NULL",
+      "confidence": "medium",
+      "file": "Objects/longobject.c",
+      "function": "long_pow",
+      "line": 5024
+    },
+    {
+      "type": "unchecked_alloc",
+      "api_call": "PyObject_GetAttrString",
+      "variable": "unpack_from",
+      "detail": "Allocation via PyObject_GetAttrString assigned to 'unpack_from' is not checked for NULL",
+      "confidence": "medium",
+      "file": "Objects/memoryobject.c",
+      "function": "struct_get_unpacker",
+      "line": 2172
+    },
+    {
+      "type": "unchecked_alloc",
+      "api_call": "PyMem_Malloc",
+      "variable": "item",
+      "detail": "Allocation via PyMem_Malloc assigned to 'item' is not checked for NULL",
+      "confidence": "medium",
+      "file": "Objects/memoryobject.c",
+      "function": "struct_get_unpacker",
+      "line": 2176
+    },
+    {
+      "type": "unchecked_alloc",
+      "api_call": "PyUnicode_FromFormat",
+      "variable": "res",
+      "detail": "Allocation via PyUnicode_FromFormat assigned to 'res' is not checked for NULL",
+      "confidence": "medium",
+      "file": "Objects/methodobject.c",
+      "function": "meth_get__qualname__",
+      "line": 251
+    },
+    {
+      "type": "unchecked_alloc",
+      "api_call": "PyDict_New",
+      "variable": "md_dict",
+      "detail": "Allocation via PyDict_New assigned to 'md_dict' is not checked for NULL",
+      "confidence": "medium",
+      "file": "Objects/moduleobject.c",
+      "function": "new_module_notrack",
+      "line": 189
+    },
+    {
+      "type": "unchecked_alloc",
+      "api_call": "PyMem_Malloc",
+      "variable": "md_state",
+      "detail": "Allocation via PyMem_Malloc assigned to 'md_state' is not checked for NULL",
+      "confidence": "medium",
+      "file": "Objects/moduleobject.c",
+      "function": "_PyModule_CreateInitialized",
+      "line": 368
+    },
+    {
+      "type": "unchecked_alloc",
+      "api_call": "PyMem_Malloc",
+      "variable": "md_state",
+      "detail": "Allocation via PyMem_Malloc assigned to 'md_state' is not checked for NULL",
+      "confidence": "medium",
+      "file": "Objects/moduleobject.c",
+      "function": "alloc_state",
+      "line": 737
+    },
+    {
+      "type": "unchecked_alloc",
+      "api_call": "PyUnicode_FromString",
+      "variable": "v",
+      "detail": "Allocation via PyUnicode_FromString assigned to 'v' is not checked for NULL",
+      "confidence": "medium",
+      "file": "Objects/moduleobject.c",
+      "function": "PyModule_SetDocString",
+      "line": 818
+    },
+    {
+      "type": "unchecked_alloc",
+      "api_call": "PyDict_New",
+      "variable": "ns_dict",
+      "detail": "Allocation via PyDict_New assigned to 'ns_dict' is not checked for NULL",
+      "confidence": "medium",
+      "file": "Objects/namespaceobject.c",
+      "function": "namespace_new",
+      "line": 34
+    },
+    {
+      "type": "unchecked_alloc",
+      "api_call": "PyIter_Next",
+      "variable": "key",
+      "detail": "Allocation via PyIter_Next assigned to 'key' is not checked for NULL",
+      "confidence": "medium",
+      "file": "Objects/namespaceobject.c",
+      "function": "namespace_repr",
+      "line": 122
+    },
+    {
+      "type": "unchecked_alloc",
+      "api_call": "PyUnicode_FromFormat",
+      "variable": "repr",
+      "detail": "Allocation via PyUnicode_FromFormat assigned to 'repr' is not checked for NULL",
+      "confidence": "medium",
+      "file": "Objects/namespaceobject.c",
+      "function": "namespace_repr",
+      "line": 161
+    },
+    {
+      "type": "unchecked_alloc",
+      "api_call": "PyUnicode_FromFormat",
+      "variable": "result",
+      "detail": "Allocation via PyUnicode_FromFormat assigned to 'result' is not checked for NULL",
+      "confidence": "medium",
+      "file": "Objects/object.c",
+      "function": "_PyObject_FunctionStr",
+      "line": 994
+    },
+    {
+      "type": "unchecked_alloc",
+      "api_call": "PyUnicode_FromFormat",
+      "variable": "result",
+      "detail": "Allocation via PyUnicode_FromFormat assigned to 'result' is not checked for NULL",
+      "confidence": "medium",
+      "file": "Objects/object.c",
+      "function": "_PyObject_FunctionStr",
+      "line": 1001
+    },
+    {
+      "type": "unchecked_alloc",
+      "api_call": "PyObject_GetAttr",
+      "variable": "res",
+      "detail": "Allocation via PyObject_GetAttr assigned to 'res' is not checked for NULL",
+      "confidence": "medium",
+      "file": "Objects/object.c",
+      "function": "PyObject_GetAttrString",
+      "line": 1186
+    },
+    {
+      "type": "unchecked_alloc",
+      "api_call": "PyObject_GetAttr",
+      "variable": "result",
+      "detail": "Allocation via PyObject_GetAttr assigned to 'result' is not checked for NULL",
+      "confidence": "medium",
+      "file": "Objects/object.c",
+      "function": "_PyObject_GetAttrId",
+      "line": 1275
+    },
+    {
+      "type": "unchecked_alloc",
+      "api_call": "PyObject_GetAttr",
+      "variable": "method",
+      "detail": "Allocation via PyObject_GetAttr assigned to 'method' is not checked for NULL",
+      "confidence": "medium",
+      "file": "Objects/object.c",
+      "function": "_PyObject_GetMethod",
+      "line": 1668
+    },
+    {
+      "type": "unchecked_alloc",
+      "api_call": "PyMem_RawCalloc",
+      "variable": "obmalloc",
+      "detail": "Allocation via PyMem_RawCalloc assigned to 'obmalloc' is not checked for NULL",
+      "confidence": "medium",
+      "file": "Objects/obmalloc.c",
+      "function": "_PyMem_init_obmalloc",
+      "line": 3575
+    },
+    {
+      "type": "unchecked_alloc",
+      "api_call": "PyUnicode_FromFormat",
+      "variable": "result",
+      "detail": "Allocation via PyUnicode_FromFormat assigned to 'result' is not checked for NULL",
+      "confidence": "medium",
+      "file": "Objects/odictobject.c",
+      "function": "odict_repr",
+      "line": 1456
+    },
+    {
+      "type": "unchecked_alloc",
+      "api_call": "PyIter_Next",
+      "variable": "pair",
+      "detail": "Allocation via PyIter_Next assigned to 'pair' is not checked for NULL",
+      "confidence": "medium",
+      "file": "Objects/odictobject.c",
+      "function": "mutablemapping_add_pairs",
+      "line": 2232
+    },
+    {
+      "type": "unchecked_alloc",
+      "api_call": "PyIter_Next",
+      "variable": "key",
+      "detail": "Allocation via PyIter_Next assigned to 'key' is not checked for NULL",
+      "confidence": "medium",
+      "file": "Objects/odictobject.c",
+      "function": "mutablemapping_update_arg",
+      "line": 2312
+    },
+    {
+      "type": "unchecked_alloc",
+      "api_call": "PyNumber_Subtract",
+      "variable": "tmp1",
+      "detail": "Allocation via PyNumber_Subtract assigned to 'tmp1' is not checked for NULL",
+      "confidence": "medium",
+      "file": "Objects/rangeobject.c",
+      "function": "compute_range_length",
+      "line": 294
+    },
+    {
+      "type": "unchecked_alloc",
+      "api_call": "PyNumber_Subtract",
+      "variable": "diff",
+      "detail": "Allocation via PyNumber_Subtract assigned to 'diff' is not checked for NULL",
+      "confidence": "medium",
+      "file": "Objects/rangeobject.c",
+      "function": "compute_range_length",
+      "line": 297
+    },
+    {
+      "type": "unchecked_alloc",
+      "api_call": "PyNumber_Add",
+      "variable": "result",
+      "detail": "Allocation via PyNumber_Add assigned to 'result' is not checked for NULL",
+      "confidence": "medium",
+      "file": "Objects/rangeobject.c",
+      "function": "compute_range_length",
+      "line": 303
+    },
+    {
+      "type": "unchecked_alloc",
+      "api_call": "PyNumber_Add",
+      "variable": "result",
+      "detail": "Allocation via PyNumber_Add assigned to 'result' is not checked for NULL",
+      "confidence": "medium",
+      "file": "Objects/rangeobject.c",
+      "function": "compute_item",
+      "line": 336
+    },
+    {
+      "type": "unchecked_alloc",
+      "api_call": "PyNumber_Add",
+      "variable": "result",
+      "detail": "Allocation via PyNumber_Add assigned to 'result' is not checked for NULL",
+      "confidence": "medium",
+      "file": "Objects/rangeobject.c",
+      "function": "compute_item",
+      "line": 343
+    },
+    {
+      "type": "unchecked_alloc",
+      "api_call": "PyLong_FromLong",
+      "variable": "ret",
+      "detail": "Allocation via PyLong_FromLong assigned to 'ret' is not checked for NULL",
+      "confidence": "medium",
+      "file": "Objects/rangeobject.c",
+      "function": "rangeiter_next",
+      "line": 853
+    },
+    {
+      "type": "unchecked_alloc",
+      "api_call": "PyUnicode_FromFormat",
+      "variable": "result",
+      "detail": "Allocation via PyUnicode_FromFormat assigned to 'result' is not checked for NULL",
+      "confidence": "medium",
+      "file": "Objects/setobject.c",
+      "function": "set_repr_lock_held",
+      "line": 797
+    },
+    {
+      "type": "unchecked_alloc",
+      "api_call": "PyUnicode_FromFormat",
+      "variable": "result",
+      "detail": "Allocation via PyUnicode_FromFormat assigned to 'result' is not checked for NULL",
+      "confidence": "medium",
+      "file": "Objects/setobject.c",
+      "function": "set_repr_lock_held",
+      "line": 801
+    },
+    {
+      "type": "unchecked_alloc",
+      "api_call": "PyIter_Next",
+      "variable": "key",
+      "detail": "Allocation via PyIter_Next assigned to 'key' is not checked for NULL",
+      "confidence": "medium",
+      "file": "Objects/setobject.c",
+      "function": "set_update_iterable_lock_held",
+      "line": 1230
+    },
+    {
+      "type": "unchecked_alloc",
+      "api_call": "PyIter_Next",
+      "variable": "key",
+      "detail": "Allocation via PyIter_Next assigned to 'key' is not checked for NULL",
+      "confidence": "medium",
+      "file": "Objects/setobject.c",
+      "function": "set_intersection",
+      "line": 1770
+    },
+    {
+      "type": "unchecked_alloc",
+      "api_call": "PyIter_Next",
+      "variable": "key",
+      "detail": "Allocation via PyIter_Next assigned to 'key' is not checked for NULL",
+      "confidence": "medium",
+      "file": "Objects/setobject.c",
+      "function": "set_difference_update_internal",
+      "line": 2018
+    },
+    {
+      "type": "unchecked_alloc",
+      "api_call": "PyObject_GetAttr",
+      "variable": "newobj",
+      "detail": "Allocation via PyObject_GetAttr assigned to 'newobj' is not checked for NULL",
+      "confidence": "medium",
+      "file": "Objects/stringlib/unicode_format.h",
+      "function": "getattr",
+      "line": 153
+    },
+    {
+      "type": "unchecked_alloc",
+      "api_call": "PyObject_GetItem",
+      "variable": "newobj",
+      "detail": "Allocation via PyObject_GetItem assigned to 'newobj' is not checked for NULL",
+      "confidence": "medium",
+      "file": "Objects/stringlib/unicode_format.h",
+      "function": "getitem_idx",
+      "line": 173
+    },
+    {
+      "type": "unchecked_alloc",
+      "api_call": "PyObject_GetItem",
+      "variable": "newobj",
+      "detail": "Allocation via PyObject_GetItem assigned to 'newobj' is not checked for NULL",
+      "confidence": "medium",
+      "file": "Objects/stringlib/unicode_format.h",
+      "function": "getitem_str",
+      "line": 186
+    },
+    {
+      "type": "unchecked_alloc",
+      "api_call": "PyIter_Next",
+      "variable": "item",
+      "detail": "Allocation via PyIter_Next assigned to 'item' is not checked for NULL",
+      "confidence": "medium",
+      "file": "Objects/templateobject.c",
+      "function": "templateiter_next",
+      "line": 33
+    },
+    {
+      "type": "unchecked_alloc",
+      "api_call": "PyTuple_New",
+      "variable": "pv",
+      "detail": "Allocation via PyTuple_New assigned to 'pv' is not checked for NULL",
+      "confidence": "medium",
+      "file": "Objects/tupleobject.c",
+      "function": "_PyTuple_Resize",
+      "line": 1065
+    },
+    {
+      "type": "unchecked_alloc",
+      "api_call": "PyUnicode_FromFormat",
+      "variable": "result",
+      "detail": "Allocation via PyUnicode_FromFormat assigned to 'result' is not checked for NULL",
+      "confidence": "medium",
+      "file": "Objects/typeobject.c",
+      "function": "_PyType_GetFullyQualifiedName",
+      "line": 1678
+    },
+    {
+      "type": "unchecked_alloc",
+      "api_call": "PyUnicode_FromFormat",
+      "variable": "result",
+      "detail": "Allocation via PyUnicode_FromFormat assigned to 'result' is not checked for NULL",
+      "confidence": "medium",
+      "file": "Objects/typeobject.c",
+      "function": "type_repr",
+      "line": 2417
+    },
+    {
+      "type": "unchecked_alloc",
+      "api_call": "PyUnicode_FromFormat",
+      "variable": "result",
+      "detail": "Allocation via PyUnicode_FromFormat assigned to 'result' is not checked for NULL",
+      "confidence": "medium",
+      "file": "Objects/typeobject.c",
+      "function": "type_repr",
+      "line": 2420
+    },
+    {
+      "type": "unchecked_alloc",
+      "api_call": "PyObject_Repr",
+      "variable": "name",
+      "detail": "Allocation via PyObject_Repr assigned to 'name' is not checked for NULL",
+      "confidence": "medium",
+      "file": "Objects/typeobject.c",
+      "function": "class_name",
+      "line": 3262
+    },
+    {
+      "type": "unchecked_alloc",
+      "api_call": "PyDict_New",
+      "variable": "tp_dict",
+      "detail": "Allocation via PyDict_New assigned to 'tp_dict' is not checked for NULL",
+      "confidence": "medium",
+      "file": "Objects/typeobject.c",
+      "function": "type_setattro",
+      "line": 6818
+    },
+    {
+      "type": "unchecked_alloc",
+      "api_call": "PyUnicode_FromFormat",
+      "variable": "rtn",
+      "detail": "Allocation via PyUnicode_FromFormat assigned to 'rtn' is not checked for NULL",
+      "confidence": "medium",
+      "file": "Objects/typeobject.c",
+      "function": "object_repr",
+      "line": 7498
+    },
+    {
+      "type": "unchecked_alloc",
+      "api_call": "PyUnicode_FromFormat",
+      "variable": "rtn",
+      "detail": "Allocation via PyUnicode_FromFormat assigned to 'rtn' is not checked for NULL",
+      "confidence": "medium",
+      "file": "Objects/typeobject.c",
+      "function": "object_repr",
+      "line": 7500
+    },
+    {
+      "type": "unchecked_alloc",
+      "api_call": "PyObject_CallMethod",
+      "variable": "res",
+      "detail": "Allocation via PyObject_CallMethod assigned to 'res' is not checked for NULL",
+      "confidence": "medium",
+      "file": "Objects/typeobject.c",
+      "function": "_common_reduce",
+      "line": 8343
+    },
+    {
+      "type": "unchecked_alloc",
+      "api_call": "PyUnicode_FromString",
+      "variable": "r",
+      "detail": "Allocation via PyUnicode_FromString assigned to 'r' is not checked for NULL",
+      "confidence": "medium",
+      "file": "Objects/typevarobject.c",
+      "function": "_Py_typing_type_repr",
+      "line": 275
+    },
+    {
+      "type": "unchecked_alloc",
+      "api_call": "PyObject_GetItem",
+      "variable": "unpacked",
+      "detail": "Allocation via PyObject_GetItem assigned to 'unpacked' is not checked for NULL",
+      "confidence": "medium",
+      "file": "Objects/typevarobject.c",
+      "function": "unpack",
+      "line": 418
+    },
+    {
+      "type": "unchecked_alloc",
+      "api_call": "PyObject_Call",
+      "variable": "result",
+      "detail": "Allocation via PyObject_Call assigned to 'result' is not checked for NULL",
+      "confidence": "medium",
+      "file": "Objects/typevarobject.c",
+      "function": "call_typing_args_kwargs",
+      "line": 2324
+    },
+    {
+      "type": "unchecked_alloc",
+      "api_call": "PyList_New",
+      "variable": "args",
+      "detail": "Allocation via PyList_New assigned to 'args' is not checked for NULL",
+      "confidence": "medium",
+      "file": "Objects/unionobject.c",
+      "function": "unionbuilder_init",
+      "line": 143
+    },
+    {
+      "type": "unchecked_alloc",
+      "api_call": "PyList_New",
+      "variable": "unhashable_args",
+      "detail": "Allocation via PyList_New assigned to 'unhashable_args' is not checked for NULL",
+      "confidence": "medium",
+      "file": "Objects/unionobject.c",
+      "function": "unionbuilder_add_single_unchecked",
+      "line": 172
+    },
+    {
+      "type": "unchecked_alloc",
+      "api_call": "PyUnicode_FromFormat",
+      "variable": "repr",
+      "detail": "Allocation via PyUnicode_FromFormat assigned to 'repr' is not checked for NULL",
+      "confidence": "medium",
+      "file": "Objects/weakrefobject.c",
+      "function": "weakref_repr",
+      "line": 224
+    },
+    {
+      "type": "unchecked_alloc",
+      "api_call": "PyUnicode_FromFormat",
+      "variable": "repr",
+      "detail": "Allocation via PyUnicode_FromFormat assigned to 'repr' is not checked for NULL",
+      "confidence": "medium",
+      "file": "Objects/weakrefobject.c",
+      "function": "weakref_repr",
+      "line": 229
+    },
+    {
+      "type": "unchecked_alloc",
+      "api_call": "PyUnicode_FromFormat",
+      "variable": "repr",
+      "detail": "Allocation via PyUnicode_FromFormat assigned to 'repr' is not checked for NULL",
+      "confidence": "medium",
+      "file": "Objects/weakrefobject.c",
+      "function": "proxy_repr",
+      "line": 615
+    },
+    {
+      "type": "unchecked_alloc",
+      "api_call": "PyUnicode_FromFormat",
+      "variable": "repr",
+      "detail": "Allocation via PyUnicode_FromFormat assigned to 'repr' is not checked for NULL",
+      "confidence": "medium",
+      "file": "Objects/weakrefobject.c",
+      "function": "proxy_repr",
+      "line": 621
+    },
+    {
+      "type": "unchecked_alloc",
+      "api_call": "PyIter_Next",
+      "variable": "res",
+      "detail": "Allocation via PyIter_Next assigned to 'res' is not checked for NULL",
+      "confidence": "medium",
+      "file": "Objects/weakrefobject.c",
+      "function": "proxy_iternext",
+      "line": 783
+    }
+  ],
+  "summary": {
+    "unchecked_allocations": 113,
+    "total_findings": 113,
+    "high_confidence": 0
+  }
+}

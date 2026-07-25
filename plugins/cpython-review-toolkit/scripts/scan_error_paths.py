@@ -25,6 +25,14 @@ Rules emitted (``findings[].type``):
     return its error sentinel with **no exception set**.
 ``unchecked_parse``
     ``PyArg_ParseTuple*`` result not tested.
+``int_status_never_tested``
+    An **int** status is assigned to a local and never branched on, and the
+    region before it is finally read is fallible or state-committing.  The
+    "value returned directly" suppression that covers ``unchecked_return`` is
+    correct for a *pointer* -- the callee's exception propagates untouched --
+    and wrong for an int, because ``return res`` at the *end* of the function
+    stops nothing in between.  True positive:
+    ``Objects/typeobject.c:1966`` ``type_set_bases_unlocked``.
 
 Two rules were retired.  ``return_null_no_exception`` was replaced by
 ``alloc_null_no_memerror`` (see above).  ``sparse_error_cleanup`` scored 0/6 on
@@ -858,13 +866,209 @@ def _check_unchecked_parse(clean: str) -> list[dict]:
     return findings
 
 
+# ---------------------------------------------------------------------------
+# Rule: int_status_never_tested   (issue #28 rule 4)
+# ---------------------------------------------------------------------------
+#
+# `_check_unchecked_returns` suppresses a result that "flows straight back to
+# the caller" (FP class A).  For a *pointer* that is correct: the callee's
+# exception propagates untouched and nothing in between dereferences the NULL.
+# For an **int status** it is wrong, because `return res` at the *end* of the
+# function stops nothing in between.
+#
+#     res = add_all_subclasses(type, new_bases);   /* :1966, never tested   */
+#     if (update_all_slots(type) < 0) { goto bail; }
+#     _PyType_Modified_Unlocked(type);
+#     ...
+#     return res;                                  /* ...far too late       */
+#
+# `type_set_bases_unlocked` therefore falls into `update_all_slots()` with a
+# live exception and skips its own rollback: SIGABRT on a debug build
+# (`assert(!PyErr_Occurred())` in `update_one_slot`) and *silent permanent
+# corruption on release* -- `__bases__` is committed while `MemoryError` is
+# raised, and the class ends up in neither parent's `__subclasses__()`.
+# Reproduced: CPY-0070.  bpo-38554 / PR gh-16879 proposed this exact diff in
+# 2019 and it was closed unmerged.
+#
+# The old rule could not reach this at all: `_ASSIGN_CALL_RE` is built from
+# NULL_RETURN_APIS, and `add_all_subclasses` is a same-file `static int`
+# helper, so there was no candidate to suppress in the first place.
+
+# int-status C-API calls: 0 on success, -1 with an exception set on failure.
+INT_STATUS_APIS = frozenset({
+    'PyDict_SetItem',
+    'PyDict_SetItemString',
+    'PyDict_DelItem',
+    'PyDict_DelItemString',
+    'PyDict_Update',
+    'PyDict_Merge',
+    'PyDict_MergeFromSeq2',
+    'PyList_Append',
+    'PyList_Insert',
+    'PyList_SetItem',
+    'PyList_SetSlice',
+    'PyList_Sort',
+    'PyList_Reverse',
+    'PySet_Add',
+    'PySet_Discard',
+    'PyObject_SetAttr',
+    'PyObject_SetAttrString',
+    'PyObject_DelAttr',
+    'PyObject_DelAttrString',
+    'PyObject_SetItem',
+    'PyObject_DelItem',
+    'PyObject_GenericSetAttr',
+    'PySequence_SetItem',
+    'PySequence_DelItem',
+    'PyMapping_SetItemString',
+    'PyModule_AddObjectRef',
+    'PyModule_AddIntConstant',
+    'PyModule_AddStringConstant',
+    'PyType_Ready',
+    'PyStructSequence_InitType2',
+})
+
+# A declaration of `var` with an integer status type in this body.
+_INT_LOCAL_RE = r'\b(?:int|Py_ssize_t)\b[^;()=]*\b{var}\b'
+
+# `var` used as a truth value or compared: the test the rule requires.
+_TESTED_RE = (
+    r'(?:[<>!=]=?|&&|\|\||\?)\s*{vp}\b'
+    r'|\b{vp}\s*(?:[<>]=?|==|!=|\?)'
+    r'|\b(?:if|while|switch|assert)\s*\([^;{{}}]*\b{vp}\b'
+)
+
+# Statements that make the region after the assignment *fallible or
+# committing*, as opposed to plain cleanup.  Without this gate the correct
+# `res = f(); Py_DECREF(x); return res;` accumulate-then-return idiom floods
+# it: 160 raw assignments across Objects/ + Modules/ + Python/ reduce to 2.
+_FALLIBLE_REGION_RE = re.compile(
+    r'\bgoto\s+\w+\s*;'
+    r'|\breturn\s+(?:NULL|-1)\s*;'
+    r'|\bPyErr_\w+\s*\('
+    r'|\b\w+\s*\([^;]*\)\s*(?:<|>|==|!=)\s*-?\d'
+)
+
+_INT_ASSIGN_TEMPLATE = r'(?<![\w.>])([A-Za-z_]\w*)\s*=\s*({apis})\s*\('
+
+
+def _leaves_scope(text: str, end: int) -> bool:
+    """True if reaching `end` requires closing a block open at offset 0.
+
+    Used to tell a real re-binding from one in a *sibling* branch:
+    `type_set_bases_unlocked` assigns `res` in the `if` arm and `res = 0` in
+    the `else` arm, and the second is not a re-binding of the first value --
+    the two are mutually exclusive.
+    """
+    depth = 0
+    for ch in text[:end]:
+        if ch == '{':
+            depth += 1
+        elif ch == '}':
+            depth -= 1
+            if depth < 0:
+                return True
+    return False
+
+
+def int_status_callees(functions: list[dict]) -> set[str]:
+    """Same-file `static int` helpers that signal failure, plus the API table.
+
+    Discovered rather than tabulated: `add_all_subclasses` returns `int` and
+    reports failure by returning a `res` it set to `-1`, never by a literal
+    `return -1;`, so "the body mentions -1" is the test that holds.
+    """
+    out = set(INT_STATUS_APIS)
+    for func in functions:
+        ret = re.sub(r'\b(?:static|inline|extern)\b', '',
+                     func.get("return_type", ""))
+        if ret.strip() != 'int':
+            continue
+        if '-1' in func.get("body", ""):
+            out.add(func["name"])
+    return out
+
+
+def _check_int_status_never_tested(clean: str, callees: set[str]) -> list[dict]:
+    """Rule `int_status_never_tested`."""
+    if not callees:
+        return []
+    findings: list[dict] = []
+    pattern = re.compile(_INT_ASSIGN_TEMPLATE.format(apis=_alt(callees)))
+    for m in pattern.finditer(clean):
+        var, api = m.group(1), m.group(2)
+        vp = re.escape(var)
+
+        # It must really be an integer local, not a pointer: for a pointer the
+        # "returned directly" suppression is correct and this rule must not
+        # second-guess it.
+        if not re.search(_INT_LOCAL_RE.format(var=vp), clean):
+            continue
+        # `if ((res = f()) < 0)` is its own test.
+        if _in_condition(clean, m.start()):
+            continue
+
+        call_end = _match_paren(clean, m.end() - 1)
+        after = clean[(call_end + 1) if call_end else m.end():]
+        if re.search(_TESTED_RE.format(vp=vp), after):
+            continue
+
+        # Where the status finally matters.  `return res;` is the honest
+        # coordinate: it is what "stops nothing in between" is measured
+        # against.
+        use = (re.search(r'\breturn\s+' + vp + r'\s*;', after)
+               or re.search(r'\b' + vp + r'\b', after))
+        if use is None:
+            # Never read again at all -- a dead store, not this rule's shape.
+            continue
+        # A re-assignment on the *same* path ends this value's life; one in a
+        # sibling branch does not.
+        rebind = next(
+            (m2 for m2 in re.finditer(
+                r'(?<![\w.>=!<>])' + vp + r'\s*=(?!=)', after)
+             if m2.start() < use.start() and not _leaves_scope(after, m2.start())),
+            None,
+        )
+        if rebind is not None:
+            continue
+
+        if not _FALLIBLE_REGION_RE.search(after[:use.start()]):
+            # Only cleanup between the assignment and the read: the
+            # accumulate-then-return idiom, which is correct.
+            continue
+        findings.append({
+            "type": "int_status_never_tested",
+            "api_call": api,
+            "variable": var,
+            "line_offset": clean[:m.start()].count('\n'),
+            "use_line_offset": clean[
+                :(call_end or m.end()) + use.start()
+            ].count('\n'),
+            "detail": (
+                f"'{var}' takes {api}'s int status and is never tested. "
+                f"Unlike a NULL pointer returned straight back to the caller, "
+                f"a `return {var}` at the end of the function stops nothing in "
+                f"between: the code below runs with a live exception, and "
+                f"anything it commits or skips (a rollback, a slot update) "
+                f"happens anyway. Test {var} at the assignment and take the "
+                f"error path there."
+            ),
+            "confidence": "high",
+        })
+    return findings
+
+
 def analyze_function_errors(
-    func: dict, clean_lines: list[str] | None = None
+    func: dict,
+    clean_lines: list[str] | None = None,
+    int_callees: set[str] | None = None,
 ) -> list[dict]:
     """Analyze error handling in a single function.
 
     `clean_lines` is the comment-stripped enclosing file split into lines; it
     enables the intra-file caller check used by `alloc_null_no_memerror`.
+    `int_callees` is the file's int-status callee set (see
+    `int_status_callees`); omitting it disables `int_status_never_tested`.
     """
     clean = strip_comments_and_strings(func["body"])
     findings: list[dict] = []
@@ -873,6 +1077,10 @@ def analyze_function_errors(
     findings.extend(_check_unconditional_pyerr_clear(func, clean))
     findings.extend(_check_pylong_sentinel(clean))
     findings.extend(_check_unchecked_parse(clean))
+    if int_callees:
+        findings.extend(
+            _check_int_status_never_tested(clean, int_callees - {func["name"]})
+        )
     return findings
 
 
@@ -904,9 +1112,12 @@ def analyze(target: str, *, max_files: int = 0) -> dict:
         rel = str(filepath.relative_to(project_root))
         functions = find_functions(source)
         clean_lines = strip_comments_and_strings(source).split('\n')
+        int_callees = int_status_callees(functions)
         for func in functions:
             functions_analyzed += 1
-            func_findings = analyze_function_errors(func, clean_lines)
+            func_findings = analyze_function_errors(
+                func, clean_lines, int_callees
+            )
             for finding in func_findings:
                 finding["file"] = rel
                 finding["function"] = func["name"]
@@ -924,6 +1135,11 @@ def analyze(target: str, *, max_files: int = 0) -> dict:
                     finding["assign_line"] = (
                         func["body_start_line"]
                         + finding.pop("assign_line_offset")
+                    )
+                if "use_line_offset" in finding:
+                    finding["use_line"] = (
+                        func["body_start_line"]
+                        + finding.pop("use_line_offset")
                     )
                 all_findings.append(finding)
 
@@ -943,6 +1159,7 @@ def analyze(target: str, *, max_files: int = 0) -> dict:
             "unconditional_pyerr_clear": count("unconditional_pyerr_clear"),
             "pylong_sentinel_no_errcheck": count("pylong_sentinel_no_errcheck"),
             "unchecked_parse_calls": count("unchecked_parse"),
+            "int_status_never_tested": count("int_status_never_tested"),
             "total_findings": len(all_findings),
         },
     }

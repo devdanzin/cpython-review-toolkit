@@ -1,0 +1,53 @@
+{
+  "project_root": "/home/danzin/projects/cpython",
+  "scan_root": "/home/danzin/projects/cpython",
+  "files_analyzed": 1,
+  "functions_analyzed": 417,
+  "findings": [
+    {
+      "type": "pyerr_clear_unfiltered_after_python_call",
+      "function": "find_name_in_mro",
+      "line": 6158,
+      "confidence": "medium",
+      "failing_call": "PyType_Ready",
+      "detail": "PyErr_Clear() in 'find_name_in_mro' clears the exception raised by 'PyType_Ready' with no PyErr_ExceptionMatches narrowing. That call dispatches into arbitrary Python (__hash__ / __buffer__ / __index__ / import hooks), so its failure return only means *something* was raised \u2014 a MemoryError, KeyboardInterrupt or RecursionError is discarded along with the expected TypeError. Narrow first, e.g. if (!PyErr_ExceptionMatches(PyExc_TypeError)) return NULL; before clearing (see Objects/genericaliasobject.c set_orig_class).",
+      "file": "Objects/typeobject.c"
+    }
+  ],
+  "summary": {
+    "total_findings": 1,
+    "by_confidence": {
+      "medium": 1
+    },
+    "by_slot": {},
+    "by_type": {
+      "pyerr_clear_unfiltered_after_python_call": 1
+    }
+  },
+  "destructor_functions": 15,
+  "total_pyerr_clear_calls": 9,
+  "total_pyerr_clear_calls_in_destructors": 0,
+  "skipped_files": [],
+  "_sample": {
+    "files_requested": [
+      "Objects/typeobject.c"
+    ],
+    "files_scanned": [
+      "Objects/typeobject.c"
+    ],
+    "files_missing": [],
+    "method": "the scanner was RE-RUN over exactly these files; every count in this report is sample-scoped. This is not a post-hoc filter of a corpus-wide scan -- a filtered report keeps corpus-wide denominators next to sample-scoped findings, which makes an unearned zero look earned.",
+    "merge_policy": {
+      "project_root": "carried (constant, not a count)",
+      "scan_root": "carried (constant, not a count)",
+      "files_analyzed": "summed",
+      "functions_analyzed": "summed",
+      "findings": "concatenated",
+      "summary": "merged key-wise",
+      "destructor_functions": "summed",
+      "total_pyerr_clear_calls": "summed",
+      "total_pyerr_clear_calls_in_destructors": "summed",
+      "skipped_files": "concatenated"
+    }
+  }
+}

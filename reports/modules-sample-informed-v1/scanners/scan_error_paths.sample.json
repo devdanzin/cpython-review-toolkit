@@ -1,0 +1,83 @@
+{
+ "project_root": "/home/danzin/projects/cpython",
+ "scan_root": "/home/danzin/projects/cpython/Modules",
+ "files_analyzed": 484,
+ "functions_analyzed": 6361,
+ "findings": [
+  {
+   "type": "unconditional_pyerr_clear",
+   "api_call": "PyErr_Clear",
+   "detail": "PyErr_Clear() with no PyErr_ExceptionMatches within the preceding 3 lines \u2014 swallows any live exception, including KeyboardInterrupt and MemoryError raised by user code",
+   "confidence": "medium",
+   "file": "Modules/_pickle.c",
+   "function": "write_unicode_binary",
+   "line": 2853
+  },
+  {
+   "type": "alloc_null_no_memerror",
+   "api_call": "PyMem_Calloc",
+   "variable": "new_items",
+   "detail": "PyMem_Calloc does not set MemoryError; the failure branch for 'new_items' returns an error sentinel without PyErr_NoMemory()",
+   "confidence": "high",
+   "file": "Modules/_queuemodule.c",
+   "function": "resize_ringbuf",
+   "line": 102,
+   "guard_line": 103
+  },
+  {
+   "type": "unconditional_pyerr_clear",
+   "api_call": "PyErr_Clear",
+   "detail": "PyErr_Clear() with no PyErr_ExceptionMatches within the preceding 3 lines \u2014 swallows any live exception, including KeyboardInterrupt and MemoryError raised by user code",
+   "confidence": "medium",
+   "file": "Modules/_randommodule.c",
+   "function": "random_seed",
+   "line": 305
+  },
+  {
+   "type": "unconditional_pyerr_clear",
+   "api_call": "PyErr_Clear",
+   "detail": "PyErr_Clear() with no PyErr_ExceptionMatches within the preceding 3 lines \u2014 swallows any live exception, including KeyboardInterrupt and MemoryError raised by user code",
+   "confidence": "medium",
+   "file": "Modules/_struct.c",
+   "function": "cache_struct_converter",
+   "line": 2667
+  },
+  {
+   "type": "alloc_null_no_memerror",
+   "api_call": "PyMem_Malloc",
+   "variable": "node",
+   "detail": "PyMem_Malloc does not set MemoryError; the failure branch for 'node' returns an error sentinel without PyErr_NoMemory()",
+   "confidence": "high",
+   "file": "Modules/_zoneinfo.c",
+   "function": "strong_cache_node_new",
+   "line": 2357,
+   "guard_line": 2358
+  }
+ ],
+ "summary": {
+  "missing_null_checks": 0,
+  "unchecked_returns": 14,
+  "alloc_null_no_memerror": 8,
+  "unconditional_pyerr_clear": 39,
+  "unchecked_parse_calls": 0,
+  "total_findings": 61
+ },
+ "_sample_filter": {
+  "sample_files": [
+   "Modules/_pickle.c",
+   "Modules/_datetimemodule.c",
+   "Modules/_elementtree.c",
+   "Modules/itertoolsmodule.c",
+   "Modules/_struct.c",
+   "Modules/_collectionsmodule.c",
+   "Modules/_zoneinfo.c",
+   "Modules/_json.c",
+   "Modules/_csv.c",
+   "Modules/_heapqmodule.c",
+   "Modules/_randommodule.c",
+   "Modules/_queuemodule.c"
+  ],
+  "modules_total": 61,
+  "sample_total": 5
+ }
+}

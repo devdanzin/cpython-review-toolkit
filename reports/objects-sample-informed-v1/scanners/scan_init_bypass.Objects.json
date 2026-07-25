@@ -1,0 +1,15 @@
+{
+  "project_root": "/home/danzin/projects/cpython",
+  "scan_root": "/home/danzin/projects/cpython/Objects",
+  "files_analyzed": 113,
+  "functions_analyzed": 4627,
+  "findings": [],
+  "summary": {
+    "total_findings": 0,
+    "by_confidence": {},
+    "by_reason": {}
+  },
+  "files_with_nullable_fields": 3,
+  "total_nullable_fields": 24,
+  "skipped_files": []
+}

@@ -1,0 +1,21 @@
+# ASan evidence — Objects/iterobject.c:80 heap-use-after-free
+# Build: /home/danzin/projects/cpython/python (Clang 21, -fsanitize=address, debug)
+# Verified independently by the orchestrator, 2026-07-24T20:11:37Z
+
+=================================================================
+==3728995==ERROR: AddressSanitizer: heap-use-after-free on address 0x71b276c00830 at pc 0x6195c0c2c952 bp 0x7ffc8e7a77f0 sp 0x7ffc8e7a77e8
+READ of size 4 at 0x71b276c00830 thread T0
+    #0 0x6195c0c2c951 in Py_INCREF /home/danzin/projects/cpython/./Include/refcount.h:286:31
+    #1 0x6195c0c2c951 in _Py_NewRef /home/danzin/projects/cpython/./Include/refcount.h:536:5
+    #2 0x6195c0c2c951 in _PyDict_GetItemRef_KnownHash /home/danzin/projects/cpython/Objects/dictobject.c:2522:15
+    #3 0x6195c0c2c951 in PyDict_GetItemRef /home/danzin/projects/cpython/Objects/dictobject.c:2543:12
+    #4 0x6195c0f5a2c2 in _PyEval_LoadName /home/danzin/projects/cpython/Python/ceval.c:3720:9
+...
+freed by thread T0 here:
+    #0 0x6195c09377fa in free (/home/danzin/projects/cpython/python+0x3557fa) (BuildId: 072f4f7ba8a17e69b085e92aec86d2728ad5efca)
+    #1 0x6195c0d2a71a in subtype_dealloc /home/danzin/projects/cpython/Objects/typeobject.c:2871:5
+    #2 0x6195c0c93f06 in _Py_Dealloc /home/danzin/projects/cpython/Objects/object.c:3312:5
+    #3 0x6195c0be7f24 in Py_DECREF /home/danzin/projects/cpython/./Include/refcount.h:410:9
+    #4 0x6195c0be7f24 in iter_iternext /home/danzin/projects/cpython/Objects/iterobject.c:80:9
+    #5 0x6195c0ee6c4e in builtin_next /home/danzin/projects/cpython/Python/bltinmodule.c:1770:11
+    #6 0x6195c0c73bbe in cfunction_vectorcall_FASTCALL /home/danzin/projects/cpython/Objects/methodobject.c:449:24

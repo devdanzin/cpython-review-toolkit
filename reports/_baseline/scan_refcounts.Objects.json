@@ -1,0 +1,43 @@
+{
+  "project_root": "/home/danzin/projects/cpython",
+  "scan_root": "/home/danzin/projects/cpython/Objects",
+  "files_analyzed": 123,
+  "functions_analyzed": 3814,
+  "findings": [
+    {
+      "type": "owner_freed_before_use",
+      "api_call": "Py_XDECREF",
+      "variable": "tuple_args",
+      "line": 542,
+      "detail": "Py_XDECREF(tuple_args) at line 541 may release the last reference; 'args' is then dereferenced here -- 'args' and 'tuple_args' are aliases (assigned together in one '=' chain). Hoist the read above the release, or hold a reference across it",
+      "confidence": "high",
+      "file": "Objects/genericaliasobject.c",
+      "function": "_Py_subs_parameters"
+    },
+    {
+      "type": "stale_slot_decref",
+      "api_call": "PySequence_GetItem",
+      "variable": "seq",
+      "line": 80,
+      "detail": "'seq' was loaded from it->it_seq before PySequence_GetItem ran, which can execute arbitrary Python; a re-entrant call can clear it->it_seq and drop the reference first, so this Py_DECREF(seq) drops it a second time. Use Py_CLEAR(it->it_seq) instead of the it->it_seq = NULL / Py_DECREF(seq) pair",
+      "confidence": "high",
+      "file": "Objects/iterobject.c",
+      "function": "iter_iternext"
+    }
+  ],
+  "summary": {
+    "potential_leaks": 0,
+    "potential_double_frees": 0,
+    "stale_slot_decref": 1,
+    "owner_freed_before_use": 1,
+    "borrowed_ref_across_call": 0,
+    "slot_transfer_across_call": 0,
+    "stale_slot_use": 0,
+    "init_not_reinit_safe": 0,
+    "new_missing_member_init": 0,
+    "total_findings": 2,
+    "high_confidence": 2,
+    "medium_confidence": 0,
+    "low_confidence": 0
+  }
+}

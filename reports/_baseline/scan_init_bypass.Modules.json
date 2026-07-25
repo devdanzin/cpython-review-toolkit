@@ -1,0 +1,312 @@
+{
+  "project_root": "/home/danzin/projects/cpython",
+  "scan_root": "/home/danzin/projects/cpython/Modules",
+  "files_analyzed": 380,
+  "functions_analyzed": 10457,
+  "findings": [
+    {
+      "type": "init_bypass_null_deref",
+      "function": "_asyncio_Task_get_context_impl",
+      "field": "task_context",
+      "sink": "Py_NewRef",
+      "reason": "new_bypass",
+      "line": 2788,
+      "confidence": "medium",
+      "detail": "'task_context' is Py_INCREF'd via Py_NewRef() with no NULL guard, but it can be NULL via a __new__/subclass bypass of tp_init (T.__new__(T) leaves it NULL). A guard such as 'task_context != Py_None' or 'Py_IsNone(task_context)' does NOT protect this \u2014 after the bypass the field is NULL. Add 'if (task_context == NULL)' (or initialize it in tp_new) before the deref.",
+      "file": "Modules/_asynciomodule.c"
+    },
+    {
+      "type": "init_bypass_null_deref",
+      "function": "_io__Buffered_simple_flush_impl",
+      "field": "raw",
+      "sink": "PyObject_CallMethodNoArgs",
+      "reason": "new_bypass",
+      "line": 517,
+      "confidence": "medium",
+      "detail": "'raw' is used as the callable in PyObject_CallMethodNoArgs() with no NULL guard, but it can be NULL via a __new__/subclass bypass of tp_init (T.__new__(T) leaves it NULL). A guard such as 'raw != Py_None' or 'Py_IsNone(raw)' does NOT protect this \u2014 after the bypass the field is NULL. Add 'if (raw == NULL)' (or initialize it in tp_new) before the deref.",
+      "file": "Modules/_io/bufferedio.c"
+    },
+    {
+      "type": "init_bypass_null_deref",
+      "function": "_io__Buffered_close_impl",
+      "field": "raw",
+      "sink": "PyObject_CallMethodNoArgs",
+      "reason": "new_bypass",
+      "line": 591,
+      "confidence": "medium",
+      "detail": "'raw' is used as the callable in PyObject_CallMethodNoArgs() with no NULL guard, but it can be NULL via a __new__/subclass bypass of tp_init (T.__new__(T) leaves it NULL). A guard such as 'raw != Py_None' or 'Py_IsNone(raw)' does NOT protect this \u2014 after the bypass the field is NULL. Add 'if (raw == NULL)' (or initialize it in tp_new) before the deref.",
+      "file": "Modules/_io/bufferedio.c"
+    },
+    {
+      "type": "init_bypass_null_deref",
+      "function": "_io__Buffered_seekable_impl",
+      "field": "raw",
+      "sink": "PyObject_CallMethodNoArgs",
+      "reason": "new_bypass",
+      "line": 644,
+      "confidence": "medium",
+      "detail": "'raw' is used as the callable in PyObject_CallMethodNoArgs() with no NULL guard, but it can be NULL via a __new__/subclass bypass of tp_init (T.__new__(T) leaves it NULL). A guard such as 'raw != Py_None' or 'Py_IsNone(raw)' does NOT protect this \u2014 after the bypass the field is NULL. Add 'if (raw == NULL)' (or initialize it in tp_new) before the deref.",
+      "file": "Modules/_io/bufferedio.c"
+    },
+    {
+      "type": "init_bypass_null_deref",
+      "function": "_io__Buffered_readable_impl",
+      "field": "raw",
+      "sink": "PyObject_CallMethodNoArgs",
+      "reason": "new_bypass",
+      "line": 657,
+      "confidence": "medium",
+      "detail": "'raw' is used as the callable in PyObject_CallMethodNoArgs() with no NULL guard, but it can be NULL via a __new__/subclass bypass of tp_init (T.__new__(T) leaves it NULL). A guard such as 'raw != Py_None' or 'Py_IsNone(raw)' does NOT protect this \u2014 after the bypass the field is NULL. Add 'if (raw == NULL)' (or initialize it in tp_new) before the deref.",
+      "file": "Modules/_io/bufferedio.c"
+    },
+    {
+      "type": "init_bypass_null_deref",
+      "function": "_io__Buffered_writable_impl",
+      "field": "raw",
+      "sink": "PyObject_CallMethodNoArgs",
+      "reason": "new_bypass",
+      "line": 670,
+      "confidence": "medium",
+      "detail": "'raw' is used as the callable in PyObject_CallMethodNoArgs() with no NULL guard, but it can be NULL via a __new__/subclass bypass of tp_init (T.__new__(T) leaves it NULL). A guard such as 'raw != Py_None' or 'Py_IsNone(raw)' does NOT protect this \u2014 after the bypass the field is NULL. Add 'if (raw == NULL)' (or initialize it in tp_new) before the deref.",
+      "file": "Modules/_io/bufferedio.c"
+    },
+    {
+      "type": "init_bypass_null_deref",
+      "function": "_io__Buffered_fileno_impl",
+      "field": "raw",
+      "sink": "PyObject_CallMethodNoArgs",
+      "reason": "new_bypass",
+      "line": 714,
+      "confidence": "medium",
+      "detail": "'raw' is used as the callable in PyObject_CallMethodNoArgs() with no NULL guard, but it can be NULL via a __new__/subclass bypass of tp_init (T.__new__(T) leaves it NULL). A guard such as 'raw != Py_None' or 'Py_IsNone(raw)' does NOT protect this \u2014 after the bypass the field is NULL. Add 'if (raw == NULL)' (or initialize it in tp_new) before the deref.",
+      "file": "Modules/_io/bufferedio.c"
+    },
+    {
+      "type": "init_bypass_null_deref",
+      "function": "_io__Buffered_isatty_impl",
+      "field": "raw",
+      "sink": "PyObject_CallMethodNoArgs",
+      "reason": "new_bypass",
+      "line": 727,
+      "confidence": "medium",
+      "detail": "'raw' is used as the callable in PyObject_CallMethodNoArgs() with no NULL guard, but it can be NULL via a __new__/subclass bypass of tp_init (T.__new__(T) leaves it NULL). A guard such as 'raw != Py_None' or 'Py_IsNone(raw)' does NOT protect this \u2014 after the bypass the field is NULL. Add 'if (raw == NULL)' (or initialize it in tp_new) before the deref.",
+      "file": "Modules/_io/bufferedio.c"
+    },
+    {
+      "type": "init_bypass_null_deref",
+      "function": "_buffered_raw_tell",
+      "field": "raw",
+      "sink": "PyObject_CallMethodNoArgs",
+      "reason": "new_bypass",
+      "line": 788,
+      "confidence": "medium",
+      "detail": "'raw' is used as the callable in PyObject_CallMethodNoArgs() with no NULL guard, but it can be NULL via a __new__/subclass bypass of tp_init (T.__new__(T) leaves it NULL). A guard such as 'raw != Py_None' or 'Py_IsNone(raw)' does NOT protect this \u2014 after the bypass the field is NULL. Add 'if (raw == NULL)' (or initialize it in tp_new) before the deref.",
+      "file": "Modules/_io/bufferedio.c"
+    },
+    {
+      "type": "init_bypass_null_deref",
+      "function": "_buffered_raw_seek",
+      "field": "raw",
+      "sink": "PyObject_CallMethodObjArgs",
+      "reason": "new_bypass",
+      "line": 818,
+      "confidence": "medium",
+      "detail": "'raw' is used as the callable in PyObject_CallMethodObjArgs() with no NULL guard, but it can be NULL via a __new__/subclass bypass of tp_init (T.__new__(T) leaves it NULL). A guard such as 'raw != Py_None' or 'Py_IsNone(raw)' does NOT protect this \u2014 after the bypass the field is NULL. Add 'if (raw == NULL)' (or initialize it in tp_new) before the deref.",
+      "file": "Modules/_io/bufferedio.c"
+    },
+    {
+      "type": "init_bypass_null_deref",
+      "function": "_io__Buffered_truncate_impl",
+      "field": "raw",
+      "sink": "PyObject_CallMethodOneArg",
+      "reason": "new_bypass",
+      "line": 1485,
+      "confidence": "medium",
+      "detail": "'raw' is used as the callable in PyObject_CallMethodOneArg() with no NULL guard, but it can be NULL via a __new__/subclass bypass of tp_init (T.__new__(T) leaves it NULL). A guard such as 'raw != Py_None' or 'Py_IsNone(raw)' does NOT protect this \u2014 after the bypass the field is NULL. Add 'if (raw == NULL)' (or initialize it in tp_new) before the deref.",
+      "file": "Modules/_io/bufferedio.c"
+    },
+    {
+      "type": "init_bypass_null_deref",
+      "function": "_bufferedreader_raw_read",
+      "field": "raw",
+      "sink": "PyObject_CallMethodOneArg",
+      "reason": "new_bypass",
+      "line": 1640,
+      "confidence": "medium",
+      "detail": "'raw' is used as the callable in PyObject_CallMethodOneArg() with no NULL guard, but it can be NULL via a __new__/subclass bypass of tp_init (T.__new__(T) leaves it NULL). A guard such as 'raw != Py_None' or 'Py_IsNone(raw)' does NOT protect this \u2014 after the bypass the field is NULL. Add 'if (raw == NULL)' (or initialize it in tp_new) before the deref.",
+      "file": "Modules/_io/bufferedio.c"
+    },
+    {
+      "type": "init_bypass_null_deref",
+      "function": "_bufferedreader_read_all",
+      "field": "raw",
+      "sink": "PyObject_CallMethodNoArgs",
+      "reason": "new_bypass",
+      "line": 1748,
+      "confidence": "medium",
+      "detail": "'raw' is used as the callable in PyObject_CallMethodNoArgs() with no NULL guard, but it can be NULL via a __new__/subclass bypass of tp_init (T.__new__(T) leaves it NULL). A guard such as 'raw != Py_None' or 'Py_IsNone(raw)' does NOT protect this \u2014 after the bypass the field is NULL. Add 'if (raw == NULL)' (or initialize it in tp_new) before the deref.",
+      "file": "Modules/_io/bufferedio.c"
+    },
+    {
+      "type": "init_bypass_null_deref",
+      "function": "_bufferedwriter_raw_write",
+      "field": "raw",
+      "sink": "PyObject_CallMethodOneArg",
+      "reason": "new_bypass",
+      "line": 1996,
+      "confidence": "medium",
+      "detail": "'raw' is used as the callable in PyObject_CallMethodOneArg() with no NULL guard, but it can be NULL via a __new__/subclass bypass of tp_init (T.__new__(T) leaves it NULL). A guard such as 'raw != Py_None' or 'Py_IsNone(raw)' does NOT protect this \u2014 after the bypass the field is NULL. Add 'if (raw == NULL)' (or initialize it in tp_new) before the deref.",
+      "file": "Modules/_io/bufferedio.c"
+    },
+    {
+      "type": "init_bypass_null_deref",
+      "function": "_PyIncrementalNewlineDecoder_decode",
+      "field": "decoder",
+      "sink": "PyObject_CallMethodObjArgs",
+      "reason": "new_bypass",
+      "line": 339,
+      "confidence": "medium",
+      "detail": "'decoder' is used as the callable in PyObject_CallMethodObjArgs() with no NULL guard, but it can be NULL via a __new__/subclass bypass of tp_init (T.__new__(T) leaves it NULL). A guard such as 'decoder != Py_None' or 'Py_IsNone(decoder)' does NOT protect this \u2014 after the bypass the field is NULL. Add 'if (decoder == NULL)' (or initialize it in tp_new) before the deref.",
+      "file": "Modules/_io/textio.c"
+    },
+    {
+      "type": "init_bypass_null_deref",
+      "function": "_io_IncrementalNewlineDecoder_getstate_impl",
+      "field": "decoder",
+      "sink": "PyObject_CallMethodNoArgs",
+      "reason": "new_bypass",
+      "line": 551,
+      "confidence": "medium",
+      "detail": "'decoder' is used as the callable in PyObject_CallMethodNoArgs() with no NULL guard, but it can be NULL via a __new__/subclass bypass of tp_init (T.__new__(T) leaves it NULL). A guard such as 'decoder != Py_None' or 'Py_IsNone(decoder)' does NOT protect this \u2014 after the bypass the field is NULL. Add 'if (decoder == NULL)' (or initialize it in tp_new) before the deref.",
+      "file": "Modules/_io/textio.c"
+    },
+    {
+      "type": "init_bypass_null_deref",
+      "function": "_io_IncrementalNewlineDecoder_reset_impl",
+      "field": "decoder",
+      "sink": "PyObject_CallMethodNoArgs",
+      "reason": "new_bypass",
+      "line": 633,
+      "confidence": "medium",
+      "detail": "'decoder' is used as the callable in PyObject_CallMethodNoArgs() with no NULL guard, but it can be NULL via a __new__/subclass bypass of tp_init (T.__new__(T) leaves it NULL). A guard such as 'decoder != Py_None' or 'Py_IsNone(decoder)' does NOT protect this \u2014 after the bypass the field is NULL. Add 'if (decoder == NULL)' (or initialize it in tp_new) before the deref.",
+      "file": "Modules/_io/textio.c"
+    },
+    {
+      "type": "init_bypass_null_deref",
+      "function": "textiowrapper_change_encoding",
+      "field": "errors",
+      "sink": "Py_INCREF",
+      "reason": "new_bypass",
+      "line": 1380,
+      "confidence": "medium",
+      "detail": "'errors' is Py_INCREF'd via Py_INCREF() with no NULL guard, but it can be NULL via a __new__/subclass bypass of tp_init (T.__new__(T) leaves it NULL). A guard such as 'errors != Py_None' or 'Py_IsNone(errors)' does NOT protect this \u2014 after the bypass the field is NULL. Add 'if (errors == NULL)' (or initialize it in tp_new) before the deref.",
+      "file": "Modules/_io/textio.c"
+    },
+    {
+      "type": "init_bypass_null_deref",
+      "function": "_textiowrapper_decoder_setstate",
+      "field": "decoder",
+      "sink": "PyObject_CallMethodNoArgs",
+      "reason": "new_bypass",
+      "line": 2546,
+      "confidence": "medium",
+      "detail": "'decoder' is used as the callable in PyObject_CallMethodNoArgs() with no NULL guard, but it can be NULL via a __new__/subclass bypass of tp_init (T.__new__(T) leaves it NULL). A guard such as 'decoder != Py_None' or 'Py_IsNone(decoder)' does NOT protect this \u2014 after the bypass the field is NULL. Add 'if (decoder == NULL)' (or initialize it in tp_new) before the deref.",
+      "file": "Modules/_io/textio.c"
+    },
+    {
+      "type": "init_bypass_null_deref",
+      "function": "_io_TextIOWrapper_errors_get_impl",
+      "field": "errors",
+      "sink": "Py_NewRef",
+      "reason": "new_bypass",
+      "line": 3382,
+      "confidence": "medium",
+      "detail": "'errors' is Py_INCREF'd via Py_NewRef() with no NULL guard, but it can be NULL via a __new__/subclass bypass of tp_init (T.__new__(T) leaves it NULL). A guard such as 'errors != Py_None' or 'Py_IsNone(errors)' does NOT protect this \u2014 after the bypass the field is NULL. Add 'if (errors == NULL)' (or initialize it in tp_new) before the deref.",
+      "file": "Modules/_io/textio.c"
+    },
+    {
+      "type": "init_bypass_null_deref",
+      "function": "CallExternalTimer",
+      "field": "externalTimer",
+      "sink": "_PyObject_CallNoArgs",
+      "reason": "new_bypass",
+      "line": 100,
+      "confidence": "medium",
+      "detail": "'externalTimer' is used as the callable in _PyObject_CallNoArgs() with no NULL guard, but it can be NULL via a __new__/subclass bypass of tp_init (T.__new__(T) leaves it NULL). A guard such as 'externalTimer != Py_None' or 'Py_IsNone(externalTimer)' does NOT protect this \u2014 after the bypass the field is NULL. Add 'if (externalTimer == NULL)' (or initialize it in tp_new) before the deref.",
+      "file": "Modules/_lsprof.c"
+    },
+    {
+      "type": "init_bypass_null_deref",
+      "function": "_Pickler_Write",
+      "field": "output_buffer",
+      "sink": "_PyBytes_Resize",
+      "reason": "new_bypass",
+      "line": 1103,
+      "confidence": "medium",
+      "detail": "'output_buffer' is passed by address to _PyBytes_Resize(), which derefs *pv, with no NULL guard, but it can be NULL via a __new__/subclass bypass of tp_init (T.__new__(T) leaves it NULL). A guard such as 'output_buffer != Py_None' or 'Py_IsNone(output_buffer)' does NOT protect this \u2014 after the bypass the field is NULL. Add 'if (output_buffer == NULL)' (or initialize it in tp_new) before the deref.",
+      "file": "Modules/_pickle.c"
+    },
+    {
+      "type": "init_bypass_null_deref",
+      "function": "pysqlite_connection_cursor_impl",
+      "field": "row_factory",
+      "sink": "Py_INCREF",
+      "reason": "new_bypass",
+      "line": 553,
+      "confidence": "medium",
+      "detail": "'row_factory' is Py_INCREF'd via Py_INCREF() with no NULL guard, but it can be NULL via a __new__/subclass bypass of tp_init (T.__new__(T) leaves it NULL). A guard such as 'row_factory != Py_None' or 'Py_IsNone(row_factory)' does NOT protect this \u2014 after the bypass the field is NULL. Add 'if (row_factory == NULL)' (or initialize it in tp_new) before the deref.",
+      "file": "Modules/_sqlite/connection.c"
+    },
+    {
+      "type": "init_bypass_null_deref",
+      "function": "connection_get_row_factory",
+      "field": "row_factory",
+      "sink": "Py_NewRef",
+      "reason": "new_bypass",
+      "line": 564,
+      "confidence": "medium",
+      "detail": "'row_factory' is Py_INCREF'd via Py_NewRef() with no NULL guard, but it can be NULL via a __new__/subclass bypass of tp_init (T.__new__(T) leaves it NULL). A guard such as 'row_factory != Py_None' or 'Py_IsNone(row_factory)' does NOT protect this \u2014 after the bypass the field is NULL. Add 'if (row_factory == NULL)' (or initialize it in tp_new) before the deref.",
+      "file": "Modules/_sqlite/connection.c"
+    },
+    {
+      "type": "init_bypass_null_deref",
+      "function": "connection_get_text_factory",
+      "field": "text_factory",
+      "sink": "Py_NewRef",
+      "reason": "new_bypass",
+      "line": 584,
+      "confidence": "medium",
+      "detail": "'text_factory' is Py_INCREF'd via Py_NewRef() with no NULL guard, but it can be NULL via a __new__/subclass bypass of tp_init (T.__new__(T) leaves it NULL). A guard such as 'text_factory != Py_None' or 'Py_IsNone(text_factory)' does NOT protect this \u2014 after the bypass the field is NULL. Add 'if (text_factory == NULL)' (or initialize it in tp_new) before the deref.",
+      "file": "Modules/_sqlite/connection.c"
+    },
+    {
+      "type": "init_bypass_null_deref",
+      "function": "pysqlite_cursor_iternext",
+      "field": "row_factory",
+      "sink": "PyObject_Vectorcall",
+      "reason": "deletable_member,new_bypass",
+      "line": 1182,
+      "confidence": "high",
+      "detail": "'row_factory' is used as the callable in PyObject_Vectorcall() with no NULL guard, but it can be NULL via a deletable member/getset (del obj.attr leaves it NULL). A guard such as 'row_factory != Py_None' or 'Py_IsNone(row_factory)' does NOT protect this \u2014 after the bypass the field is NULL. Add 'if (row_factory == NULL)' (or initialize it in tp_new) before the deref.",
+      "file": "Modules/_sqlite/cursor.c"
+    }
+  ],
+  "summary": {
+    "total_findings": 26,
+    "by_confidence": {
+      "medium": 25,
+      "high": 1
+    },
+    "by_reason": {
+      "new_bypass": 25,
+      "deletable_member,new_bypass": 1
+    }
+  },
+  "files_with_nullable_fields": 13,
+  "total_nullable_fields": 123,
+  "nullable_fields_by_reason": {
+    "new_bypass": 119,
+    "deletable_member": 6
+  },
+  "skipped_files": []
+}

@@ -1,0 +1,1473 @@
+{
+  "project_root": "/home/danzin/projects/cpython",
+  "scan_root": "/home/danzin/projects/cpython/Objects",
+  "files_analyzed": 123,
+  "functions_analyzed": 3073,
+  "findings": [
+    {
+      "type": "unchecked_return",
+      "api_call": "PyObject_CallOneArg",
+      "variable": "result",
+      "detail": "Return value of PyObject_CallOneArg assigned to 'result' is not checked for NULL",
+      "confidence": "medium",
+      "file": "Objects/abstract.c",
+      "function": "PyObject_GetItem",
+      "line": 193
+    },
+    {
+      "type": "unchecked_return",
+      "api_call": "PyObject_GetItem",
+      "variable": "result",
+      "detail": "Return value of PyObject_GetItem assigned to 'result' is not checked for NULL",
+      "confidence": "medium",
+      "file": "Objects/abstract.c",
+      "function": "PyMapping_GetOptionalItem",
+      "line": 213
+    },
+    {
+      "type": "unchecked_return",
+      "api_call": "PyObject_CallOneArg",
+      "variable": "result",
+      "detail": "Return value of PyObject_CallOneArg assigned to 'result' is not checked for NULL",
+      "confidence": "medium",
+      "file": "Objects/abstract.c",
+      "function": "PyObject_Format",
+      "line": 893
+    },
+    {
+      "type": "unchecked_return",
+      "api_call": "PySequence_List",
+      "variable": "v",
+      "detail": "Return value of PySequence_List assigned to 'v' is not checked for NULL",
+      "confidence": "medium",
+      "file": "Objects/abstract.c",
+      "function": "PySequence_Fast",
+      "line": 2123
+    },
+    {
+      "type": "unchecked_return",
+      "api_call": "PyObject_GetItem",
+      "variable": "r",
+      "detail": "Return value of PyObject_GetItem assigned to 'r' is not checked for NULL",
+      "confidence": "medium",
+      "file": "Objects/abstract.c",
+      "function": "PyMapping_GetItemString",
+      "line": 2317
+    },
+    {
+      "type": "unchecked_return",
+      "api_call": "PySequence_List",
+      "variable": "result",
+      "detail": "Return value of PySequence_List assigned to 'result' is not checked for NULL",
+      "confidence": "medium",
+      "file": "Objects/abstract.c",
+      "function": "method_output_as_list",
+      "line": 2452
+    },
+    {
+      "type": "unchecked_return",
+      "api_call": "PyObject_CallOneArg",
+      "variable": "res",
+      "detail": "Return value of PyObject_CallOneArg assigned to 'res' is not checked for NULL",
+      "confidence": "medium",
+      "file": "Objects/abstract.c",
+      "function": "object_issubclass",
+      "line": 2771
+    },
+    {
+      "type": "unchecked_return",
+      "api_call": "PyBytes_FromStringAndSize",
+      "variable": "ob_bytes_object",
+      "detail": "Return value of PyBytes_FromStringAndSize assigned to 'ob_bytes_object' is not checked for NULL",
+      "confidence": "medium",
+      "file": "Objects/bytearrayobject.c",
+      "function": "PyByteArray_FromStringAndSize",
+      "line": 171
+    },
+    {
+      "type": "unchecked_return",
+      "api_call": "PyUnicode_FromFormat",
+      "variable": "res",
+      "detail": "Return value of PyUnicode_FromFormat assigned to 'res' is not checked for NULL",
+      "confidence": "medium",
+      "file": "Objects/bytearrayobject.c",
+      "function": "bytearray_repr_lock_held",
+      "line": 1122
+    },
+    {
+      "type": "unchecked_return",
+      "api_call": "PyBytes_FromStringAndSize",
+      "variable": "result",
+      "detail": "Return value of PyBytes_FromStringAndSize assigned to 'result' is not checked for NULL",
+      "confidence": "medium",
+      "file": "Objects/bytesobject.c",
+      "function": "_PyBytes_Concat",
+      "line": 1569
+    },
+    {
+      "type": "return_null_no_exception",
+      "detail": "return NULL without PyErr_Set* \u2014 may cause 'SystemError: error return without exception set'",
+      "confidence": "medium",
+      "file": "Objects/bytesobject.c",
+      "function": "do_xstrip",
+      "line": 2107
+    },
+    {
+      "type": "unchecked_return",
+      "api_call": "PyBytes_FromStringAndSize",
+      "variable": "pv",
+      "detail": "Return value of PyBytes_FromStringAndSize assigned to 'pv' is not checked for NULL",
+      "confidence": "medium",
+      "file": "Objects/bytesobject.c",
+      "function": "_PyBytes_Resize",
+      "line": 3376
+    },
+    {
+      "type": "unchecked_return",
+      "api_call": "PyBytes_FromStringAndSize",
+      "variable": "obj",
+      "detail": "Return value of PyBytes_FromStringAndSize assigned to 'obj' is not checked for NULL",
+      "confidence": "medium",
+      "file": "Objects/bytesobject.c",
+      "function": "byteswriter_resize",
+      "line": 3661
+    },
+    {
+      "type": "unchecked_return",
+      "api_call": "PyBytes_FromStringAndSize",
+      "variable": "result",
+      "detail": "Return value of PyBytes_FromStringAndSize assigned to 'result' is not checked for NULL",
+      "confidence": "medium",
+      "file": "Objects/bytesobject.c",
+      "function": "PyBytesWriter_FinishWithSize",
+      "line": 3773
+    },
+    {
+      "type": "sparse_error_cleanup",
+      "detail": "Error labels (error) don't appear to DECREF any locally-owned references",
+      "confidence": "low",
+      "file": "Objects/bytesobject.c",
+      "function": "PyBytesWriter_FinishWithSize",
+      "line": 3746
+    },
+    {
+      "type": "return_null_no_exception",
+      "detail": "return NULL without PyErr_Set* \u2014 may cause 'SystemError: error return without exception set'",
+      "confidence": "medium",
+      "file": "Objects/call.c",
+      "function": "PyEval_CallMethod",
+      "line": 664
+    },
+    {
+      "type": "unchecked_return",
+      "api_call": "PyObject_GetAttrString",
+      "variable": "object2",
+      "detail": "Return value of PyObject_GetAttrString assigned to 'object2' is not checked for NULL",
+      "confidence": "medium",
+      "file": "Objects/capsule.c",
+      "function": "PyCapsule_Import",
+      "line": 255
+    },
+    {
+      "type": "unchecked_return",
+      "api_call": "PyUnicode_FromFormat",
+      "variable": "res",
+      "detail": "Return value of PyUnicode_FromFormat assigned to 'res' is not checked for NULL",
+      "confidence": "medium",
+      "file": "Objects/cellobject.c",
+      "function": "cell_repr",
+      "line": 122
+    },
+    {
+      "type": "unchecked_return",
+      "api_call": "PyUnicode_FromFormat",
+      "variable": "result",
+      "detail": "Return value of PyUnicode_FromFormat assigned to 'result' is not checked for NULL",
+      "confidence": "medium",
+      "file": "Objects/classobject.c",
+      "function": "method_repr",
+      "line": 271
+    },
+    {
+      "type": "unchecked_return",
+      "api_call": "PyUnicode_FromFormat",
+      "variable": "result",
+      "detail": "Return value of PyUnicode_FromFormat assigned to 'result' is not checked for NULL",
+      "confidence": "medium",
+      "file": "Objects/classobject.c",
+      "function": "instancemethod_repr",
+      "line": 485
+    },
+    {
+      "type": "unchecked_return",
+      "api_call": "PyBytes_FromStringAndSize",
+      "variable": "code",
+      "detail": "Return value of PyBytes_FromStringAndSize assigned to 'code' is not checked for NULL",
+      "confidence": "medium",
+      "file": "Objects/codeobject.c",
+      "function": "_PyCode_GetCode",
+      "line": 2231
+    },
+    {
+      "type": "unchecked_return",
+      "api_call": "PyTuple_Pack",
+      "variable": "key",
+      "detail": "Return value of PyTuple_Pack assigned to 'key' is not checked for NULL",
+      "confidence": "medium",
+      "file": "Objects/codeobject.c",
+      "function": "_PyCode_ConstantKey",
+      "line": 2954
+    },
+    {
+      "type": "unchecked_return",
+      "api_call": "PyTuple_Pack",
+      "variable": "key",
+      "detail": "Return value of PyTuple_Pack assigned to 'key' is not checked for NULL",
+      "confidence": "medium",
+      "file": "Objects/codeobject.c",
+      "function": "_PyCode_ConstantKey",
+      "line": 2967
+    },
+    {
+      "type": "unchecked_return",
+      "api_call": "PyTuple_Pack",
+      "variable": "key",
+      "detail": "Return value of PyTuple_Pack assigned to 'key' is not checked for NULL",
+      "confidence": "medium",
+      "file": "Objects/codeobject.c",
+      "function": "_PyCode_ConstantKey",
+      "line": 2970
+    },
+    {
+      "type": "unchecked_return",
+      "api_call": "PyTuple_Pack",
+      "variable": "key",
+      "detail": "Return value of PyTuple_Pack assigned to 'key' is not checked for NULL",
+      "confidence": "medium",
+      "file": "Objects/codeobject.c",
+      "function": "_PyCode_ConstantKey",
+      "line": 2973
+    },
+    {
+      "type": "unchecked_return",
+      "api_call": "PyUnicode_FromFormat",
+      "variable": "result",
+      "detail": "Return value of PyUnicode_FromFormat assigned to 'result' is not checked for NULL",
+      "confidence": "medium",
+      "file": "Objects/complexobject.c",
+      "function": "complex_repr",
+      "line": 616
+    },
+    {
+      "type": "unchecked_return",
+      "api_call": "PyObject_RichCompare",
+      "variable": "sub_res",
+      "detail": "Return value of PyObject_RichCompare assigned to 'sub_res' is not checked for NULL",
+      "confidence": "medium",
+      "file": "Objects/complexobject.c",
+      "function": "complex_richcompare",
+      "line": 835
+    },
+    {
+      "type": "unchecked_return",
+      "api_call": "PyUnicode_FromFormat",
+      "variable": "res",
+      "detail": "Return value of PyUnicode_FromFormat assigned to 'res' is not checked for NULL",
+      "confidence": "medium",
+      "file": "Objects/descrobject.c",
+      "function": "calculate_qualname",
+      "line": 613
+    },
+    {
+      "type": "unchecked_return",
+      "api_call": "PyObject_RichCompare",
+      "variable": "res",
+      "detail": "Return value of PyObject_RichCompare assigned to 'res' is not checked for NULL",
+      "confidence": "medium",
+      "file": "Objects/descrobject.c",
+      "function": "mappingproxy_richcompare",
+      "line": 1251
+    },
+    {
+      "type": "unchecked_return",
+      "api_call": "PyObject_CallOneArg",
+      "variable": "res",
+      "detail": "Return value of PyObject_CallOneArg assigned to 'res' is not checked for NULL",
+      "confidence": "medium",
+      "file": "Objects/dictobject.c",
+      "function": "_PyDict_SubscriptKnownHash",
+      "line": 3813
+    },
+    {
+      "type": "unchecked_return",
+      "api_call": "PyIter_Next",
+      "variable": "key",
+      "detail": "Return value of PyIter_Next assigned to 'key' is not checked for NULL",
+      "confidence": "medium",
+      "file": "Objects/dictobject.c",
+      "function": "dict_merge",
+      "line": 4340
+    },
+    {
+      "type": "unchecked_return",
+      "api_call": "PyIter_Next",
+      "variable": "key",
+      "detail": "Return value of PyIter_Next assigned to 'key' is not checked for NULL",
+      "confidence": "medium",
+      "file": "Objects/dictobject.c",
+      "function": "dict_merge",
+      "line": 4340
+    },
+    {
+      "type": "unchecked_return",
+      "api_call": "PyUnicode_FromFormat",
+      "variable": "result",
+      "detail": "Return value of PyUnicode_FromFormat assigned to 'result' is not checked for NULL",
+      "confidence": "medium",
+      "file": "Objects/dictobject.c",
+      "function": "dictview_repr",
+      "line": 6606
+    },
+    {
+      "type": "unchecked_return",
+      "api_call": "PyIter_Next",
+      "variable": "key",
+      "detail": "Return value of PyIter_Next assigned to 'key' is not checked for NULL",
+      "confidence": "medium",
+      "file": "Objects/dictobject.c",
+      "function": "_PyDictView_Intersect",
+      "line": 6739
+    },
+    {
+      "type": "unchecked_return",
+      "api_call": "PyIter_Next",
+      "variable": "item",
+      "detail": "Return value of PyIter_Next assigned to 'item' is not checked for NULL",
+      "confidence": "medium",
+      "file": "Objects/dictobject.c",
+      "function": "dictviews_isdisjoint",
+      "line": 6959
+    },
+    {
+      "type": "unchecked_return",
+      "api_call": "PyDict_New",
+      "variable": "dict",
+      "detail": "Return value of PyDict_New assigned to 'dict' is not checked for NULL",
+      "confidence": "medium",
+      "file": "Objects/dictobject.c",
+      "function": "ensure_nonmanaged_dict",
+      "line": 8088
+    },
+    {
+      "type": "sparse_error_cleanup",
+      "detail": "Error labels (done) don't appear to DECREF any locally-owned references",
+      "confidence": "low",
+      "file": "Objects/dictobject.c",
+      "function": "ensure_nonmanaged_dict",
+      "line": 8070
+    },
+    {
+      "type": "unchecked_return",
+      "api_call": "PyUnicode_FromFormat",
+      "variable": "res",
+      "detail": "Return value of PyUnicode_FromFormat assigned to 'res' is not checked for NULL",
+      "confidence": "medium",
+      "file": "Objects/dictobject.c",
+      "function": "frozendict_repr",
+      "line": 8397
+    },
+    {
+      "type": "unchecked_return",
+      "api_call": "PySequence_GetItem",
+      "variable": "item",
+      "detail": "Return value of PySequence_GetItem assigned to 'item' is not checked for NULL",
+      "confidence": "medium",
+      "file": "Objects/enumobject.c",
+      "function": "reversed_next",
+      "line": 445
+    },
+    {
+      "type": "unchecked_return",
+      "api_call": "PyTuple_New",
+      "variable": "args",
+      "detail": "Return value of PyTuple_New assigned to 'args' is not checked for NULL",
+      "confidence": "medium",
+      "file": "Objects/exceptions.c",
+      "function": "BaseException_new",
+      "line": 68
+    },
+    {
+      "type": "unchecked_return",
+      "api_call": "PyObject_Str",
+      "variable": "res",
+      "detail": "Return value of PyObject_Str assigned to 'res' is not checked for NULL",
+      "confidence": "medium",
+      "file": "Objects/exceptions.c",
+      "function": "BaseException_str",
+      "line": 172
+    },
+    {
+      "type": "unchecked_return",
+      "api_call": "PyObject_Str",
+      "variable": "res",
+      "detail": "Return value of PyObject_Str assigned to 'res' is not checked for NULL",
+      "confidence": "medium",
+      "file": "Objects/exceptions.c",
+      "function": "BaseException_str",
+      "line": 175
+    },
+    {
+      "type": "unchecked_return",
+      "api_call": "PyUnicode_FromFormat",
+      "variable": "res",
+      "detail": "Return value of PyUnicode_FromFormat assigned to 'res' is not checked for NULL",
+      "confidence": "medium",
+      "file": "Objects/exceptions.c",
+      "function": "BaseException_repr",
+      "line": 192
+    },
+    {
+      "type": "unchecked_return",
+      "api_call": "PyUnicode_FromFormat",
+      "variable": "res",
+      "detail": "Return value of PyUnicode_FromFormat assigned to 'res' is not checked for NULL",
+      "confidence": "medium",
+      "file": "Objects/exceptions.c",
+      "function": "BaseException_repr",
+      "line": 196
+    },
+    {
+      "type": "unchecked_return",
+      "api_call": "PyObject_CallObject",
+      "variable": "result",
+      "detail": "Return value of PyObject_CallObject assigned to 'result' is not checked for NULL",
+      "confidence": "medium",
+      "file": "Objects/exceptions.c",
+      "function": "_PyExc_CreateExceptionGroup",
+      "line": 1014
+    },
+    {
+      "type": "unchecked_return",
+      "api_call": "PyUnicode_FromFormat",
+      "variable": "repr",
+      "detail": "Return value of PyUnicode_FromFormat assigned to 'repr' is not checked for NULL",
+      "confidence": "medium",
+      "file": "Objects/exceptions.c",
+      "function": "BaseExceptionGroup_repr",
+      "line": 1111
+    },
+    {
+      "type": "unchecked_return",
+      "api_call": "PyTuple_New",
+      "variable": "args",
+      "detail": "Return value of PyTuple_New assigned to 'args' is not checked for NULL",
+      "confidence": "medium",
+      "file": "Objects/exceptions.c",
+      "function": "OSError_new",
+      "line": 2251
+    },
+    {
+      "type": "unchecked_return",
+      "api_call": "PyUnicode_FromFormat",
+      "variable": "result",
+      "detail": "Return value of PyUnicode_FromFormat assigned to 'result' is not checked for NULL",
+      "confidence": "medium",
+      "file": "Objects/exceptions.c",
+      "function": "SyntaxError_str",
+      "line": 2928
+    },
+    {
+      "type": "unchecked_return",
+      "api_call": "PyUnicode_FromFormat",
+      "variable": "result",
+      "detail": "Return value of PyUnicode_FromFormat assigned to 'result' is not checked for NULL",
+      "confidence": "medium",
+      "file": "Objects/exceptions.c",
+      "function": "SyntaxError_str",
+      "line": 2933
+    },
+    {
+      "type": "unchecked_return",
+      "api_call": "PyUnicode_FromFormat",
+      "variable": "result",
+      "detail": "Return value of PyUnicode_FromFormat assigned to 'result' is not checked for NULL",
+      "confidence": "medium",
+      "file": "Objects/exceptions.c",
+      "function": "SyntaxError_str",
+      "line": 2937
+    },
+    {
+      "type": "unchecked_return",
+      "api_call": "PyUnicode_FromFormat",
+      "variable": "result",
+      "detail": "Return value of PyUnicode_FromFormat assigned to 'result' is not checked for NULL",
+      "confidence": "medium",
+      "file": "Objects/exceptions.c",
+      "function": "UnicodeEncodeError_str",
+      "line": 3775
+    },
+    {
+      "type": "unchecked_return",
+      "api_call": "PyUnicode_FromFormat",
+      "variable": "result",
+      "detail": "Return value of PyUnicode_FromFormat assigned to 'result' is not checked for NULL",
+      "confidence": "medium",
+      "file": "Objects/exceptions.c",
+      "function": "UnicodeEncodeError_str",
+      "line": 3783
+    },
+    {
+      "type": "unchecked_return",
+      "api_call": "PyUnicode_FromFormat",
+      "variable": "result",
+      "detail": "Return value of PyUnicode_FromFormat assigned to 'result' is not checked for NULL",
+      "confidence": "medium",
+      "file": "Objects/exceptions.c",
+      "function": "UnicodeDecodeError_str",
+      "line": 3888
+    },
+    {
+      "type": "unchecked_return",
+      "api_call": "PyUnicode_FromFormat",
+      "variable": "result",
+      "detail": "Return value of PyUnicode_FromFormat assigned to 'result' is not checked for NULL",
+      "confidence": "medium",
+      "file": "Objects/exceptions.c",
+      "function": "UnicodeDecodeError_str",
+      "line": 3896
+    },
+    {
+      "type": "unchecked_return",
+      "api_call": "PyUnicode_FromFormat",
+      "variable": "result",
+      "detail": "Return value of PyUnicode_FromFormat assigned to 'result' is not checked for NULL",
+      "confidence": "medium",
+      "file": "Objects/exceptions.c",
+      "function": "UnicodeTranslateError_str",
+      "line": 3997
+    },
+    {
+      "type": "unchecked_return",
+      "api_call": "PyUnicode_FromFormat",
+      "variable": "result",
+      "detail": "Return value of PyUnicode_FromFormat assigned to 'result' is not checked for NULL",
+      "confidence": "medium",
+      "file": "Objects/exceptions.c",
+      "function": "UnicodeTranslateError_str",
+      "line": 4004
+    },
+    {
+      "type": "unchecked_return",
+      "api_call": "PyLong_FromLong",
+      "variable": "_code",
+      "detail": "Return value of PyLong_FromLong assigned to '_code' is not checked for NULL",
+      "confidence": "medium",
+      "file": "Objects/exceptions.c",
+      "function": "_PyExc_InitState",
+      "line": 4532
+    },
+    {
+      "type": "unchecked_return",
+      "api_call": "PyDict_New",
+      "variable": "errnomap",
+      "detail": "Return value of PyDict_New assigned to 'errnomap' is not checked for NULL",
+      "confidence": "medium",
+      "file": "Objects/exceptions.c",
+      "function": "_PyExc_InitState",
+      "line": 4543
+    },
+    {
+      "type": "unchecked_return",
+      "api_call": "PyObject_CallFunction",
+      "variable": "f",
+      "detail": "Return value of PyObject_CallFunction assigned to 'f' is not checked for NULL",
+      "confidence": "medium",
+      "file": "Objects/fileobject.c",
+      "function": "PyFile_OpenCodeObject",
+      "line": 515
+    },
+    {
+      "type": "unchecked_return",
+      "api_call": "PyIter_Next",
+      "variable": "key",
+      "detail": "Return value of PyIter_Next assigned to 'key' is not checked for NULL",
+      "confidence": "medium",
+      "file": "Objects/frameobject.c",
+      "function": "framelocalsproxy_merge",
+      "line": 344
+    },
+    {
+      "type": "unchecked_return",
+      "api_call": "PyObject_RichCompare",
+      "variable": "result",
+      "detail": "Return value of PyObject_RichCompare assigned to 'result' is not checked for NULL",
+      "confidence": "medium",
+      "file": "Objects/frameobject.c",
+      "function": "framelocalsproxy_richcompare",
+      "line": 506
+    },
+    {
+      "type": "unchecked_return",
+      "api_call": "PyObject_Repr",
+      "variable": "repr",
+      "detail": "Return value of PyObject_Repr assigned to 'repr' is not checked for NULL",
+      "confidence": "medium",
+      "file": "Objects/frameobject.c",
+      "function": "framelocalsproxy_repr",
+      "line": 534
+    },
+    {
+      "type": "return_null_no_exception",
+      "detail": "return NULL without PyErr_Set* \u2014 may cause 'SystemError: error return without exception set'",
+      "confidence": "medium",
+      "file": "Objects/frameobject.c",
+      "function": "framelocalsproxy___contains__",
+      "line": 715
+    },
+    {
+      "type": "unchecked_return",
+      "api_call": "PyUnicode_FromFormat",
+      "variable": "result",
+      "detail": "Return value of PyUnicode_FromFormat assigned to 'result' is not checked for NULL",
+      "confidence": "medium",
+      "file": "Objects/frameobject.c",
+      "function": "frame_repr",
+      "line": 2054
+    },
+    {
+      "type": "unchecked_return",
+      "api_call": "PyDict_New",
+      "variable": "f_locals",
+      "detail": "Return value of PyDict_New assigned to 'f_locals' is not checked for NULL",
+      "confidence": "medium",
+      "file": "Objects/frameobject.c",
+      "function": "_PyFrame_GetLocals",
+      "line": 2286
+    },
+    {
+      "type": "unchecked_return",
+      "api_call": "PySequence_Tuple",
+      "variable": "tuple_args",
+      "detail": "Return value of PySequence_Tuple assigned to 'tuple_args' is not checked for NULL",
+      "confidence": "medium",
+      "file": "Objects/genericaliasobject.c",
+      "function": "_Py_make_parameters",
+      "line": 190
+    },
+    {
+      "type": "unchecked_return",
+      "api_call": "PyObject_CallFunction",
+      "variable": "tmp",
+      "detail": "Return value of PyObject_CallFunction assigned to 'tmp' is not checked for NULL",
+      "confidence": "medium",
+      "file": "Objects/genericaliasobject.c",
+      "function": "_Py_subs_parameters",
+      "line": 425
+    },
+    {
+      "type": "unchecked_return",
+      "api_call": "PyObject_CallFunction",
+      "variable": "tmp",
+      "detail": "Return value of PyObject_CallFunction assigned to 'tmp' is not checked for NULL",
+      "confidence": "medium",
+      "file": "Objects/genericaliasobject.c",
+      "function": "_Py_subs_parameters",
+      "line": 428
+    },
+    {
+      "type": "unchecked_return",
+      "api_call": "PySequence_Tuple",
+      "variable": "tuple_args",
+      "detail": "Return value of PySequence_Tuple assigned to 'tuple_args' is not checked for NULL",
+      "confidence": "medium",
+      "file": "Objects/genericaliasobject.c",
+      "function": "_Py_subs_parameters",
+      "line": 452
+    },
+    {
+      "type": "unchecked_return",
+      "api_call": "PyObject_Call",
+      "variable": "obj",
+      "detail": "Return value of PyObject_Call assigned to 'obj' is not checked for NULL",
+      "confidence": "medium",
+      "file": "Objects/genericaliasobject.c",
+      "function": "ga_call",
+      "line": 645
+    },
+    {
+      "type": "sparse_error_cleanup",
+      "detail": "Error labels (error) don't appear to DECREF any locally-owned references",
+      "confidence": "low",
+      "file": "Objects/interpolationobject.c",
+      "function": "_PyInterpolation_InitTypes",
+      "line": 163
+    },
+    {
+      "type": "unchecked_return",
+      "api_call": "PySequence_GetItem",
+      "variable": "result",
+      "detail": "Return value of PySequence_GetItem assigned to 'result' is not checked for NULL",
+      "confidence": "medium",
+      "file": "Objects/iterobject.c",
+      "function": "iter_iternext",
+      "line": 68
+    },
+    {
+      "type": "unchecked_return",
+      "api_call": "PyUnicode_FromFormat",
+      "variable": "res",
+      "detail": "Return value of PyUnicode_FromFormat assigned to 'res' is not checked for NULL",
+      "confidence": "medium",
+      "file": "Objects/lazyimportobject.c",
+      "function": "lazy_import_repr",
+      "line": 104
+    },
+    {
+      "type": "unchecked_return",
+      "api_call": "PyObject_RichCompare",
+      "variable": "result",
+      "detail": "Return value of PyObject_RichCompare assigned to 'result' is not checked for NULL",
+      "confidence": "medium",
+      "file": "Objects/listobject.c",
+      "function": "list_richcompare_impl",
+      "line": 3492
+    },
+    {
+      "type": "unchecked_return",
+      "api_call": "PyList_New",
+      "variable": "res",
+      "detail": "Return value of PyList_New assigned to 'res' is not checked for NULL",
+      "confidence": "medium",
+      "file": "Objects/listobject.c",
+      "function": "list_slice_wrap",
+      "line": 3656
+    },
+    {
+      "type": "sparse_error_cleanup",
+      "detail": "Error labels (error) don't appear to DECREF any locally-owned references",
+      "confidence": "low",
+      "file": "Objects/longobject.c",
+      "function": "pylong_int_from_string",
+      "line": 2653
+    },
+    {
+      "type": "unchecked_return",
+      "api_call": "PyBytes_FromStringAndSize",
+      "variable": "strobj",
+      "detail": "Return value of PyBytes_FromStringAndSize assigned to 'strobj' is not checked for NULL",
+      "confidence": "medium",
+      "file": "Objects/longobject.c",
+      "function": "_PyLong_FromBytes",
+      "line": 3170
+    },
+    {
+      "type": "unchecked_return",
+      "api_call": "PyObject_GetAttrString",
+      "variable": "unpack_from",
+      "detail": "Return value of PyObject_GetAttrString assigned to 'unpack_from' is not checked for NULL",
+      "confidence": "medium",
+      "file": "Objects/memoryobject.c",
+      "function": "struct_get_unpacker",
+      "line": 2172
+    },
+    {
+      "type": "unchecked_return",
+      "api_call": "PyMem_Malloc",
+      "variable": "item",
+      "detail": "Return value of PyMem_Malloc assigned to 'item' is not checked for NULL",
+      "confidence": "medium",
+      "file": "Objects/memoryobject.c",
+      "function": "struct_get_unpacker",
+      "line": 2176
+    },
+    {
+      "type": "sparse_error_cleanup",
+      "detail": "Error labels (error) don't appear to DECREF any locally-owned references",
+      "confidence": "low",
+      "file": "Objects/memoryobject.c",
+      "function": "struct_get_unpacker",
+      "line": 2150
+    },
+    {
+      "type": "unchecked_return",
+      "api_call": "PyUnicode_FromFormat",
+      "variable": "res",
+      "detail": "Return value of PyUnicode_FromFormat assigned to 'res' is not checked for NULL",
+      "confidence": "medium",
+      "file": "Objects/methodobject.c",
+      "function": "meth_get__qualname__",
+      "line": 251
+    },
+    {
+      "type": "unchecked_return",
+      "api_call": "PyDict_New",
+      "variable": "md_dict",
+      "detail": "Return value of PyDict_New assigned to 'md_dict' is not checked for NULL",
+      "confidence": "medium",
+      "file": "Objects/moduleobject.c",
+      "function": "new_module_notrack",
+      "line": 189
+    },
+    {
+      "type": "unchecked_return",
+      "api_call": "PyModule_NewObject",
+      "variable": "module",
+      "detail": "Return value of PyModule_NewObject assigned to 'module' is not checked for NULL",
+      "confidence": "medium",
+      "file": "Objects/moduleobject.c",
+      "function": "PyModule_New",
+      "line": 267
+    },
+    {
+      "type": "unchecked_return",
+      "api_call": "PyMem_Malloc",
+      "variable": "md_state",
+      "detail": "Return value of PyMem_Malloc assigned to 'md_state' is not checked for NULL",
+      "confidence": "medium",
+      "file": "Objects/moduleobject.c",
+      "function": "_PyModule_CreateInitialized",
+      "line": 368
+    },
+    {
+      "type": "unchecked_return",
+      "api_call": "PyMem_Malloc",
+      "variable": "md_state",
+      "detail": "Return value of PyMem_Malloc assigned to 'md_state' is not checked for NULL",
+      "confidence": "medium",
+      "file": "Objects/moduleobject.c",
+      "function": "alloc_state",
+      "line": 737
+    },
+    {
+      "type": "unchecked_return",
+      "api_call": "PyUnicode_FromString",
+      "variable": "v",
+      "detail": "Return value of PyUnicode_FromString assigned to 'v' is not checked for NULL",
+      "confidence": "medium",
+      "file": "Objects/moduleobject.c",
+      "function": "PyModule_SetDocString",
+      "line": 818
+    },
+    {
+      "type": "unchecked_return",
+      "api_call": "PyObject_CallOneArg",
+      "variable": "result",
+      "detail": "Return value of PyObject_CallOneArg assigned to 'result' is not checked for NULL",
+      "confidence": "medium",
+      "file": "Objects/moduleobject.c",
+      "function": "_Py_module_getattro_impl",
+      "line": 1342
+    },
+    {
+      "type": "unchecked_return",
+      "api_call": "PyObject_CallOneArg",
+      "variable": "result",
+      "detail": "Return value of PyObject_CallOneArg assigned to 'result' is not checked for NULL",
+      "confidence": "medium",
+      "file": "Objects/moduleobject.c",
+      "function": "_Py_module_getattro_impl",
+      "line": 1402
+    },
+    {
+      "type": "unchecked_return",
+      "api_call": "PyObject_GetAttr",
+      "variable": "dict",
+      "detail": "Return value of PyObject_GetAttr assigned to 'dict' is not checked for NULL",
+      "confidence": "medium",
+      "file": "Objects/moduleobject.c",
+      "function": "module_dir",
+      "line": 1584
+    },
+    {
+      "type": "unchecked_return",
+      "api_call": "PyDict_Keys",
+      "variable": "result",
+      "detail": "Return value of PyDict_Keys assigned to 'result' is not checked for NULL",
+      "confidence": "medium",
+      "file": "Objects/moduleobject.c",
+      "function": "module_dir",
+      "line": 1594
+    },
+    {
+      "type": "unchecked_return",
+      "api_call": "PyDict_New",
+      "variable": "ns_dict",
+      "detail": "Return value of PyDict_New assigned to 'ns_dict' is not checked for NULL",
+      "confidence": "medium",
+      "file": "Objects/namespaceobject.c",
+      "function": "namespace_new",
+      "line": 34
+    },
+    {
+      "type": "unchecked_return",
+      "api_call": "PyIter_Next",
+      "variable": "key",
+      "detail": "Return value of PyIter_Next assigned to 'key' is not checked for NULL",
+      "confidence": "medium",
+      "file": "Objects/namespaceobject.c",
+      "function": "namespace_repr",
+      "line": 122
+    },
+    {
+      "type": "unchecked_return",
+      "api_call": "PyUnicode_FromFormat",
+      "variable": "repr",
+      "detail": "Return value of PyUnicode_FromFormat assigned to 'repr' is not checked for NULL",
+      "confidence": "medium",
+      "file": "Objects/namespaceobject.c",
+      "function": "namespace_repr",
+      "line": 161
+    },
+    {
+      "type": "unchecked_return",
+      "api_call": "PyUnicode_FromFormat",
+      "variable": "result",
+      "detail": "Return value of PyUnicode_FromFormat assigned to 'result' is not checked for NULL",
+      "confidence": "medium",
+      "file": "Objects/object.c",
+      "function": "_PyObject_FunctionStr",
+      "line": 994
+    },
+    {
+      "type": "unchecked_return",
+      "api_call": "PyUnicode_FromFormat",
+      "variable": "result",
+      "detail": "Return value of PyUnicode_FromFormat assigned to 'result' is not checked for NULL",
+      "confidence": "medium",
+      "file": "Objects/object.c",
+      "function": "_PyObject_FunctionStr",
+      "line": 1001
+    },
+    {
+      "type": "unchecked_return",
+      "api_call": "PyObject_GetAttr",
+      "variable": "res",
+      "detail": "Return value of PyObject_GetAttr assigned to 'res' is not checked for NULL",
+      "confidence": "medium",
+      "file": "Objects/object.c",
+      "function": "PyObject_GetAttrString",
+      "line": 1186
+    },
+    {
+      "type": "unchecked_return",
+      "api_call": "PyObject_GetAttr",
+      "variable": "result",
+      "detail": "Return value of PyObject_GetAttr assigned to 'result' is not checked for NULL",
+      "confidence": "medium",
+      "file": "Objects/object.c",
+      "function": "_PyObject_GetAttrId",
+      "line": 1275
+    },
+    {
+      "type": "unchecked_return",
+      "api_call": "PyObject_GetAttr",
+      "variable": "method",
+      "detail": "Return value of PyObject_GetAttr assigned to 'method' is not checked for NULL",
+      "confidence": "medium",
+      "file": "Objects/object.c",
+      "function": "_PyObject_GetMethod",
+      "line": 1668
+    },
+    {
+      "type": "return_null_no_exception",
+      "detail": "return NULL without PyErr_Set* \u2014 may cause 'SystemError: error return without exception set'",
+      "confidence": "medium",
+      "file": "Objects/object.c",
+      "function": "_dir_locals",
+      "line": 2208
+    },
+    {
+      "type": "return_null_no_exception",
+      "detail": "return NULL without PyErr_Set* \u2014 may cause 'SystemError: error return without exception set'",
+      "confidence": "medium",
+      "file": "Objects/object.c",
+      "function": "_dir_locals",
+      "line": 2214
+    },
+    {
+      "type": "unchecked_return",
+      "api_call": "PyUnicode_FromFormat",
+      "variable": "result",
+      "detail": "Return value of PyUnicode_FromFormat assigned to 'result' is not checked for NULL",
+      "confidence": "medium",
+      "file": "Objects/odictobject.c",
+      "function": "odict_repr",
+      "line": 1456
+    },
+    {
+      "type": "unchecked_return",
+      "api_call": "PyIter_Next",
+      "variable": "pair",
+      "detail": "Return value of PyIter_Next assigned to 'pair' is not checked for NULL",
+      "confidence": "medium",
+      "file": "Objects/odictobject.c",
+      "function": "mutablemapping_add_pairs",
+      "line": 2232
+    },
+    {
+      "type": "unchecked_return",
+      "api_call": "PyIter_Next",
+      "variable": "unexpected",
+      "detail": "Return value of PyIter_Next assigned to 'unexpected' is not checked for NULL",
+      "confidence": "medium",
+      "file": "Objects/odictobject.c",
+      "function": "mutablemapping_add_pairs",
+      "line": 2255
+    },
+    {
+      "type": "unchecked_return",
+      "api_call": "PyIter_Next",
+      "variable": "key",
+      "detail": "Return value of PyIter_Next assigned to 'key' is not checked for NULL",
+      "confidence": "medium",
+      "file": "Objects/odictobject.c",
+      "function": "mutablemapping_update_arg",
+      "line": 2312
+    },
+    {
+      "type": "unchecked_return",
+      "api_call": "PyObject_GetItem",
+      "variable": "value",
+      "detail": "Return value of PyObject_GetItem assigned to 'value' is not checked for NULL",
+      "confidence": "medium",
+      "file": "Objects/odictobject.c",
+      "function": "mutablemapping_update_arg",
+      "line": 2313
+    },
+    {
+      "type": "unchecked_return",
+      "api_call": "PyNumber_Subtract",
+      "variable": "tmp1",
+      "detail": "Return value of PyNumber_Subtract assigned to 'tmp1' is not checked for NULL",
+      "confidence": "medium",
+      "file": "Objects/rangeobject.c",
+      "function": "compute_range_length",
+      "line": 294
+    },
+    {
+      "type": "unchecked_return",
+      "api_call": "PyNumber_Subtract",
+      "variable": "diff",
+      "detail": "Return value of PyNumber_Subtract assigned to 'diff' is not checked for NULL",
+      "confidence": "medium",
+      "file": "Objects/rangeobject.c",
+      "function": "compute_range_length",
+      "line": 297
+    },
+    {
+      "type": "unchecked_return",
+      "api_call": "PyNumber_Add",
+      "variable": "result",
+      "detail": "Return value of PyNumber_Add assigned to 'result' is not checked for NULL",
+      "confidence": "medium",
+      "file": "Objects/rangeobject.c",
+      "function": "compute_range_length",
+      "line": 303
+    },
+    {
+      "type": "unchecked_return",
+      "api_call": "PyNumber_Add",
+      "variable": "result",
+      "detail": "Return value of PyNumber_Add assigned to 'result' is not checked for NULL",
+      "confidence": "medium",
+      "file": "Objects/rangeobject.c",
+      "function": "compute_item",
+      "line": 336
+    },
+    {
+      "type": "unchecked_return",
+      "api_call": "PyNumber_Add",
+      "variable": "result",
+      "detail": "Return value of PyNumber_Add assigned to 'result' is not checked for NULL",
+      "confidence": "medium",
+      "file": "Objects/rangeobject.c",
+      "function": "compute_item",
+      "line": 343
+    },
+    {
+      "type": "unchecked_return",
+      "api_call": "PyLong_FromLong",
+      "variable": "ret",
+      "detail": "Return value of PyLong_FromLong assigned to 'ret' is not checked for NULL",
+      "confidence": "medium",
+      "file": "Objects/rangeobject.c",
+      "function": "rangeiter_next",
+      "line": 853
+    },
+    {
+      "type": "unchecked_return",
+      "api_call": "PyUnicode_FromFormat",
+      "variable": "result",
+      "detail": "Return value of PyUnicode_FromFormat assigned to 'result' is not checked for NULL",
+      "confidence": "medium",
+      "file": "Objects/setobject.c",
+      "function": "set_repr_lock_held",
+      "line": 797
+    },
+    {
+      "type": "unchecked_return",
+      "api_call": "PyUnicode_FromFormat",
+      "variable": "result",
+      "detail": "Return value of PyUnicode_FromFormat assigned to 'result' is not checked for NULL",
+      "confidence": "medium",
+      "file": "Objects/setobject.c",
+      "function": "set_repr_lock_held",
+      "line": 801
+    },
+    {
+      "type": "sparse_error_cleanup",
+      "detail": "Error labels (done) don't appear to DECREF any locally-owned references",
+      "confidence": "low",
+      "file": "Objects/setobject.c",
+      "function": "set_repr_lock_held",
+      "line": 756
+    },
+    {
+      "type": "unchecked_return",
+      "api_call": "PyIter_Next",
+      "variable": "key",
+      "detail": "Return value of PyIter_Next assigned to 'key' is not checked for NULL",
+      "confidence": "medium",
+      "file": "Objects/setobject.c",
+      "function": "set_update_iterable_lock_held",
+      "line": 1230
+    },
+    {
+      "type": "unchecked_return",
+      "api_call": "PyIter_Next",
+      "variable": "key",
+      "detail": "Return value of PyIter_Next assigned to 'key' is not checked for NULL",
+      "confidence": "medium",
+      "file": "Objects/setobject.c",
+      "function": "set_intersection",
+      "line": 1770
+    },
+    {
+      "type": "unchecked_return",
+      "api_call": "PyIter_Next",
+      "variable": "key",
+      "detail": "Return value of PyIter_Next assigned to 'key' is not checked for NULL",
+      "confidence": "medium",
+      "file": "Objects/setobject.c",
+      "function": "set_difference_update_internal",
+      "line": 2018
+    },
+    {
+      "type": "unchecked_return",
+      "api_call": "PyObject_RichCompare",
+      "variable": "res",
+      "detail": "Return value of PyObject_RichCompare assigned to 'res' is not checked for NULL",
+      "confidence": "medium",
+      "file": "Objects/sliceobject.c",
+      "function": "slice_richcompare",
+      "line": 610
+    },
+    {
+      "type": "unchecked_return",
+      "api_call": "PyObject_GetAttr",
+      "variable": "newobj",
+      "detail": "Return value of PyObject_GetAttr assigned to 'newobj' is not checked for NULL",
+      "confidence": "medium",
+      "file": "Objects/stringlib/unicode_format.h",
+      "function": "getattr",
+      "line": 153
+    },
+    {
+      "type": "unchecked_return",
+      "api_call": "PyObject_GetItem",
+      "variable": "newobj",
+      "detail": "Return value of PyObject_GetItem assigned to 'newobj' is not checked for NULL",
+      "confidence": "medium",
+      "file": "Objects/stringlib/unicode_format.h",
+      "function": "getitem_idx",
+      "line": 173
+    },
+    {
+      "type": "unchecked_return",
+      "api_call": "PyObject_GetItem",
+      "variable": "newobj",
+      "detail": "Return value of PyObject_GetItem assigned to 'newobj' is not checked for NULL",
+      "confidence": "medium",
+      "file": "Objects/stringlib/unicode_format.h",
+      "function": "getitem_str",
+      "line": 186
+    },
+    {
+      "type": "unchecked_return",
+      "api_call": "PyTuple_Pack",
+      "variable": "tuple",
+      "detail": "Return value of PyTuple_Pack assigned to 'tuple' is not checked for NULL",
+      "confidence": "medium",
+      "file": "Objects/stringlib/unicode_format.h",
+      "function": "formatteriter_next",
+      "line": 1045
+    },
+    {
+      "type": "unchecked_return",
+      "api_call": "PyDict_Keys",
+      "variable": "names",
+      "detail": "Return value of PyDict_Keys assigned to 'names' is not checked for NULL",
+      "confidence": "medium",
+      "file": "Objects/structseq.c",
+      "function": "structseq_replace",
+      "line": 434
+    },
+    {
+      "type": "unchecked_return",
+      "api_call": "PyIter_Next",
+      "variable": "item",
+      "detail": "Return value of PyIter_Next assigned to 'item' is not checked for NULL",
+      "confidence": "medium",
+      "file": "Objects/templateobject.c",
+      "function": "templateiter_next",
+      "line": 33
+    },
+    {
+      "type": "unchecked_return",
+      "api_call": "PyTuple_New",
+      "variable": "pv",
+      "detail": "Return value of PyTuple_New assigned to 'pv' is not checked for NULL",
+      "confidence": "medium",
+      "file": "Objects/tupleobject.c",
+      "function": "_PyTuple_Resize",
+      "line": 1065
+    },
+    {
+      "type": "unchecked_return",
+      "api_call": "PyUnicode_FromFormat",
+      "variable": "result",
+      "detail": "Return value of PyUnicode_FromFormat assigned to 'result' is not checked for NULL",
+      "confidence": "medium",
+      "file": "Objects/typeobject.c",
+      "function": "_PyType_GetFullyQualifiedName",
+      "line": 1678
+    },
+    {
+      "type": "unchecked_return",
+      "api_call": "PyTuple_Pack",
+      "variable": "tuple",
+      "detail": "Return value of PyTuple_Pack assigned to 'tuple' is not checked for NULL",
+      "confidence": "medium",
+      "file": "Objects/typeobject.c",
+      "function": "mro_hierarchy_for_complete_type",
+      "line": 1811
+    },
+    {
+      "type": "unchecked_return",
+      "api_call": "PyUnicode_FromFormat",
+      "variable": "result",
+      "detail": "Return value of PyUnicode_FromFormat assigned to 'result' is not checked for NULL",
+      "confidence": "medium",
+      "file": "Objects/typeobject.c",
+      "function": "type_repr",
+      "line": 2417
+    },
+    {
+      "type": "unchecked_return",
+      "api_call": "PyUnicode_FromFormat",
+      "variable": "result",
+      "detail": "Return value of PyUnicode_FromFormat assigned to 'result' is not checked for NULL",
+      "confidence": "medium",
+      "file": "Objects/typeobject.c",
+      "function": "type_repr",
+      "line": 2420
+    },
+    {
+      "type": "unchecked_return",
+      "api_call": "PyObject_Repr",
+      "variable": "name",
+      "detail": "Return value of PyObject_Repr assigned to 'name' is not checked for NULL",
+      "confidence": "medium",
+      "file": "Objects/typeobject.c",
+      "function": "class_name",
+      "line": 3262
+    },
+    {
+      "type": "unchecked_return",
+      "api_call": "PyDict_New",
+      "variable": "tp_dict",
+      "detail": "Return value of PyDict_New assigned to 'tp_dict' is not checked for NULL",
+      "confidence": "medium",
+      "file": "Objects/typeobject.c",
+      "function": "type_setattro",
+      "line": 6818
+    },
+    {
+      "type": "unchecked_return",
+      "api_call": "PyUnicode_FromFormat",
+      "variable": "rtn",
+      "detail": "Return value of PyUnicode_FromFormat assigned to 'rtn' is not checked for NULL",
+      "confidence": "medium",
+      "file": "Objects/typeobject.c",
+      "function": "object_repr",
+      "line": 7498
+    },
+    {
+      "type": "unchecked_return",
+      "api_call": "PyUnicode_FromFormat",
+      "variable": "rtn",
+      "detail": "Return value of PyUnicode_FromFormat assigned to 'rtn' is not checked for NULL",
+      "confidence": "medium",
+      "file": "Objects/typeobject.c",
+      "function": "object_repr",
+      "line": 7500
+    },
+    {
+      "type": "unchecked_return",
+      "api_call": "PyTuple_Pack",
+      "variable": "result",
+      "detail": "Return value of PyTuple_Pack assigned to 'result' is not checked for NULL",
+      "confidence": "medium",
+      "file": "Objects/typeobject.c",
+      "function": "reduce_newobj",
+      "line": 8307
+    },
+    {
+      "type": "unchecked_return",
+      "api_call": "PyObject_CallMethod",
+      "variable": "res",
+      "detail": "Return value of PyObject_CallMethod assigned to 'res' is not checked for NULL",
+      "confidence": "medium",
+      "file": "Objects/typeobject.c",
+      "function": "_common_reduce",
+      "line": 8343
+    },
+    {
+      "type": "unchecked_return",
+      "api_call": "PyObject_CallOneArg",
+      "variable": "res",
+      "detail": "Return value of PyObject_CallOneArg assigned to 'res' is not checked for NULL",
+      "confidence": "medium",
+      "file": "Objects/typeobject.c",
+      "function": "call_attribute",
+      "line": 10983
+    },
+    {
+      "type": "unchecked_return",
+      "api_call": "PyUnicode_FromString",
+      "variable": "r",
+      "detail": "Return value of PyUnicode_FromString assigned to 'r' is not checked for NULL",
+      "confidence": "medium",
+      "file": "Objects/typevarobject.c",
+      "function": "_Py_typing_type_repr",
+      "line": 275
+    },
+    {
+      "type": "unchecked_return",
+      "api_call": "PyObject_GetItem",
+      "variable": "unpacked",
+      "detail": "Return value of PyObject_GetItem assigned to 'unpacked' is not checked for NULL",
+      "confidence": "medium",
+      "file": "Objects/typevarobject.c",
+      "function": "unpack",
+      "line": 418
+    },
+    {
+      "type": "unchecked_return",
+      "api_call": "PyObject_Call",
+      "variable": "result",
+      "detail": "Return value of PyObject_Call assigned to 'result' is not checked for NULL",
+      "confidence": "medium",
+      "file": "Objects/typevarobject.c",
+      "function": "call_typing_args_kwargs",
+      "line": 2324
+    },
+    {
+      "type": "unchecked_return",
+      "api_call": "PyList_New",
+      "variable": "args",
+      "detail": "Return value of PyList_New assigned to 'args' is not checked for NULL",
+      "confidence": "medium",
+      "file": "Objects/unionobject.c",
+      "function": "unionbuilder_init",
+      "line": 143
+    },
+    {
+      "type": "unchecked_return",
+      "api_call": "PyList_New",
+      "variable": "unhashable_args",
+      "detail": "Return value of PyList_New assigned to 'unhashable_args' is not checked for NULL",
+      "confidence": "medium",
+      "file": "Objects/unionobject.c",
+      "function": "unionbuilder_add_single_unchecked",
+      "line": 172
+    },
+    {
+      "type": "unchecked_return",
+      "api_call": "PyUnicode_FromFormat",
+      "variable": "repr",
+      "detail": "Return value of PyUnicode_FromFormat assigned to 'repr' is not checked for NULL",
+      "confidence": "medium",
+      "file": "Objects/weakrefobject.c",
+      "function": "weakref_repr",
+      "line": 224
+    },
+    {
+      "type": "unchecked_return",
+      "api_call": "PyUnicode_FromFormat",
+      "variable": "repr",
+      "detail": "Return value of PyUnicode_FromFormat assigned to 'repr' is not checked for NULL",
+      "confidence": "medium",
+      "file": "Objects/weakrefobject.c",
+      "function": "weakref_repr",
+      "line": 229
+    },
+    {
+      "type": "unchecked_return",
+      "api_call": "PyObject_RichCompare",
+      "variable": "res",
+      "detail": "Return value of PyObject_RichCompare assigned to 'res' is not checked for NULL",
+      "confidence": "medium",
+      "file": "Objects/weakrefobject.c",
+      "function": "weakref_richcompare",
+      "line": 263
+    },
+    {
+      "type": "unchecked_return",
+      "api_call": "PyUnicode_FromFormat",
+      "variable": "repr",
+      "detail": "Return value of PyUnicode_FromFormat assigned to 'repr' is not checked for NULL",
+      "confidence": "medium",
+      "file": "Objects/weakrefobject.c",
+      "function": "proxy_repr",
+      "line": 615
+    },
+    {
+      "type": "unchecked_return",
+      "api_call": "PyUnicode_FromFormat",
+      "variable": "repr",
+      "detail": "Return value of PyUnicode_FromFormat assigned to 'repr' is not checked for NULL",
+      "confidence": "medium",
+      "file": "Objects/weakrefobject.c",
+      "function": "proxy_repr",
+      "line": 621
+    },
+    {
+      "type": "unchecked_return",
+      "api_call": "PyObject_RichCompare",
+      "variable": "res",
+      "detail": "Return value of PyObject_RichCompare assigned to 'res' is not checked for NULL",
+      "confidence": "medium",
+      "file": "Objects/weakrefobject.c",
+      "function": "proxy_richcompare",
+      "line": 646
+    },
+    {
+      "type": "unchecked_return",
+      "api_call": "PyIter_Next",
+      "variable": "res",
+      "detail": "Return value of PyIter_Next assigned to 'res' is not checked for NULL",
+      "confidence": "medium",
+      "file": "Objects/weakrefobject.c",
+      "function": "proxy_iternext",
+      "line": 783
+    }
+  ],
+  "summary": {
+    "missing_null_checks": 0,
+    "unchecked_returns": 137,
+    "return_null_no_exception": 5,
+    "unchecked_parse_calls": 0,
+    "total_findings": 148
+  }
+}
