@@ -681,5 +681,130 @@ class TestScanMemoryPatterns(unittest.TestCase):
         self.assertIn("by_confidence", result["summary"])
 
 
+# ---------------------------------------------------------------------------
+# The tp_alloc slot pointer (issue #28 rule 7)
+# ---------------------------------------------------------------------------
+#
+# `_VAROBJ_NITEMS_INDEX` keyed on the callee's exact name, so every allocation
+# written as a virtual dispatch through the slot -- `type->tp_alloc(type, n)` --
+# was invisible. That is why the scanner reported zero on
+# Objects/typeobject.c, whose var-object sites both go through the slot.
+#
+# The bottom of that chain has no guard: `_PyType_AllocNoTrack:2521` computes
+# `_PyObject_VAR_SIZE(type, nitems+1)` with no PY_SSIZE_T_MAX/itemsize division
+# check and no __builtin_mul_overflow, so every caller passing a non-constant
+# count really does owe an overflow check.
+
+
+class TestTpAllocSlotDispatch(unittest.TestCase):
+    def setUp(self):
+        self.mod = import_script("scan_memory_patterns")
+
+    def _findings(self, files):
+        with TempProject(files) as root:
+            return self.mod.analyze(str(root))
+
+    def _of_type(self, result, type_name):
+        return [f for f in result["findings"] if f["type"] == type_name]
+
+    def test_index_resolution(self):
+        f = self.mod._varobj_nitems_index
+        self.assertEqual(f("type->tp_alloc"), 1)
+        self.assertEqual(f("(*type->tp_alloc)"), 1)
+        self.assertEqual(f("base.tp_alloc"), 1)
+        self.assertEqual(f("PyType_GenericAlloc"), 1)
+        self.assertEqual(f("_PyType_AllocNoTrack"), 1)
+        self.assertEqual(f("PyObject_GC_NewVar"), 2)
+        self.assertIsNone(f("tp_alloc_helper"))
+        self.assertIsNone(f("PyMem_Malloc"))
+
+    def test_slot_pointer_call_is_flagged(self):
+        result = self._findings(
+            {
+                "Objects/typeobject.c": (
+                    "static PyObject *\n"
+                    "type_from_spec(PyTypeObject *type, PyType_Spec *spec)\n"
+                    "{\n"
+                    "    Py_ssize_t nmembers = count_members(spec);\n"
+                    "    PyObject *res = type->tp_alloc(type, nmembers);\n"
+                    "    return res;\n"
+                    "}\n"
+                )
+            }
+        )
+        hits = self._of_type(result, "varobject_nitems_unguarded")
+        self.assertEqual(len(hits), 1, hits)
+        self.assertEqual(hits[0]["nitems"], "nmembers")
+        self.assertEqual(hits[0]["dispatch"], "slot_pointer")
+
+    def test_constant_count_is_still_discharged(self):
+        """117 of the 132 slot-pointer sites in the tree pass a literal 0, so
+        modelling the slot costs almost nothing."""
+        result = self._findings(
+            {
+                "Objects/enumobject.c": (
+                    "static PyObject *\n"
+                    "enum_new(PyTypeObject *type)\n"
+                    "{\n"
+                    "    enumobject *en = (enumobject *)type->tp_alloc(type, 0);\n"
+                    "    return (PyObject *)en;\n"
+                    "}\n"
+                )
+            }
+        )
+        self.assertEqual(self._of_type(result, "varobject_nitems_unguarded"), [])
+
+    def test_guard_before_the_slot_call_suppresses(self):
+        result = self._findings(
+            {
+                "Objects/x.c": (
+                    "static PyObject *\n"
+                    "safe_new(PyTypeObject *type, Py_ssize_t n)\n"
+                    "{\n"
+                    "    if (n > PY_SSIZE_T_MAX / type->tp_itemsize) {\n"
+                    "        return PyErr_NoMemory();\n"
+                    "    }\n"
+                    "    return type->tp_alloc(type, n);\n"
+                    "}\n"
+                )
+            }
+        )
+        self.assertEqual(self._of_type(result, "varobject_nitems_unguarded"), [])
+
+    def test_census_reports_the_denominator(self):
+        """A zero finding count with a zero site count is silence, not safety."""
+        result = self._findings(
+            {
+                "Objects/x.c": (
+                    "static PyObject *\n"
+                    "a(PyTypeObject *t, Py_ssize_t n)\n"
+                    "{\n"
+                    "    return t->tp_alloc(t, n);\n"
+                    "}\n"
+                    "static PyObject *\n"
+                    "b(PyTypeObject *t)\n"
+                    "{\n"
+                    "    return t->tp_alloc(t, 0);\n"
+                    "}\n"
+                    "static PyObject *\n"
+                    "c(PyTypeObject *t, Py_ssize_t n)\n"
+                    "{\n"
+                    "    return PyType_GenericAlloc(t, n);\n"
+                    "}\n"
+                )
+            }
+        )
+        census = result["varobject_allocation_census"]
+        self.assertEqual(census["sites"], 3)
+        self.assertEqual(census["via_slot_pointer"], 2)
+        self.assertEqual(census["non_constant_nitems"], 2)
+
+    def test_a_corpus_with_no_allocation_sites_reports_zero_sites(self):
+        result = self._findings(
+            {"Objects/x.c": "static int f(void)\n{\n    return 0;\n}\n"}
+        )
+        self.assertEqual(result["varobject_allocation_census"]["sites"], 0)
+
+
 if __name__ == "__main__":
     unittest.main()

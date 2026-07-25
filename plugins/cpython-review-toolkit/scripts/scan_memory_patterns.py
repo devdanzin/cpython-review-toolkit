@@ -458,7 +458,36 @@ _VAROBJ_NITEMS_INDEX = {
     "_PyObject_NewVar": 1,
     "_PyObject_GC_NewVar": 1,
     "_PyObject_GC_Resize": 1,
+    # The tp_alloc slot's default implementation. Reaches
+    # _PyObject_VAR_SIZE(type, nitems) exactly as the *_NewVar family does.
+    "PyType_GenericAlloc": 1,
+    "_PyType_AllocNoTrack": 1,
 }
+
+# The same allocation written as a **virtual dispatch** through the slot
+# pointer: `type->tp_alloc(type, n)`.  Keying on the callee's exact name misses
+# every one of these, which is why the scanner reported zero on
+# Objects/typeobject.c -- whose var-object sites both go through the slot.
+# Tree-wide over Objects/ + Modules/ + Python/ that is **132 indirect sites**,
+# only 15 of them with a non-constant `nitems`, plus 18 direct
+# PyType_GenericAlloc calls. The 117 with a literal `0` are already discharged
+# by the constant-count gate below, so modelling the slot costs almost nothing
+# and is the difference between seeing the file's allocations and not.
+_TP_ALLOC_SLOT_RE = re.compile(r"(?:->|\.)\s*tp_alloc\s*\)?\s*$")
+
+
+def _varobj_nitems_index(callee: str) -> int | None:
+    """Index of the ``nitems`` argument for a var-object allocation, or None.
+
+    Handles the direct spellings and the virtual dispatch through the slot
+    pointer, including the ``(*type->tp_alloc)(...)`` form.
+    """
+    name = callee.strip()
+    if name in _VAROBJ_NITEMS_INDEX:
+        return _VAROBJ_NITEMS_INDEX[name]
+    if _TP_ALLOC_SLOT_RE.search(name):
+        return 1
+    return None
 
 # An operand of one of these declared types cannot make `nitems * tp_itemsize`
 # wrap a 64-bit size_t (LP64: int is 32-bit, tp_itemsize is a small constant).
@@ -529,7 +558,9 @@ def _has_varobject_guard(pre_text: str) -> bool:
     return any(h in pre_text for h in _OVERFLOW_HELPERS)
 
 
-def _check_varobject_nitems(func: dict, source_bytes: bytes, tree) -> list[dict]:
+def _check_varobject_nitems(
+    func: dict, source_bytes: bytes, tree, census: dict[str, int] | None = None
+) -> list[dict]:
     body = func["body"]
     body_start = func["body_node"].start_byte + 1
     types = _declared_types(func, source_bytes)
@@ -537,9 +568,13 @@ def _check_varobject_nitems(func: dict, source_bytes: bytes, tree) -> list[dict]
 
     findings: list[dict] = []
     for call in find_calls_in_scope(func["body_node"], source_bytes):
-        idx = _VAROBJ_NITEMS_INDEX.get(call["function_name"])
+        idx = _varobj_nitems_index(call["function_name"])
         if idx is None:
             continue
+        if census is not None:
+            census["sites"] += 1
+            if _TP_ALLOC_SLOT_RE.search(call["function_name"].strip()):
+                census["via_slot_pointer"] += 1
         args_node = call["node"].child_by_field_name("arguments")
         if args_node is None:
             continue
@@ -561,6 +596,8 @@ def _check_varobject_nitems(func: dict, source_bytes: bytes, tree) -> list[dict]
             for kind, n in atoms
         ):
             continue
+        if census is not None:
+            census["non_constant_nitems"] += 1
         # Narrow declared types cannot overflow a 64-bit size_t.
         if idents and all(types.get(i, "") in _NARROW_INT_TYPES for i in idents):
             continue
@@ -586,6 +623,11 @@ def _check_varobject_nitems(func: dict, source_bytes: bytes, tree) -> list[dict]
                 "confidence": confidence,
                 "nitems": nitems_text,
                 "operands": sorted(set(idents)),
+                "dispatch": (
+                    "slot_pointer"
+                    if _TP_ALLOC_SLOT_RE.search(call["function_name"].strip())
+                    else "direct"
+                ),
                 "detail": (
                     f"{call['function_name']}(..., {nitems_text}) reaches "
                     f"_PyObject_VAR_SIZE(tp, nitems) = "
@@ -925,7 +967,9 @@ def _check_mismatched_alloc_free(func: dict, source_bytes: bytes, tree) -> list[
 def _check_function(func: dict, source_bytes: bytes, tree, ctx: dict) -> list[dict]:
     findings: list[dict] = []
     findings.extend(_check_alloc_size_overflow(func, source_bytes, tree))
-    findings.extend(_check_varobject_nitems(func, source_bytes, tree))
+    findings.extend(
+        _check_varobject_nitems(func, source_bytes, tree, ctx.get("varobj_census"))
+    )
     findings.extend(_check_gc_untrack_without_track(func, source_bytes, tree, ctx))
     findings.extend(_check_mismatched_alloc_free(func, source_bytes, tree))
     return findings
@@ -939,6 +983,11 @@ def analyze(target: str, *, max_files: int = 0) -> dict:
     total_functions = 0
     files_analyzed = 0
     skipped: list[dict] = []
+    # Denominator for the var-object rule: how many allocation sites the rule
+    # even saw, how many of those dispatch through the tp_alloc slot pointer,
+    # and how many survive the constant-count gate. A zero finding count with a
+    # zero site count is silence, not safety.
+    varobj_census = {"sites": 0, "via_slot_pointer": 0, "non_constant_nitems": 0}
 
     for filepath in discover_c_files(scan_root, max_files=max_files):
         try:
@@ -962,6 +1011,7 @@ def analyze(target: str, *, max_files: int = 0) -> dict:
         ctx = {
             "functions_by_name": {f["name"]: f for f in functions},
             "type_dealloc": _type_dealloc_map(source_bytes, functions),
+            "varobj_census": varobj_census,
         }
 
         for func in functions:
@@ -989,6 +1039,7 @@ def analyze(target: str, *, max_files: int = 0) -> dict:
             "by_type": dict(by_type),
             "by_confidence": dict(by_confidence),
         },
+        varobject_allocation_census=varobj_census,
         skipped_files=skipped,
     )
 
