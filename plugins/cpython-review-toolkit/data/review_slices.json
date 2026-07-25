@@ -206,10 +206,10 @@
       "family": "Objects: type machinery",
       "tier": "A",
       "scope": "Objects",
-      "status": "pending",
+      "status": "in-progress",
       "passes": 2,
       "oracle": null,
-      "notes": "TWO-PASS (13,068 lines, one file): pass 1 slot wiring / tp_new / tp_init / __new__ bypass; pass 2 MRO, super, inheritance, watchers. CPY-0007 came from here via a sweep.",
+      "notes": "TWO-PASS (13,068 lines, one file): pass 1 slot wiring / tp_new / tp_init / __new__ bypass; pass 2 MRO, super, inheritance, watchers. CPY-0007 came from here via a sweep. PASS 1 DONE 2026-07-25 (16 agents, 15 FIX, recorded as CPY-0068..0090 + CPY-0007 widened). PASS 2 NOT STARTED: MRO C3 3217-3702, lookup cache 6140-6452, getattro/setattro 6529-6848, __class__ assignment 7482-7846, pickle 7848-8406, watchers/versions 971-1481, managed static types 228-522, super beyond the construction surface. History says 4 of the 6 most crash-fix-dense regions are in pass 2.",
       "lines": 13068,
       "files": [
         "Objects/typeobject.c"
