@@ -42,6 +42,20 @@ Confirmed exemplars this targets:
     ``ob_bytes_object`` NULL; ``_PyBytes_Resize(&obj->ob_bytes_object, ...)``
     dereferences ``*pv`` unguarded → SIGSEGV. This is the ``addr_deref`` sink.
 
+The sink is not always written in the function that passes the bad value.  For a
+nullable field handed as argument *i* to a same-file ``static`` function whose
+parameter *i* is dereferenced with no guard of its own, the **call site** is
+reported together with the **callee's** deref line (``one_hop_param_deref``).
+Without that hop the scanner reported CPY-0007 at ``super_descr_get:12806``,
+which is dead code -- control dies at ``:12797`` inside ``supercheck``.  Sinks
+that are downstream of another on the same path are marked ``dominated_by``,
+with path exclusivity computed from the AST rather than from brace counting.
+
+A second finding type, ``vararg_null_truncation``, covers the NULL-terminated
+``*ObjArgs`` variadics: a nullable field in a *non-final* argument slot neither
+crashes nor raises, it silently truncates the call and drops every argument
+after it (``super_descr_get:12793``, CPY-0080).
+
 The scanner is deliberately high-recall: it flags candidates, an agent confirms
 the field can really be NULL and that the deref is genuinely unguarded. It
 cannot see cross-function guarantees (a caller that always sets the field).
@@ -210,6 +224,37 @@ _DEREF_SINKS = frozenset(
 # (Objects/bytesobject.c). _PyBytes_Resize is the only unguarded member; it does
 # ``v = *pv;`` then ``Py_TYPE(v)`` via PyBytes_Check.
 _ADDR_DEREF_SINKS = frozenset({"_PyBytes_Resize"})
+
+# NULL-terminated variadic calls (issue #28 rule 6).  ``_CALL_SINKS`` checks
+# argument 0 only, which is right for ``PyObject_Vectorcall`` and wrong for
+# these: the argument list is terminated by the first NULL, so a NULL in a
+# *non-final* position does not crash -- it silently truncates the call.
+#
+#     return PyObject_CallFunctionObjArgs((PyObject *)Py_TYPE(su),
+#                                         su->type, obj, NULL);
+#
+# With ``su->type == NULL`` that two-argument call becomes a **zero**-argument
+# call and ``obj`` is dropped on the floor (``super_descr_get:12793``, the
+# sibling branch of CPY-0007; recorded separately as CPY-0080). No crash, no
+# exception -- a different function is invoked than the one written.
+_VARARG_SENTINEL_SINKS = frozenset(
+    {
+        "PyObject_CallFunctionObjArgs",
+        "PyObject_CallMethodObjArgs",
+        "_PyObject_CallMethodIdObjArgs",
+        "PyObject_VectorcallMethod",
+        "_PyObject_CallFunctionObjArgs",
+    }
+)
+
+# A parameter is "dereferenced" by a member access, a subscript, or by being
+# handed to one of the deref macros.
+_PARAM_DEREF_TEMPLATE = (
+    r"(?<![\w.>]){p}\s*(?:->|\[)"
+    r"|\b(?:Py_TYPE|Py_SIZE|Py_REFCNT|Py_SET_TYPE|Py_SET_SIZE)\s*\(\s*"
+    r"(?:\(\s*[\w\s*]+\)\s*)?{p}\s*\)"
+    r"|\*\s*{p}\b"
+)
 
 # RHS ends in ``-> field`` (possibly through casts), e.g. ``self->row_factory``
 # or ``((FooObject *)self)->row_factory``.
@@ -645,6 +690,120 @@ def _has_null_guard(body: str, field: str, aliases: dict[str, str]) -> bool:
     return False
 
 
+def _param_names(parameters: str) -> list[str]:
+    """Declared parameter names in order (``""`` where unnamed)."""
+    text = parameters.strip()
+    if text.startswith("(") and text.endswith(")"):
+        text = text[1:-1]
+    names: list[str] = []
+    depth = 0
+    current: list[str] = []
+    parts: list[str] = []
+    for ch in text:
+        if ch in "([":
+            depth += 1
+        elif ch in ")]":
+            depth -= 1
+        if ch == "," and depth == 0:
+            parts.append("".join(current))
+            current = []
+        else:
+            current.append(ch)
+    parts.append("".join(current))
+    for part in parts:
+        idents = re.findall(r"[A-Za-z_]\w*", part)
+        names.append(
+            idents[-1] if idents and idents[-1] not in ("void", "const") else ""
+        )
+    return names
+
+
+def unguarded_param_sinks(functions: list[dict]) -> dict[str, dict[int, int]]:
+    """Map ``callee -> {param index: line of an unguarded dereference}``.
+
+    The one-hop interprocedural sink (issue #28 rule 5).  ``scan_init_bypass``
+    reported CPY-0007 at ``super_descr_get:12806``
+    (``Py_NewRef(su->type)``), but control never gets there: ``:12797`` calls
+    ``supercheck(su->type, obj)`` and ``supercheck`` dereferences its first
+    parameter at ``type->tp_name`` with no NULL guard.  The catalog has the
+    right lines, so the scanner was right by luck.
+
+    ``do_super_lookup`` is the negative control: it opens with
+    ``if (su_obj_type == NULL) goto skip;``, so its parameter is guarded and it
+    must not become a sink.
+    """
+    sinks: dict[str, dict[int, int]] = {}
+    for func in functions:
+        body = strip_comments(func["body"])
+        params = _param_names(func.get("parameters", ""))
+        found: dict[int, int] = {}
+        for index, name in enumerate(params):
+            if not name:
+                continue
+            if _has_null_guard(body, name, {}):
+                continue
+            m = re.search(_PARAM_DEREF_TEMPLATE.replace("{p}", re.escape(name)), body)
+            if m is None:
+                continue
+            # Offsets are into the *body*, whose first line is the `{` -- not
+            # `start_line`, which is the first line of the signature and is one
+            # or two lines earlier for CPython's return-type-on-its-own-line
+            # style.
+            body_line = func["body_node"].start_point[0] + 1
+            found[index] = body_line + body.count("\n", 0, m.start())
+        if found:
+            sinks[func["name"]] = found
+    return sinks
+
+
+def _ancestors(node) -> list:
+    chain = []
+    current = node
+    while current is not None:
+        chain.append(current)
+        current = current.parent
+    chain.reverse()
+    return chain
+
+
+_BRANCHING_NODES = frozenset(
+    {"if_statement", "conditional_expression", "switch_statement"}
+)
+
+
+def _same_path(earlier, later) -> bool:
+    """True when ``later`` is reachable after ``earlier`` runs.
+
+    Needed to tell a *dominated* sink from one in a sibling branch.  In
+    ``super_descr_get`` the ``supercheck`` call at ``:12797`` and the
+    ``Py_NewRef`` at ``:12806`` share the ``else`` block, so the second is
+    downstream of the first and unreachable once the first crashes.  The
+    ``PyObject_CallFunctionObjArgs`` at ``:12793`` is in the *other* arm of the
+    same ``if``, so it is not dominated by anything in the ``else``.
+
+    Text-order brace counting cannot make this distinction: CPython writes the
+    braceless ``if (c) return f(x);  else { ... }``, where the balance from the
+    first sink to the second never goes negative.
+    """
+    a, b = _ancestors(earlier), _ancestors(later)
+    common = None
+    for x, y in zip(a, b):
+        if x.id != y.id:
+            break
+        common = x
+    if common is None:
+        return False
+    if common.type in _BRANCHING_NODES:
+        # They descend through different children of a branch: exactly one runs.
+        return False
+    # A sink inside a `return`/`goto` terminates the path it is on.
+    depth = len(_ancestors(common))
+    for node in a[depth:]:
+        if node.type in ("return_statement", "goto_statement"):
+            return False
+    return earlier.start_byte < later.start_byte
+
+
 def _sink_kind(name: str) -> str | None:
     if name in _ADDR_DEREF_SINKS:
         return "addr_deref"
@@ -657,22 +816,101 @@ def _sink_kind(name: str) -> str | None:
     return None
 
 
+def _split_args(args_text: str) -> list[str]:
+    """Split a call's argument text on top-level commas."""
+    text = args_text.strip()
+    depth = 0
+    current: list[str] = []
+    parts: list[str] = []
+    for ch in text:
+        if ch in "([{":
+            depth += 1
+        elif ch in ")]}":
+            depth -= 1
+        if ch == "," and depth == 0:
+            parts.append("".join(current))
+            current = []
+        else:
+            current.append(ch)
+    parts.append("".join(current))
+    return [p.strip() for p in parts]
+
+
 def _check_function(
-    func: dict, nullable: dict[str, set[str]], source_bytes: bytes, tree
+    func: dict,
+    nullable: dict[str, set[str]],
+    source_bytes: bytes,
+    tree,
+    param_sinks: dict[str, dict[int, int]] | None = None,
 ) -> list[dict]:
     """Flag unguarded sink reads of a nullable field in one function."""
     body = strip_comments(func["body"])
     foreign = _non_receiver_params(func)
     aliases = _build_aliases(func, nullable, source_bytes, foreign)
+    param_sinks = param_sinks or {}
 
     findings: list[dict] = []
     seen: set[tuple[str, int]] = set()
     for call in find_calls_in_scope(func["body_node"], source_bytes):
         name = call["function_name"]
+        args = call["arguments_text"]
+
+        # --- rule 6: a NULL in a non-final position of a NULL-terminated
+        # variadic call truncates the argument list instead of crashing.
+        if name in _VARARG_SENTINEL_SINKS:
+            findings.extend(
+                _check_vararg_truncation(
+                    call, args, nullable, aliases, foreign, body, source_bytes, tree
+                )
+            )
+
+        # --- rule 5: the sink is one hop away, in a same-file callee.
+        for index, arg in enumerate(_split_args(args)):
+            deref_line = (param_sinks.get(name) or {}).get(index)
+            if deref_line is None:
+                continue
+            field = _resolve_target_field(arg, nullable, aliases, foreign)
+            if field is None or _has_null_guard(body, field, aliases):
+                continue
+            line = call["start_line"]
+            if is_suppressed_by_comment(source_bytes, tree, line):
+                continue
+            key = (field, line)
+            if key in seen:
+                continue
+            seen.add(key)
+            findings.append(
+                {
+                    "type": "init_bypass_null_deref",
+                    "function": func["name"],
+                    "field": field,
+                    "sink": name,
+                    "sink_kind": "one_hop_param_deref",
+                    "callee": name,
+                    "callee_param_index": index,
+                    "callee_deref_line": deref_line,
+                    "reason": ",".join(sorted(nullable[field])),
+                    "line": line,
+                    "node": call["node"],
+                    "confidence": "high"
+                    if nullable[field] & {"deletable_member", "deletable_getset"}
+                    else "medium",
+                    "detail": (
+                        f"'{field}' can be NULL, and it is passed as argument "
+                        f"{index} to {name}(), which dereferences that parameter "
+                        f"at line {deref_line} with no NULL guard of its own. "
+                        f"**Control dies here**, not at any later sink in this "
+                        f"function -- a rule that only looks at sinks written "
+                        f"in this body reports a line the crash never reaches. "
+                        f"Guard '{field}' before the call, or add the guard to "
+                        f"{name}()."
+                    ),
+                }
+            )
+
         kind = _sink_kind(name)
         if kind is None:
             continue
-        args = call["arguments_text"]
         if kind in ("call", "addr_deref"):
             target = _first_arg(args)
         else:
@@ -714,8 +952,10 @@ def _check_function(
                 "function": func["name"],
                 "field": field,
                 "sink": name,
+                "sink_kind": kind,
                 "reason": ",".join(reasons),
                 "line": line,
+                "node": call["node"],
                 "confidence": confidence,
                 "detail": (
                     f"'{field}' is {verb} with no NULL guard, but it can be NULL "
@@ -726,6 +966,106 @@ def _check_function(
                 ),
             }
         )
+    return _annotate_dominated(findings)
+
+
+def _check_vararg_truncation(
+    call: dict,
+    args: str,
+    nullable: dict[str, set[str]],
+    aliases: dict[str, str],
+    foreign: set[str],
+    body: str,
+    source_bytes: bytes,
+    tree,
+) -> list[dict]:
+    """Rule 6: a nullable field in a *non-final* NULL-terminated argument slot.
+
+    Not a crash and not an exception: the call silently becomes a shorter call
+    than the one written, and every argument after the NULL is dropped.
+    ``super_descr_get:12793`` turns a 2-argument ``super()`` construction into a
+    0-argument one and loses ``obj``.
+    """
+    parts = _split_args(args)
+    out: list[dict] = []
+    for index, arg in enumerate(parts):
+        # The final argument *is* the sentinel; a NULL there is correct.
+        if index == 0 or index >= len(parts) - 1:
+            continue
+        field = _resolve_target_field(arg, nullable, aliases, foreign)
+        if field is None or _has_null_guard(body, field, aliases):
+            continue
+        line = call["start_line"]
+        if is_suppressed_by_comment(source_bytes, tree, line):
+            continue
+        dropped = [p for p in parts[index + 1 : -1] if p]
+        out.append(
+            {
+                "type": "vararg_null_truncation",
+                "field": field,
+                "sink": call["function_name"],
+                "sink_kind": "vararg_sentinel",
+                "argument_index": index,
+                "arguments_dropped": dropped,
+                "reason": ",".join(sorted(nullable[field])),
+                "line": line,
+                "node": call["node"],
+                "confidence": "medium",
+                "detail": (
+                    f"'{field}' can be NULL and sits at argument {index} of "
+                    f"{call['function_name']}(), whose argument list is "
+                    f"terminated by the first NULL. A NULL here does not crash "
+                    f"and does not raise: the call silently becomes a "
+                    f"{index - 1}-argument call and "
+                    + (
+                        f"{', '.join(dropped)} "
+                        f"{'is' if len(dropped) == 1 else 'are'} dropped"
+                        if dropped
+                        else "the remaining arguments are dropped"
+                    )
+                    + ". A different function is invoked than the one written, "
+                    "so this is a wrong-behaviour (CONSIDER) finding rather "
+                    "than a crash. Guard the field, or pass it positionally "
+                    "through a non-sentinel API."
+                ),
+            }
+        )
+    return out
+
+
+def _annotate_dominated(findings: list[dict]) -> list[dict]:
+    """Mark sinks that are unreachable because an earlier one on the same path
+    already crashes, and drop the AST nodes from the emitted dicts.
+
+    ``scan_init_bypass`` reported CPY-0007 at ``super_descr_get:12806``, which
+    control never reaches: ``:12797`` calls ``supercheck(su->type, obj)`` and
+    dies inside it. Both are still reported -- suppressing one would hide a real
+    sink if the path analysis is ever wrong -- but the earlier one now says so,
+    and the later one is marked ``dominated_by``, so a reader is not sent to a
+    line the crash cannot reach.
+    """
+    for i, later in enumerate(findings):
+        for earlier in findings[:i]:
+            if earlier["field"] != later["field"]:
+                continue
+            if _same_path(earlier["node"], later["node"]):
+                later["dominated_by"] = earlier["line"]
+                earlier.setdefault("dominates", []).append(later["line"])
+                break
+    for f in findings:
+        f.pop("node", None)
+        if "dominates" in f:
+            f["detail"] += (
+                f" Control dies here: the sink(s) at "
+                f"{', '.join(':' + str(x) for x in f['dominates'])} are "
+                f"downstream on the same path and are never reached."
+            )
+        if "dominated_by" in f:
+            f["detail"] += (
+                f" NOTE: unreachable when the field is NULL -- the sink at "
+                f":{f['dominated_by']} on the same path already crashes. Cite "
+                f"that line, not this one."
+            )
     return findings
 
 
@@ -772,18 +1112,26 @@ def analyze(target: str, *, max_files: int = 0) -> dict:
                 nullable_by_reason[reason] += 1
 
         rel = relpath(filepath, project_root)
+        # One-hop sinks are a file-level property: which same-file callees
+        # dereference which parameter without guarding it.
+        param_sinks = unguarded_param_sinks(functions)
         for func in functions:
-            for f in _check_function(func, nullable, source_bytes, tree):
+            for f in _check_function(
+                func, nullable, source_bytes, tree, param_sinks
+            ):
                 f["file"] = rel
+                f.setdefault("function", func["name"])
                 findings.append(f)
 
     findings = deduplicate_findings(findings)
 
     by_confidence: dict[str, int] = defaultdict(int)
     by_reason: dict[str, int] = defaultdict(int)
+    by_type: dict[str, int] = defaultdict(int)
     for f in findings:
         by_confidence[f["confidence"]] += 1
         by_reason[f["reason"]] += 1
+        by_type[f["type"]] += 1
 
     return build_report(
         project_root=project_root,
@@ -795,6 +1143,8 @@ def analyze(target: str, *, max_files: int = 0) -> dict:
             "total_findings": len(findings),
             "by_confidence": dict(by_confidence),
             "by_reason": dict(by_reason),
+            "by_type": dict(by_type),
+            "dominated_sinks": sum(1 for f in findings if "dominated_by" in f),
         },
         files_with_nullable_fields=files_with_nullable_fields,
         # Recall canary: zero findings with zero nullable fields means the rule
