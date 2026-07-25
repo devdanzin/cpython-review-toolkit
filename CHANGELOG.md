@@ -5,6 +5,116 @@ Format loosely follows [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+### Added — the nine recall rules the `obj-typeobject` review proposed (#28)
+
+Each rule was stated in the issue with the finding it would have caught, so
+precision is measured against a known answer rather than guessed. Every one is
+validated against the coordinates in the findings catalog, and every change was
+measured tree-wide over `Objects/` + `Modules/` + `Python/` before landing.
+**No pre-existing rule's count moved on any tree.**
+
+- **`borrowed_field_deref_across_call`** (`scan_refcounts`). Every borrowed-ref
+  rule anchored on a *release*; `Objects/typeobject.c` holds two reproduced ASan
+  use-after-frees where the borrowed local is only ever **read**, and the
+  release-anchored rules reported 0 over 403 functions. The load goes through a
+  `static inline` accessor, so the accessor set is **discovered** from the file
+  rather than tabulated — that is what generalises past this one file. Needed a
+  transitive same-file reach set (CPY-0068 reaches a user `__eq__` through
+  `inherit_slots` → `overrides_hash` → `PyDict_Contains`) and loop-carried
+  ordering (in CPY-0069 the invalidating call sits *after* the use in text order
+  and *before* it in iteration order). 45 accessor loads → 18 candidates, both
+  UAFs recovered, all seven named negative controls silent. Two things the issue
+  asked for that did not need doing: the `PyDict_*` widening was already there,
+  and `PyDict_Next` is deliberately **not** added — it walks the entry table and
+  neither hashes nor compares, so it is a *use* of the borrowed container, not a
+  call that invalidates it.
+- **Self-recursion un-gated from slot-hood** (`scan_recursion_guards`). All seven
+  recursive descents in `typeobject.c` are non-slot `static` helpers, so the
+  shape was computed and thrown away: **precision 0/1, recall 0/7** on a file
+  holding a reproduced SIGSEGV reachable through the builtin `dir()`. Slot-hood
+  was standing in for "the recursion follows user-controlled data"; that is now
+  said directly, via an element-operation requirement that includes
+  class-hierarchy walks (`lookup_tp_bases`, `tp_subclasses`, `&_Py_ID(__bases__)`)
+  because none of the seven calls a dispatcher at all. Resolves three binding
+  forms, including `PyDict_Next`'s **out-parameter**, which has no assignment
+  node to follow.
+- **`mutual_recursion`** — a cycle of two or more functions where none calls
+  itself, so per-function analysis structurally cannot see the recursion
+  (`update_subclasses ↔ recurse_down_subclasses`, ASan-confirmed). Tarjan SCCs
+  over the intra-file call graph. A hand-rolled depth bound against a constant
+  counts as a guard, which is what keeps `marshal.c` `w_object` out. Cycles
+  above size 3 are **counted in the envelope**, not dropped silently.
+- **`int_status_never_tested`** (`scan_error_paths`). The "returned directly"
+  suppression is right for a pointer and wrong for an int: `return res` at the
+  *end* of a function stops nothing in between. 160 raw candidates reduce to
+  **2** by requiring the intervening region to be fallible or state-committing;
+  1 of the 2 is the true positive the issue predicted, and the other is now a
+  documented FP class.
+- **One-hop interprocedural sink** (`scan_init_bypass`). The scanner reported
+  CPY-0007 at a line that is **dead code**; control dies one hop away inside
+  `supercheck`. The call site is now reported with the *callee's* deref line,
+  landing exactly on the coordinate the record has by hand. Dominated sinks are
+  marked, with path exclusivity computed from the **AST** — brace counting
+  cannot tell the arms of CPython's braceless `if (c) return f(x); else { … }`
+  apart.
+- **`vararg_null_truncation`** — `_CALL_SINKS` checked argument 0 only, which is
+  wrong for the NULL-terminated `*ObjArgs` variadics: a NULL in a non-final slot
+  does not crash, it silently truncates the call and drops every argument after
+  it (CPY-0080).
+- **The `tp_alloc` slot pointer** (`scan_memory_patterns`). Keying on the
+  callee's name missed every virtual dispatch, which is why the scanner reported
+  zero on a file whose var-object sites both go through the slot. Census:
+  **161 allocation sites, 127 via the slot pointer, 27 with a non-constant
+  `nitems`**. `_PyType_AllocNoTrack` has no overflow guard, so those callers
+  really do owe one.
+- **`assert(EXPR(x))` is a dereference** (`scan_null_checks`), plus the coupled
+  source-set widening — the closed enum resolved **49 of 760** assignment sites
+  (6.4%). Three gaps had to close before the validation site was reachable at
+  all; see the commit for which, and for the two the issue mis-attributed.
+- **`publish_before_init_complete`** (`scan_ft_races`, new class T4). Published
+  at line A, fields still written at B > A — the `fixup_slot_dispatchers` shape
+  (gh-151377). The stores are two hops away and go through a computed pointer
+  that never names the field, so confidence degrades with call depth.
+
+### Fixed — the two blindness fixes, and one rule deliberately not shipped
+
+- **Same-TU `#define` resolution for lock tokens.** `typeobject.c` wraps the
+  vocabulary in `BEGIN_TYPE_LOCK()` and uses it 25 times; `scan_lock_discipline`
+  resolved **2** of those regions. Visible lock regions tree-wide 758 → 818,
+  with `Python/` going 16 → 45, and **findings 0 → 0**: the zero used to be
+  structural and is now earned. `ASSERT_TYPE_LOCK_HELD` is deliberately *not* an
+  acquire — counting it as one would manufacture a missing-`END` on correct code.
+- **`scan_uninit_dealloc` interior-pointer aliases.** `type = &res->ht_type`
+  made twenty-odd field initialisations invisible. Latent, with no measured
+  change on the tree, and said so.
+- **The paired H-1 was not shipped**, because it would model a falsehood:
+  `PyType_GenericAlloc` forwards to `_PyType_AllocNoTrack`, which `memset`s the
+  object at `typeobject.c:2542`, so forcing `tp_alloc` non-zeroing would
+  manufacture a finding on every heap-type constructor in the tree. What ships
+  instead is an `allocator_model` block that states the zeroing decision as
+  data, with the `memset` line as its evidence, and a test that pins it.
+
+### Added — denominators on every envelope
+
+`rule_not_applicable` answered "did the rule see anything" only for scanners
+with a vocabulary. Every envelope now carries a `denominators` block collecting
+those counters under one name, so the standing rule — *report the denominator
+before calling a zero clean* — can be followed against any scanner's output.
+Wired into `informed-explore` as step 4, with the argument: in the
+`obj-typeobject` run nine scanners reported zero and **every one of those zeros
+was structural**.
+
+Two factual corrections to the findings catalog, found by the scanners
+disagreeing with records written by hand:
+
+- **CPY-0079** records `anydict_new_untracked:4493`. The assert is at
+  `Objects/dictobject.c:4494` and the enclosing function is
+  `copy_lock_held_untracked`; `anydict_new_untracked` is the *checked* twin.
+- **CPY-0007**'s scanner coordinate was dead code, as the issue said; the
+  catalog's hand-written lines were right and are now what the scanner emits.
+
+Suite 696 → 796 tests.
+
 ### Fixed — five defects measured by the `obj-typeobject` review
 
 The first slice of the review campaign (`Objects/typeobject.c`, 13,068 lines, 16
