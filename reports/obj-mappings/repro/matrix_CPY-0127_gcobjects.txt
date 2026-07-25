@@ -1,0 +1,13 @@
+# CPY-0127 -- gcobjects acquisition mode, GIL controls
+# Source: scratchpad/cpy0127_gc3.txt, copied into the run dir 2026-07-25.
+# These are the CONTROLS. The ctypes-mode numbers are inadmissible:
+# debug-gil-nojit returned 2/6 there, i.e. the harness dangling a
+# revived-by-address pointer, not CPython.
+
+debug-gil-nojit                    0/6 nonzero   codes=[0, 0, 0, 0, 0, 0]
+release-gil-nojit                  0/6 nonzero   codes=[0, 0, 0, 0, 0, 0]
+
+# release-ft-nojit x gcobjects: NOT CLAIMED -- still running at report
+# time. gc.get_objects() stop-the-worlds make this mode ~100x slower and
+# four fuzzer processes shared the box. The FT-vs-GIL contrast does not
+# depend on it; see the debug-ft row in the companion file.

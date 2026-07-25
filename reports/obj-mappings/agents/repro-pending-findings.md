@@ -17,6 +17,10 @@ Builds used: `~/projects/python_build_matrix/builds/<name>/python` —
 | **CPY-0130** plain `ma_values` stores | lead | **static-confirmed (TSan) + reachability answered YES for both sites** | 14 TSan warnings, 5 summaries naming `:7976`; `:8019` reached under a 1-index OOM sweep |
 | **CPY-0129** `dictiter_len` torn/UAF read | static-confirmed | **static-confirmed (unchanged) — but the record's stated cause is wrong** | 0 events in **5,759,584** exhaustion drops incl. a 240 s oversubscribed run on `release-ft-nojit-asan-mitrack`; "QSBR delays the free" is false for `ma_used`, it is biased refcounting, and `:6158` clearing the field *before* `:6159` frees it makes the reader-side crash structurally near-impossible |
 
+Matrix outputs: `repro/matrix_CPY-0127_gcobjects.txt` (GIL controls; the
+`release-ft-nojit` row appends there when that run finishes) and
+`repro/matrix_CPY-0127_gcobjects_debugft.txt`.
+
 Reproducers: `reports/obj-mappings/repro/CPY-0127_gc_tp_clear_vs_mutator.py`,
 `CPY-0115_getsubclasses_borrowed_dict.py`, `CPY-0130_ma_values_plain_store.py`,
 `CPY-0130_site8019_reachability.py`, `CPY-0129_dictiter_len_uaf.py`,

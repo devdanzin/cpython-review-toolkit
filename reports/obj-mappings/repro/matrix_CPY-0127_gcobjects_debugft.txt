@@ -1,0 +1,7 @@
+# CPY-0127 -- gcobjects acquisition mode, the free-threaded row
+# Source: scratchpad/cpy0127_gcobjects.txt, copied into the run dir 2026-07-25.
+
+debug-ft-nojit                     5/8 nonzero   codes=[0, -11, 0, -11, 0, -11, -6, -11]
+      ---- first failure tail ----
+      rounds=150 hammers=4 nelem=3000 mode=gcobjects gil=False
+      ----------------------------
