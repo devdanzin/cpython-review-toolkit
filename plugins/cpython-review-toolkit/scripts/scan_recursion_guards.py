@@ -78,6 +78,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from scan_common import (
+    GRAPH_FIELDS,
     build_report,
     discover_c_files,
     is_suppressed_by_comment,
@@ -258,6 +259,13 @@ _ATTR_LOOKUP_OPS = frozenset(
 )
 
 _ELEMENT_OPS = _CONTAINER_ELEMENT_OPS | _OBJECT_GRAPH_WALK_OPS | _ATTR_LOOKUP_OPS
+
+# The same graph walk written without an accessor: a plain member read.
+# ``GRAPH_FIELDS`` is shared with the sibling scanners so the three rules cannot
+# drift on what counts as an object-graph edge.
+_GRAPH_FIELD_READ_RE = re.compile(
+    r"->\s*(" + "|".join(sorted(GRAPH_FIELDS, key=len, reverse=True)) + r")\b"
+)
 
 # ``&_Py_ID(__bases__)`` in an attribute lookup names the hierarchy explicitly.
 _GRAPH_ATTR_IDS = frozenset({"__bases__", "__mro__", "__subclasses__", "__class__"})
@@ -683,6 +691,15 @@ def element_derived_names(
                 if re.search(rf"\b{re.escape(op)}\s*\(", rhs):
                     derived.setdefault(var, op)
                     break
+            else:
+                # A *plain member read* of a graph field is the same descent
+                # with no helper to key on: `base = type->tp_base;`. Keying only
+                # on accessor names is why `solid_base` -- an unguarded
+                # self-recursion whose trigger is `class X(Deep): pass`, exit
+                # 139 on debug and release -- was invisible to this rule.
+                fm = _GRAPH_FIELD_READ_RE.search(rhs)
+                if fm:
+                    derived.setdefault(var, f"->{fm.group(1)}")
 
     for _ in range(_MAX_DERIVATION_ROUNDS):
         changed = False
@@ -722,6 +739,15 @@ def descent_element_op(args_text: str, derived: dict[str, str]) -> str | None:
         for op in _ELEMENT_OPS:
             if re.search(rf"\b{re.escape(op)}\s*\(", arg):
                 return op
+        # The descent written with no local and no accessor at all:
+        # ``solid_base(type->tp_base)`` passes the graph edge straight into the
+        # recursive call. Keying only on accessor names and derived locals is
+        # why that function -- an unguarded self-recursion whose trigger is the
+        # ordinary ``class X(Deep): pass``, reproduced exit 139 on debug AND
+        # release -- was invisible to this rule.
+        fm = _GRAPH_FIELD_READ_RE.search(expr)
+        if fm:
+            return f"->{fm.group(1)}"
     return None
 
 

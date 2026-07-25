@@ -283,9 +283,13 @@ def collect_denominators(report: dict) -> dict:
                 continue
             if isinstance(value, (int, float)):
                 out[key] = value
-            elif isinstance(value, dict) and value and all(
-                isinstance(v, (int, float)) and not isinstance(v, bool)
-                for v in value.values()
+            elif (
+                isinstance(value, dict)
+                and value
+                and all(
+                    isinstance(v, (int, float)) and not isinstance(v, bool)
+                    for v in value.values()
+                )
             ):
                 # A census dict holds the counts themselves; reporting its
                 # *length* would say "3" for a three-key census whose numbers
@@ -306,6 +310,81 @@ def collect_denominators(report: dict) -> dict:
         )
     return out
 
+
+# ---------------------------------------------------------------------------
+# Object-graph fields
+#
+# Three scanners independently went blind for one reason: each keyed on the
+# *name of an accessor function* rather than on the *member being read*.
+#
+#   scan_refcounts          keyed on the four ``lookup_tp_*`` accessors, so a
+#                           plain ``su->obj`` read was out of scope. Recall on
+#                           Objects/typeobject.c was 0 of 6, and it has now
+#                           missed 4 ASan-confirmed use-after-frees found by
+#                           reading.
+#   scan_recursion_guards   keyed on the same accessor names, so ``solid_base``
+#                           recursing on ``type->tp_base`` was invisible.
+#   scan_null_checks        required a literal ``return NULL`` or a call
+#                           forwarder, so a *field-forwarding* accessor
+#                           (``return self->tp_mro;``) never entered the
+#                           nullable-source set.
+#
+# The accessor names came from a 2023 encapsulation refactor (gh-94673,
+# f73abf8e03fd) that was mechanical and never a lifetime audit. Keying on them
+# inherited a naming convention as if it were a semantic boundary -- and
+# ``tp_dict``, the field that refactor mostly touched, is the one member of the
+# family with no Python-reachable writer at all (``type_getsets`` registers
+# ``__dict__`` with a NULL setter). The rules were best calibrated exactly where
+# nothing can go wrong.
+#
+# The shared answer is to key on the MEMBER NAME. This table is what the rules
+# agree on; each scanner decides for itself what a graph edge means to it.
+#
+# MEASURED, and only one of the three widenings survived:
+#
+# * scan_recursion_guards -- SHIPPED. Admitting a graph-field read as a descent
+#   argument recovers ``solid_base:3776`` at exactly its recorded coordinate
+#   (self_recursion, high confidence, element_op ``->tp_base``). Cost: +2
+#   findings tree-wide over Objects/ + Modules/ + Python/, the other being
+#   ``_ctypes.c:4865 _init_pos_args``, a genuine unguarded recursion over a
+#   user-controlled base chain. No pre-existing shape moved.
+#
+# * scan_refcounts -- REJECTED after measurement. The proposed widening (treat
+#   ``X->field`` as a borrowed load where the file can re-bind the member) adds
+#   **+65 findings tree-wide** and recovers **0 of the 4** known ASan-confirmed
+#   misses, because none of them is that shape. Two different shapes hide there,
+#   and both are worth building deliberately rather than approximating:
+#     (a) PARAMETER-PASSED BORROW -- ``super_getattro`` reads ``su->type`` /
+#         ``su->obj`` / ``su->obj_type`` and passes them *into* a callee that
+#         re-enters Python and re-binds them. The load and the dereference are
+#         in different functions, and the Python-reaching call *is* the consumer,
+#         so the existing load/call/use ordering never matches.
+#     (b) LIVE-CURSOR ITERATION -- ``_PyType_Modified_Unlocked`` and
+#         ``recurse_down_subclasses`` walk a borrowed dict with a live
+#         ``PyDict_Next`` cursor while the body runs user Python that can free
+#         the dict.
+#
+# * scan_null_checks -- NOT ATTEMPTED, on evidence. Widening its source alphabet
+#   by 46% was measured on Objects/typeobject.c and yielded 18 candidates, all
+#   already triaged and **zero net-new**.
+# ---------------------------------------------------------------------------
+
+#: Members forming the Python-mutable object graph. Reachable from
+#: ``T.__bases__ = ...``, ``T.__mro__`` recomputation and subclass registration,
+#: so a borrowed read of one can be invalidated by anything that runs Python.
+#: ``tp_dict`` is included as a graph edge for *walking* purposes, but note it
+#: is the one member of the family with no Python-reachable writer at all:
+#: ``type_getsets`` registers ``__dict__`` with a NULL setter, which is what
+#: collapsed ten borrowed-read candidates to ACCEPTABLE in one step.
+GRAPH_FIELDS = frozenset(
+    {
+        "tp_base",
+        "tp_bases",
+        "tp_mro",
+        "tp_subclasses",
+        "tp_dict",
+    }
+)
 
 # ---------------------------------------------------------------------------
 # Comment-based suppression (parity with cext/ft scan_common)

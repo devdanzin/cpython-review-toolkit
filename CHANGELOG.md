@@ -5,6 +5,42 @@ Format loosely follows [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+### Added — `GRAPH_FIELDS`, and one of three proposed widenings (D-13)
+
+Three scanners went blind for one reason: each keyed on the *name of an accessor
+function* rather than on the *member being read*. The accessor names came from a
+2023 encapsulation refactor (gh-94673) that was mechanical and never a lifetime
+audit, so the toolkit inherited a naming convention as if it were a semantic
+boundary — and `tp_dict`, the field that refactor mostly touched, is the one
+member of the family with no Python-reachable writer at all.
+
+`scan_common.GRAPH_FIELDS` is the shared vocabulary. **All three proposed
+widenings were measured before landing, and only one survived.**
+
+- **`scan_recursion_guards` — shipped.** A graph-field read passed straight into
+  a recursive call is now a descent: `solid_base(type->tp_base)` binds no local
+  and calls no accessor, so the rule could not see it. It now recovers
+  `Objects/typeobject.c:3776` at exactly its recorded coordinate
+  (`self_recursion`, high confidence, `element_op: "->tp_base"`) — an unguarded
+  self-recursion reproduced **exit 139 on debug and release** whose trigger is
+  the entirely ordinary `class X(Deep): pass`, and which pass 1 dismissed on an
+  assumed tail call that `objdump` disproves. Cost tree-wide over `Objects/` +
+  `Modules/` + `Python/`: **+2**, the other being `_ctypes.c:4865
+  _init_pos_args`, a genuine unguarded recursion over a user-controlled base
+  chain. No pre-existing shape moved.
+- **`scan_refcounts` — rejected on measurement.** The proposed rule (treat
+  `X->field` as a borrowed load wherever the file can re-bind that member) adds
+  **+65 findings tree-wide** and recovers **0 of the 4** ASan-confirmed misses it
+  was designed for, because none of them is that shape. The misses decompose
+  into two *other* shapes, both now written down rather than approximated: a
+  **parameter-passed borrow** (the load and the dereference are in different
+  functions, and the Python-reaching call *is* the consumer) and **live-cursor
+  iteration** (a borrowed container walked with a live `PyDict_Next` cursor while
+  the body runs user Python). Building those deliberately is the follow-up.
+- **`scan_null_checks` — not attempted, on evidence.** Widening its source
+  alphabet by 46% was measured on `Objects/typeobject.c` and produced 18
+  candidates, all already triaged, **zero net-new**.
+
 ### Fixed — two false-clean generators in `run_oom_sweep.py` (obj-typeobject pass 2)
 
 Both produced a *confident wrong answer*, which is what makes them worse than a
