@@ -477,5 +477,133 @@ class TestPyMutexFamily(unittest.TestCase):
         self.assertIn("critical_section_end_on_error", self._types(result))
 
 
+# ---------------------------------------------------------------------------
+# Same-TU #define resolution (issue #28, blindness fix A)
+# ---------------------------------------------------------------------------
+#
+# Objects/typeobject.c wraps the vocabulary in its own macros at :79/:80 and
+# then uses them 25 times. The scanner resolved 2 of those 25 regions -- the two
+# written in the canonical spelling.
+
+TYPEOBJECT_MACROS = """\
+#define TYPE_LOCK &_PyInterpreterState_GET()->types.mutex
+#define BEGIN_TYPE_LOCK() Py_BEGIN_CRITICAL_SECTION_MUTEX(TYPE_LOCK)
+#define END_TYPE_LOCK() Py_END_CRITICAL_SECTION()
+
+#define BEGIN_TYPE_DICT_LOCK(d) \\
+    Py_BEGIN_CRITICAL_SECTION2_MUTEX(TYPE_LOCK, &_PyObject_CAST(d)->ob_mutex)
+
+#define END_TYPE_DICT_LOCK() Py_END_CRITICAL_SECTION2()
+
+#define ASSERT_TYPE_LOCK_HELD() \\
+    _Py_CRITICAL_SECTION_ASSERT_MUTEX_LOCKED(TYPE_LOCK)
+"""
+
+
+class TestLocalLockMacroResolution(unittest.TestCase):
+    def setUp(self):
+        self.mod = import_script("scan_lock_discipline")
+
+    def _resolve(self, source):
+        return self.mod.resolve_local_lock_macros(
+            source, self.mod._get_lock_families()
+        )
+
+    def _analyze(self, files):
+        with TempProject(files) as root:
+            return self.mod.analyze(str(root))
+
+    def test_single_line_define_resolves(self):
+        aliases, _ = self._resolve(TYPEOBJECT_MACROS)
+        self.assertEqual(aliases["BEGIN_TYPE_LOCK"], ("critical_section", "acquire"))
+        self.assertEqual(aliases["END_TYPE_LOCK"], ("critical_section", "release"))
+
+    def test_continued_line_define_resolves(self):
+        """BEGIN_TYPE_DICT_LOCK's body is on the next line after a backslash."""
+        aliases, _ = self._resolve(TYPEOBJECT_MACROS)
+        self.assertEqual(
+            aliases["BEGIN_TYPE_DICT_LOCK"], ("critical_section", "acquire")
+        )
+        self.assertEqual(
+            aliases["END_TYPE_DICT_LOCK"], ("critical_section", "release")
+        )
+
+    def test_lock_held_assertion_is_not_an_acquire(self):
+        """Counting it as one turns every lock-held helper into an unpaired
+        begin and manufactures a missing-END on correct code."""
+        aliases, asserts = self._resolve(TYPEOBJECT_MACROS)
+        self.assertNotIn("ASSERT_TYPE_LOCK_HELD", aliases)
+        self.assertIn("ASSERT_TYPE_LOCK_HELD", asserts)
+
+    def test_an_unrelated_define_is_not_a_lock_macro(self):
+        aliases, asserts = self._resolve(
+            "#define MAX_VERSIONS_PER_CLASS 1000\n"
+            "#define TYPE_IS_REVEALED(tp) ((tp)->ob_flags & FLAG)\n"
+        )
+        self.assertEqual(aliases, {})
+        self.assertEqual(asserts, set())
+
+    def test_a_wrapped_region_becomes_visible(self):
+        result = self._analyze(
+            {
+                "Objects/typeobject.c": TYPEOBJECT_MACROS
+                + "\n"
+                "static PyObject *\n"
+                "lookup(PyTypeObject *type)\n"
+                "{\n"
+                "    PyObject *res;\n"
+                "    BEGIN_TYPE_LOCK();\n"
+                "    res = type->tp_dict;\n"
+                "    END_TYPE_LOCK();\n"
+                "    return res;\n"
+                "}\n"
+            }
+        )
+        self.assertEqual(result["critical_section_functions"], 1)
+        self.assertIn("Objects/typeobject.c", result["local_lock_macros"])
+        # Correctly paired, so still no finding -- an *earned* zero.
+        self.assertEqual(result["summary"]["total_findings"], 0)
+
+    def test_a_wrapped_leak_is_now_caught(self):
+        result = self._analyze(
+            {
+                "Objects/typeobject.c": TYPEOBJECT_MACROS
+                + "\n"
+                "static PyObject *\n"
+                "leaky(PyTypeObject *type)\n"
+                "{\n"
+                "    BEGIN_TYPE_LOCK();\n"
+                "    if (type->tp_dict == NULL) {\n"
+                "        return NULL;\n"
+                "    }\n"
+                "    END_TYPE_LOCK();\n"
+                "    return type->tp_dict;\n"
+                "}\n"
+            }
+        )
+        self.assertGreater(result["summary"]["total_findings"], 0)
+
+    def test_a_file_with_no_wrappers_reports_none(self):
+        """17 of the 18 Objects/ files that lock at all use the canonical
+        spellings; their empty entry is the expected answer, not a gap."""
+        result = self._analyze(
+            {
+                "Objects/plain.c": (
+                    "static PyObject *\n"
+                    "get(PyObject *self)\n"
+                    "{\n"
+                    "    PyObject *r;\n"
+                    "    Py_BEGIN_CRITICAL_SECTION(self);\n"
+                    "    r = self->ob_type->tp_dict;\n"
+                    "    Py_END_CRITICAL_SECTION();\n"
+                    "    return r;\n"
+                    "}\n"
+                )
+            }
+        )
+        self.assertEqual(result["local_lock_macros"], {})
+        self.assertEqual(result["critical_section_functions"], 1)
+
+
 if __name__ == "__main__":
     unittest.main()
