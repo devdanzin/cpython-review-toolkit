@@ -30,7 +30,13 @@ Reported members are further filtered to ones the file's destructor actually car
 | `medium` | `pointer` | the file does `Py_CLEAR` / `Py_XDECREF` / `Py_VISIT` on `x->m` — garbage there is a wild decref |
 | `low` | `destructor_read` | a destructor-shaped function merely *reads* `x->m` while tearing down other members — a scalar discriminator or loop bound (the blake2 `impl` shape) |
 
-Key fields: `allocator`, `variable`, `function`, `line` (the allocation), `free_line` (the first early free), `unset_members` (the filtered list — **start here**), `unset_members_all` (before filtering), `destructor_evidence`.
+Key fields: `allocator`, `variable`, `function`, `line` (the allocation), `free_line` (the first early free), `unset_members` (the filtered list — **start here**), `unset_members_all` (before filtering), `destructor_evidence`, `receiver_aliases`.
+
+**Interior-pointer aliases are followed.** `Objects/typeobject.c:5628` writes twenty-odd fields of a freshly allocated heap type through `PyTypeObject *type = &res->ht_type;`, and a rule keyed on the allocation's own variable name sees none of them — the constructor reads as initialising nothing. Interior-pointer and cast aliases now count as the same receiver, and `receiver_aliases` names them.
+
+**Reading a zero from this scanner.** `summary.allocation_sites` is the denominator: how many non-zeroing allocations the rule saw at all. Zero findings against zero sites is silence, not safety. `nonzeroing_tp_allocs` lists the file-local allocfuncs that made a `tp_alloc(...)` call count as non-zeroing — tree-wide that is exactly the two in `Modules/_datetimemodule.c`, over 171 allocation sites.
+
+`allocator_model` states the zeroing model as data so it cannot be quietly inverted. In particular **`PyType_GenericAlloc` is deliberately not in the non-zeroing set**: it forwards to `_PyType_AllocNoTrack`, which does `memset((char *)obj + sizeof(PyObject), 0, ...)` at `Objects/typeobject.c:2542`. Treating `tp_alloc` as unconditionally non-zeroing — which is tempting when a file reports zero — would model a falsehood and manufacture a finding on every heap-type constructor in the tree.
 
 ## Analysis Strategy
 

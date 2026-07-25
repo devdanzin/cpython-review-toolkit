@@ -251,8 +251,49 @@ def _member_evidence(
     return out
 
 
-def _member_writes(body_node, source_bytes: bytes, var: str) -> list[tuple[str, Any]]:
-    """Return ``[(member, assignment_node)]`` for every ``var->member = …``."""
+# `type = &res->ht_type;` -- an interior pointer into the object just
+# allocated. Every subsequent `type->tp_...` write is a write into `res`, and a
+# rule keyed on the name `res` sees none of them.
+# `Objects/typeobject.c:5628` writes 20+ fields of the new heap type through
+# exactly this alias.
+_INTERIOR_ALIAS_RE = re.compile(
+    r"\b([A-Za-z_]\w*)\s*=\s*(?:\(\s*[\w\s*]+\)\s*)?&\s*([A-Za-z_]\w*)\s*->\s*\w+\s*;"
+)
+# `MyObject *obj = (MyObject *)self;` -- a plain cast alias.
+_CAST_ALIAS_RE = re.compile(
+    r"\b([A-Za-z_]\w*)\s*=\s*\(\s*[\w\s*]+\)\s*([A-Za-z_]\w*)\s*;"
+)
+
+
+def _alias_names(body: str, var: str) -> set[str]:
+    """Locals that are interior-pointer or cast aliases of ``var``.
+
+    Writes through an alias are writes to the object, so a rule that only knows
+    the allocation's own variable name concludes "no members written" on a
+    constructor that initialises twenty of them.
+    """
+    names = {var}
+    for _ in range(3):
+        grew = False
+        for pattern in (_INTERIOR_ALIAS_RE, _CAST_ALIAS_RE):
+            for m in pattern.finditer(body):
+                if m.group(2) in names and m.group(1) not in names:
+                    names.add(m.group(1))
+                    grew = True
+        if not grew:
+            break
+    return names
+
+
+def _member_writes(
+    body_node, source_bytes: bytes, var: str, aliases: set[str] | None = None
+) -> list[tuple[str, Any]]:
+    """Return ``[(member, assignment_node)]`` for every ``var->member = …``.
+
+    ``aliases`` widens the receiver set to the object's interior-pointer and
+    cast aliases (see :func:`_alias_names`).
+    """
+    receivers = aliases or {var}
     writes: list[tuple[str, Any]] = []
     for assign in walk_descendants(body_node, "assignment_expression"):
         left = assign.child_by_field_name("left")
@@ -262,7 +303,7 @@ def _member_writes(body_node, source_bytes: bytes, var: str) -> list[tuple[str, 
         field = left.child_by_field_name("field")
         if argument is None or field is None:
             continue
-        if get_node_text(argument, source_bytes).strip() != var:
+        if get_node_text(argument, source_bytes).strip() not in receivers:
             continue
         writes.append((get_node_text(field, source_bytes), assign))
     return writes
@@ -422,9 +463,10 @@ def _check_function(
         if _memset_zero_re(var).search(window):
             continue
 
+        aliases = _alias_names(func.get("body", ""), var)
         writes = [
             (member, node)
-            for member, node in _member_writes(body_node, source_bytes, var)
+            for member, node in _member_writes(body_node, source_bytes, var, aliases)
             if node.start_byte >= alloc_end
         ]
         if not writes:
@@ -471,6 +513,7 @@ def _check_function(
                 "free_call": free["function_name"],
                 "unset_members": kept,
                 "unset_members_all": unset_at_free,
+                "receiver_aliases": sorted(aliases - {var}),
                 "destructor_evidence": destructor_evidence,
                 "confidence": "medium" if has_pointer else "low",
                 "detail": (
@@ -499,6 +542,12 @@ def analyze(target: str, *, max_files: int = 0) -> dict:
     total_functions = 0
     files_analyzed = 0
     skipped: list[dict] = []
+    # Denominators for a zero result. `allocation_sites` counts every
+    # non-zeroing allocation the rule saw at all; `nonzeroing_tp_allocs` names
+    # the file-local allocfuncs that made a `tp_alloc(...)` call count as
+    # non-zeroing. Zero findings against zero sites is silence, not safety.
+    allocation_sites = 0
+    nonzeroing_by_file: dict[str, list[str]] = {}
 
     for filepath in discover_c_files(scan_root, max_files=max_files):
         try:
@@ -523,9 +572,14 @@ def analyze(target: str, *, max_files: int = 0) -> dict:
         local_nonzeroing = _nonzeroing_tp_allocs(
             source_bytes.decode("utf-8", "replace"), functions
         )
+        if local_nonzeroing:
+            nonzeroing_by_file[rel] = sorted(local_nonzeroing)
 
         for func in functions:
             total_functions += 1
+            for assign in find_assignments_in_scope(func["body_node"], source_bytes):
+                if _matched_allocator(assign["value_text"], local_nonzeroing):
+                    allocation_sites += 1
             for f in _check_function(
                 func, source_bytes, tree, evidence, local_nonzeroing
             ):
@@ -547,6 +601,30 @@ def analyze(target: str, *, max_files: int = 0) -> dict:
         summary={
             "total_findings": len(findings),
             "by_allocator": dict(by_allocator),
+            "allocation_sites": allocation_sites,
+        },
+        nonzeroing_tp_allocs=nonzeroing_by_file,
+        # The zeroing model, stated so a zero result is readable and so a future
+        # change cannot quietly invert it. `PyType_GenericAlloc` is *not* in the
+        # non-zeroing set on purpose: it forwards to `_PyType_AllocNoTrack`,
+        # which does `memset((char *)obj + sizeof(PyObject), 0, ...)` at
+        # Objects/typeobject.c:2542. Treating `tp_alloc` as unconditionally
+        # non-zeroing would model a falsehood and manufacture a finding on every
+        # heap-type constructor in the tree.
+        allocator_model={
+            "non_zeroing": sorted(_NON_ZEROING_ALLOCATORS),
+            "zeroing_by_evidence": {
+                "PyType_GenericAlloc": (
+                    "forwards to _PyType_AllocNoTrack, which memsets the object "
+                    "after the PyObject header (Objects/typeobject.c:2542)"
+                ),
+            },
+            "tp_alloc_rule": (
+                "a `->tp_alloc(...)` call counts as non-zeroing only in a file "
+                "that registers its own allocfunc returning raw storage; the "
+                "two in-tree instances are Modules/_datetimemodule.c "
+                "time_alloc / datetime_alloc"
+            ),
         },
         skipped_files=skipped,
     )
