@@ -49,7 +49,7 @@ class TestSweep(unittest.TestCase):
     def _stub(self, outcomes):
         """Make run_one return a canned outcome per index."""
 
-        def fake_run_one(python, payload, n, *, timeout=30.0, setup=""):
+        def fake_run_one(python, payload, n, *, timeout=30.0, setup="", width=1):
             outcome = outcomes.get(n, "memory_error")
             return {
                 "n": n,
@@ -79,7 +79,7 @@ class TestSweep(unittest.TestCase):
     def test_dense_sweep_covers_every_index(self):
         seen = []
 
-        def fake_run_one(python, payload, n, *, timeout=30.0, setup=""):
+        def fake_run_one(python, payload, n, *, timeout=30.0, setup="", width=1):
             seen.append(n)
             return {"n": n, "outcome": "memory_error", "returncode": 1, "stderr": ""}
 
@@ -113,11 +113,23 @@ class TestHarnessTemplate(unittest.TestCase):
         self.mod = import_script("run_oom_sweep")
 
     def test_template_arms_and_disarms(self):
-        script = self.mod._HARNESS_TEMPLATE.format(payload="x = 1", start=7, setup="")
-        # Arms the counting allocator at the requested index.
-        self.assertIn("set_nomemory(7)", script)
+        script = self.mod.build_child_script("x = 1", 7, setup="")
+        # Arms the counting allocator at the requested index, BOUNDED to one
+        # allocation. An unbounded set_nomemory(7) fails allocation 7 and every
+        # one after it, so any multi-allocation payload dies at the first index
+        # reached -- a false positive that reads exactly like a crash.
+        self.assertIn("set_nomemory(7, 8)", script)
         # Always removes the hooks so teardown itself cannot fault.
         self.assertIn("remove_mem_hooks", script)
+
+    def test_width_widens_the_failure_window(self):
+        script = self.mod.build_child_script("x = 1", 10, setup="", width=5)
+        self.assertIn("set_nomemory(10, 15)", script)
+
+    def test_width_zero_restores_the_unbounded_form(self):
+        """Kept for the rare case where a sustained famine is the thing tested."""
+        script = self.mod.build_child_script("x = 1", 10, setup="", width=0)
+        self.assertIn("set_nomemory(10)", script)
         # faulthandler is enabled before arming.
         self.assertLess(
             script.index("faulthandler.enable"), script.index("set_nomemory")
@@ -128,7 +140,7 @@ class TestHarnessTemplate(unittest.TestCase):
     def test_payload_is_embedded_safely(self):
         # Quotes/newlines in the payload must not break the wrapper.
         payload = 'x = "quoted\'s"\ny = 2\n'
-        script = self.mod._HARNESS_TEMPLATE.format(payload=payload, start=0, setup="")
+        script = self.mod.build_child_script(payload, 0, setup="")
         self.assertIn(repr(payload), script)
         compile(script, "<harness>", "exec")
 
@@ -147,32 +159,30 @@ class TestSetupPhase(unittest.TestCase):
         self.mod = import_script("run_oom_sweep")
 
     def test_setup_runs_before_arming(self):
-        script = self.mod._HARNESS_TEMPLATE.format(
-            payload="iter(od.items())",
-            start=3,
+        script = self.mod.build_child_script(
+            "iter(od.items())",
+            3,
             setup="from collections import OrderedDict; od = OrderedDict(a=1)",
         )
         self.assertLess(script.index("exec(_SETUP_CODE"), script.index("set_nomemory"))
         compile(script, "<harness>", "exec")
 
     def test_compilation_happens_before_arming(self):
-        script = self.mod._HARNESS_TEMPLATE.format(payload="x = 1", start=0, setup="")
+        script = self.mod.build_child_script("x = 1", 0, setup="")
         self.assertLess(
             script.index('compile(_PAYLOAD, "<oom-payload>"'),
             script.index("set_nomemory"),
         )
 
     def test_setup_and_payload_share_a_namespace(self):
-        script = self.mod._HARNESS_TEMPLATE.format(
-            payload="use(x)", start=0, setup="x = 1"
-        )
+        script = self.mod.build_child_script("use(x)", 0, setup="x = 1")
         self.assertIn("exec(_SETUP_CODE, _NS)", script)
         self.assertIn("exec(_PAYLOAD_CODE, _NS)", script)
 
     def test_sweep_threads_setup_through_to_run_one(self):
         seen = {}
 
-        def fake_run_one(python, payload, n, *, timeout=30.0, setup=""):
+        def fake_run_one(python, payload, n, *, timeout=30.0, setup="", width=1):
             seen["setup"] = setup
             return {"n": n, "outcome": "completed", "returncode": 0, "stderr": ""}
 
