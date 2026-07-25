@@ -51,6 +51,56 @@ class TestDataFile(unittest.TestCase):
                     msg=f"{api['name']} is not a drop-in but carries no caveat",
                 )
 
+    def test_the_pep667_family_is_not_a_drop_in(self):
+        """Regression guard: all three shipped as drop_in with an empty caveat.
+
+        Verified in CPython main @ 4f3be1b5 -- PyEval_GetGlobals returns
+        `current_frame->f_globals` raw (ceval.c:2741) while its replacement
+        PyEval_GetFrameGlobals returns `Py_XNewRef(...)` (ceval.c:2874). Same
+        asymmetry for Builtins and Locals. A bare rename leaks a module __dict__,
+        which pins the entire module, at every call site.
+        """
+        by_name = {a["name"]: a for a in mod.load_deprecated_apis()}
+        for name in ("PyEval_GetGlobals", "PyEval_GetBuiltins", "PyEval_GetLocals"):
+            self.assertIn(name, by_name)
+            self.assertFalse(by_name[name]["drop_in"], msg=name)
+            self.assertIn("BORROWED", by_name[name]["caveat"], msg=name)
+
+    def test_a_refcount_shaped_replacement_is_not_claimed_as_a_drop_in(self):
+        """Canary for the whole class, not just the three entries above.
+
+        A replacement that GAINS Ref/Frame/New relative to the deprecated name
+        is very often a borrowed-to-strong change, so claiming drop_in for one
+        requires the caveat field to carry the reasoning. This is the second time
+        this class of error reached a recommendation; the first nearly
+        reintroduced gh-148241.
+
+        The token must be absent from the original name, compared
+        case-insensitively, or the rule fires on pure renames:
+        PyCode_New -> PyUnstable_Code_New keeps "New" on both sides and is a
+        genuine drop-in (Include/cpython/code.h:199 is a static inline forwarding
+        straight through with identical arguments), and PyMem_NEW -> PyMem_New
+        differs only in case.
+        """
+        suspicious = ("Ref", "Frame", "New")
+        for api in mod.load_deprecated_apis():
+            replacement = api.get("replacement") or ""
+            if not api["drop_in"] or not replacement:
+                continue
+            original = api["name"].lower()
+            gained = [
+                token
+                for token in suspicious
+                if token in replacement and token.lower() not in original
+            ]
+            if gained:
+                self.fail(
+                    f"{api['name']} -> {replacement} claims drop_in: true while "
+                    f"the replacement gains {'/'.join(gained)}. Verify the "
+                    "return-reference kind on BOTH sides and set drop_in: false "
+                    "with a caveat if they differ."
+                )
+
     def test_writer_prepare_macros_are_in_the_vocabulary(self):
         """The macro forms are separate names from the *Internal functions.
 

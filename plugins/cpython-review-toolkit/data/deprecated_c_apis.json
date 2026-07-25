@@ -37,7 +37,8 @@
       "drop_in": "true when `replacement` is a mechanical substitution. FALSE means applying the named replacement changes behaviour -- read `caveat` before migrating. This field exists because a scanner that confidently recommends a regression is worse than one that stays silent: the single FIX of the Modules/ run was _PyUnicodeWriter_WriteStr, whose named replacement reintroduces gh-148241.",
       "caveat": "What breaks if the replacement is applied mechanically, and the verified drop-in to use instead. Required when drop_in is false.",
       "compat_shim_files": "Repo-relative files where a use of this API is the API's own backwards-compatibility implementation, its definition, or a test that exercises it deliberately. Suppressed as ACCEPTABLE rather than reported -- without this the 21 Py_*Flag globals would land ~60 findings in Python/initconfig.c and Python/preconfig.c and look like the old scanner's definition-site problem returning."
-    }
+    },
+    "drop_in_rule": "drop_in: false REQUIRES a non-empty caveat. A replacement whose name contains Ref/Frame/New is suspect by construction: the PEP 667 family (PyEval_GetGlobals/Builtins/Locals) all returned STRONG references where the deprecated call returns BORROWED, and all three shipped as drop_in: true with an empty caveat. That is the second time this class of error reached a recommendation -- the first nearly reintroduced gh-148241, which is why these fields exist."
   },
   "apis": [
     {
@@ -244,10 +245,11 @@
       "deprecated_in": "3.14",
       "removed_in": "3.18",
       "replacement": "PyDict_GetItemStringRef",
-      "drop_in": true,
-      "caveat": "",
+      "drop_in": false,
+      "caveat": "NOT a rename: the signature changes. This returns a BORROWED PyObject* (Include/cpython/dictobject.h:48); PyDict_GetItemStringRef returns an int status and writes a STRONG reference to a PyObject** out-parameter (Include/dictobject.h:68). Migration must add the out-parameter, switch to the three-state int return (-1 error / 0 absent / 1 found), and add a Py_DECREF for the new reference. A mechanical substitution does not compile.",
       "compat_shim_files": [],
-      "notes": "Include/cpython/dictobject.h:48."
+      "notes": "Include/cpython/dictobject.h:48.",
+      "refcount_evidence": "borrowed -> strong AND pointer-return -> int-status-with-outparam; arity 2 -> 3."
     },
     {
       "name": "_PyDict_Pop",
@@ -651,10 +653,11 @@
       "deprecated_in": "3.13",
       "removed_in": "",
       "replacement": "PyEval_GetFrameBuiltins",
-      "drop_in": true,
-      "caveat": "",
+      "drop_in": false,
+      "caveat": "NOT a drop-in rename: the replacement returns a STRONG reference (Py_XNewRef) where this returns a BORROWED one, so a bare rename leaks the referent at every call site. Correct migration is rename + a matching Py_DECREF once the value is no longer needed. No-frame behaviour is identical (both return NULL without setting an exception), so the NULL guard needs no change.",
       "compat_shim_files": [],
-      "notes": "Doc/c-api/reflection.rst:10 (PEP 667). Returns a borrowed reference."
+      "notes": "Doc/c-api/reflection.rst:10 (PEP 667). Returns a borrowed reference.",
+      "refcount_evidence": "borrowed: Python/ceval.c:2633 -> _PyEval_GetBuiltins(tstate). Replacement Python/ceval.c:2881 returns Py_XNewRef(_PyEval_GetBuiltins(tstate))."
     },
     {
       "name": "PyEval_GetGlobals",
@@ -662,10 +665,11 @@
       "deprecated_in": "3.13",
       "removed_in": "",
       "replacement": "PyEval_GetFrameGlobals",
-      "drop_in": true,
-      "caveat": "",
+      "drop_in": false,
+      "caveat": "NOT a drop-in rename: the replacement returns a STRONG reference (Py_XNewRef) where this returns a BORROWED one, so a bare rename leaks the referent at every call site. Correct migration is rename + a matching Py_DECREF once the value is no longer needed. No-frame behaviour is identical (both return NULL without setting an exception), so the NULL guard needs no change.",
       "compat_shim_files": [],
-      "notes": "Doc/c-api/reflection.rst:48 (PEP 667)."
+      "notes": "Doc/c-api/reflection.rst:48 (PEP 667).",
+      "refcount_evidence": "borrowed: Python/ceval.c:2741 returns current_frame->f_globals raw. Replacement Python/ceval.c:2874 returns Py_XNewRef(...). Corroborated in-tree: Python/import.c annotates its call `// borrowed`, and Modules/_testlimitedcapi/eval.c must write Py_XNewRef(PyEval_GetGlobals()) to obtain new-ref semantics."
     },
     {
       "name": "PyEval_GetLocals",
@@ -673,10 +677,11 @@
       "deprecated_in": "3.13",
       "removed_in": "",
       "replacement": "PyEval_GetFrameLocals",
-      "drop_in": true,
-      "caveat": "",
+      "drop_in": false,
+      "caveat": "NOT a drop-in rename: the replacement returns a STRONG reference (Py_XNewRef) where this returns a BORROWED one, so a bare rename leaks the referent at every call site. Correct migration is rename + a matching Py_DECREF once the value is no longer needed. No-frame behaviour is identical (both return NULL without setting an exception), so the NULL guard needs no change.",
       "compat_shim_files": [],
-      "notes": "Doc/c-api/reflection.rst:20 (PEP 667)."
+      "notes": "Doc/c-api/reflection.rst:20 (PEP 667).",
+      "refcount_evidence": "borrowed by construction: Python/ceval.c:2653 says so in a comment ('We need to return a borrowed reference here, so some tricks are needed') and stashes the new reference from _PyFrame_GetLocals on the frame to achieve it. Replacement PyEval_GetFrameLocals returns a new reference."
     },
     {
       "name": "PySequence_In",
