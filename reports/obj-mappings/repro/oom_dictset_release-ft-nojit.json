@@ -1,0 +1,34 @@
+{
+  "python": "/home/danzin/projects/python_build_matrix/builds/release-ft-nojit/python",
+  "payload": "exercise()\n",
+  "setup": "# Broad OOM sweep over Objects/dictobject.c + Objects/setobject.c.\n# Setup runs UNARMED: it builds every object the payload touches and warms every\n# path once so imports / freelists / specialisation do not burn the budget.\n\n\nclass Inst:\n    def __init__(self):\n        self.a = 1\n        self.b = 2\n        self.c = 3\n\n\nclass Slotted:\n    __slots__ = (\"x\",)\n\n\nbase = {\"k%d\" % i: i for i in range(10)}\ngen = {i: i for i in range(10)}\nseq2 = [(\"s%d\" % i, i) for i in range(10)]\npool = [Inst() for _ in range(64)]\npool_i = [0]\nsset = set(range(10))\nfset = frozenset(range(10))\nlst = list(range(10))\n\n\ndef exercise():\n    # --- dict construction / conversion ------------------------------------\n    dict(base)\n    dict(seq2)\n    dict(**base)\n    dict.fromkeys(lst)\n    dict.fromkeys(lst, 0)\n    {**base, **gen}\n    base | gen\n    frozendict(base)\n    # --- dict mutation / resize --------------------------------------------\n    d = {}\n    for k, v in seq2:\n        d[k] = v\n    d.update(base)\n    d.setdefault(\"zz\", 1)\n    d.pop(\"zz\", None)\n    d.popitem()\n    d.copy()\n    d.clear()\n    # --- dict views + set algebra on views ---------------------------------\n    base.keys() | gen.keys()\n    base.keys() & gen.keys()\n    base.keys() - gen.keys()\n    base.keys() ^ gen.keys()\n    base.items() | gen.items()\n    list(base.items())\n    list(reversed(base))\n    repr(base)\n    # --- managed dict / inline values / split keys -------------------------\n    inst = pool[pool_i[0] % len(pool)]\n    pool_i[0] += 1\n    inst.d = 4                       # split-table insert past __init__ keys\n    inst.__dict__                    # materialise\n    inst.__dict__.copy()\n    inst.__dict__ = {\"a\": 1}         # _PyObject_SetManagedDict, non-NULL dict\n    del inst.a                       # detach / delete on a materialised dict\n    s = Slotted()\n    s.x = 1\n    # --- set construction / mutation / resize ------------------------------\n    t = set()\n    for i in lst:\n        t.add(i)\n    t.update(sset)\n    t.discard(1)\n    t.pop()\n    t.copy()\n    t.clear()\n    set(lst)\n    frozenset(lst)\n    sset | fset\n    sset & fset\n    sset - fset\n    sset ^ fset\n    sset.union(lst)\n    sset.intersection(lst)\n    sset.symmetric_difference(lst)\n    sset.difference(lst)\n    repr(sset)\n    hash(fset)\n\n\nfor _ in range(4):\n    exercise()\n",
+  "dry_run": {
+    "ok": true,
+    "phase": null,
+    "returncode": 0,
+    "stderr": ""
+  },
+  "range": {
+    "start": 0,
+    "stop": 900
+  },
+  "width": 1,
+  "iterations_run": 900,
+  "allocation_failure_points": 129,
+  "outcome_counts": {
+    "memory_error": 129,
+    "completed": 771
+  },
+  "crashes": [],
+  "first_crash": null,
+  "payload_exceptions": [],
+  "reproduced": false,
+  "summary": {
+    "total_crashes": 0,
+    "crash_indices": [],
+    "crash_outcomes": [],
+    "allocation_failure_points": 129,
+    "thin_evidence": false,
+    "verdict": "no crash over N=129 allocation-failure points (all handled cleanly)"
+  }
+}

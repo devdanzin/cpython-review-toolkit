@@ -1,0 +1,631 @@
+{
+  "project_root": "/home/danzin/projects/cpython",
+  "scan_root": "/home/danzin/projects/cpython",
+  "files_analyzed": 2,
+  "functions_analyzed": 404,
+  "findings": [
+    {
+      "type": "missing_recursion_guard",
+      "function": "dict_getitem",
+      "slot": "not_a_slot",
+      "shape": "hash_entry_point",
+      "element_op": "_PyObject_HashDictKey",
+      "argument_kind": "parameter",
+      "tail_call": false,
+      "line": 2433,
+      "sites": [
+        {
+          "line": 2433,
+          "argument_kind": "parameter",
+          "argument": "key",
+          "dispatcher": "_PyObject_HashDictKey"
+        }
+      ],
+      "confidence": "low",
+      "detail": "'dict_getitem' calls _PyObject_HashDictKey on a caller-supplied value \u2014 this adds exactly one C frame, so it is an entry point into the unguarded hash graph rather than an additive descent. _PyObject_HashDictKey (Include/internal/pycore_object.h:840 \u2014 a Py_ALWAYS_INLINE wrapper whose tail is PyObject_Hash) is an element-descent dispatcher with NO recursion guard, so a tp_hash descent is unguarded at every level: a deeply-nested or cyclic object overflows the C stack (SIGSEGV) instead of raising RecursionError. Bracket the descent with Py_EnterRecursiveCall(\" while hashing\")/Py_LeaveRecursiveCall().",
+      "file": "Objects/dictobject.c"
+    },
+    {
+      "type": "missing_recursion_guard",
+      "function": "_PyDict_LookupIndexAndValue",
+      "slot": "not_a_slot",
+      "shape": "hash_entry_point",
+      "element_op": "_PyObject_HashDictKey",
+      "argument_kind": "parameter",
+      "tail_call": false,
+      "line": 2505,
+      "sites": [
+        {
+          "line": 2505,
+          "argument_kind": "parameter",
+          "argument": "key",
+          "dispatcher": "_PyObject_HashDictKey"
+        }
+      ],
+      "confidence": "low",
+      "detail": "'_PyDict_LookupIndexAndValue' calls _PyObject_HashDictKey on a caller-supplied value \u2014 this adds exactly one C frame, so it is an entry point into the unguarded hash graph rather than an additive descent. _PyObject_HashDictKey (Include/internal/pycore_object.h:840 \u2014 a Py_ALWAYS_INLINE wrapper whose tail is PyObject_Hash) is an element-descent dispatcher with NO recursion guard, so a tp_hash descent is unguarded at every level: a deeply-nested or cyclic object overflows the C stack (SIGSEGV) instead of raising RecursionError. Bracket the descent with Py_EnterRecursiveCall(\" while hashing\")/Py_LeaveRecursiveCall().",
+      "file": "Objects/dictobject.c"
+    },
+    {
+      "type": "missing_recursion_guard",
+      "function": "PyDict_GetItemRef",
+      "slot": "not_a_slot",
+      "shape": "hash_entry_point",
+      "element_op": "_PyObject_HashDictKey",
+      "argument_kind": "parameter",
+      "tail_call": false,
+      "line": 2609,
+      "sites": [
+        {
+          "line": 2609,
+          "argument_kind": "parameter",
+          "argument": "key",
+          "dispatcher": "_PyObject_HashDictKey"
+        }
+      ],
+      "confidence": "low",
+      "detail": "'PyDict_GetItemRef' calls _PyObject_HashDictKey on a caller-supplied value \u2014 this adds exactly one C frame, so it is an entry point into the unguarded hash graph rather than an additive descent. _PyObject_HashDictKey (Include/internal/pycore_object.h:840 \u2014 a Py_ALWAYS_INLINE wrapper whose tail is PyObject_Hash) is an element-descent dispatcher with NO recursion guard, so a tp_hash descent is unguarded at every level: a deeply-nested or cyclic object overflows the C stack (SIGSEGV) instead of raising RecursionError. Bracket the descent with Py_EnterRecursiveCall(\" while hashing\")/Py_LeaveRecursiveCall().",
+      "file": "Objects/dictobject.c"
+    },
+    {
+      "type": "missing_recursion_guard",
+      "function": "_PyDict_GetItemRef_Unicode_LockHeld",
+      "slot": "not_a_slot",
+      "shape": "hash_entry_point",
+      "element_op": "_PyObject_HashDictKey",
+      "argument_kind": "parameter",
+      "tail_call": false,
+      "line": 2625,
+      "sites": [
+        {
+          "line": 2625,
+          "argument_kind": "parameter",
+          "argument": "key",
+          "dispatcher": "_PyObject_HashDictKey"
+        }
+      ],
+      "confidence": "low",
+      "detail": "'_PyDict_GetItemRef_Unicode_LockHeld' calls _PyObject_HashDictKey on a caller-supplied value \u2014 this adds exactly one C frame, so it is an entry point into the unguarded hash graph rather than an additive descent. _PyObject_HashDictKey (Include/internal/pycore_object.h:840 \u2014 a Py_ALWAYS_INLINE wrapper whose tail is PyObject_Hash) is an element-descent dispatcher with NO recursion guard, so a tp_hash descent is unguarded at every level: a deeply-nested or cyclic object overflows the C stack (SIGSEGV) instead of raising RecursionError. Bracket the descent with Py_EnterRecursiveCall(\" while hashing\")/Py_LeaveRecursiveCall().",
+      "file": "Objects/dictobject.c"
+    },
+    {
+      "type": "missing_recursion_guard",
+      "function": "PyDict_GetItemWithError",
+      "slot": "not_a_slot",
+      "shape": "hash_entry_point",
+      "element_op": "_PyObject_HashDictKey",
+      "argument_kind": "parameter",
+      "tail_call": false,
+      "line": 2663,
+      "sites": [
+        {
+          "line": 2663,
+          "argument_kind": "parameter",
+          "argument": "key",
+          "dispatcher": "_PyObject_HashDictKey"
+        }
+      ],
+      "confidence": "low",
+      "detail": "'PyDict_GetItemWithError' calls _PyObject_HashDictKey on a caller-supplied value \u2014 this adds exactly one C frame, so it is an entry point into the unguarded hash graph rather than an additive descent. _PyObject_HashDictKey (Include/internal/pycore_object.h:840 \u2014 a Py_ALWAYS_INLINE wrapper whose tail is PyObject_Hash) is an element-descent dispatcher with NO recursion guard, so a tp_hash descent is unguarded at every level: a deeply-nested or cyclic object overflows the C stack (SIGSEGV) instead of raising RecursionError. Bracket the descent with Py_EnterRecursiveCall(\" while hashing\")/Py_LeaveRecursiveCall().",
+      "file": "Objects/dictobject.c"
+    },
+    {
+      "type": "missing_recursion_guard",
+      "function": "_PyDict_LoadGlobal",
+      "slot": "not_a_slot",
+      "shape": "hash_entry_point",
+      "element_op": "_PyObject_HashDictKey",
+      "argument_kind": "parameter",
+      "tail_call": false,
+      "line": 2722,
+      "sites": [
+        {
+          "line": 2722,
+          "argument_kind": "parameter",
+          "argument": "key",
+          "dispatcher": "_PyObject_HashDictKey"
+        }
+      ],
+      "confidence": "low",
+      "detail": "'_PyDict_LoadGlobal' calls _PyObject_HashDictKey on a caller-supplied value \u2014 this adds exactly one C frame, so it is an entry point into the unguarded hash graph rather than an additive descent. _PyObject_HashDictKey (Include/internal/pycore_object.h:840 \u2014 a Py_ALWAYS_INLINE wrapper whose tail is PyObject_Hash) is an element-descent dispatcher with NO recursion guard, so a tp_hash descent is unguarded at every level: a deeply-nested or cyclic object overflows the C stack (SIGSEGV) instead of raising RecursionError. Bracket the descent with Py_EnterRecursiveCall(\" while hashing\")/Py_LeaveRecursiveCall().",
+      "file": "Objects/dictobject.c"
+    },
+    {
+      "type": "missing_recursion_guard",
+      "function": "_PyDict_LoadGlobalStackRef",
+      "slot": "not_a_slot",
+      "shape": "hash_entry_point",
+      "element_op": "_PyObject_HashDictKey",
+      "argument_kind": "parameter",
+      "tail_call": false,
+      "line": 2746,
+      "sites": [
+        {
+          "line": 2746,
+          "argument_kind": "parameter",
+          "argument": "key",
+          "dispatcher": "_PyObject_HashDictKey"
+        }
+      ],
+      "confidence": "low",
+      "detail": "'_PyDict_LoadGlobalStackRef' calls _PyObject_HashDictKey on a caller-supplied value \u2014 this adds exactly one C frame, so it is an entry point into the unguarded hash graph rather than an additive descent. _PyObject_HashDictKey (Include/internal/pycore_object.h:840 \u2014 a Py_ALWAYS_INLINE wrapper whose tail is PyObject_Hash) is an element-descent dispatcher with NO recursion guard, so a tp_hash descent is unguarded at every level: a deeply-nested or cyclic object overflows the C stack (SIGSEGV) instead of raising RecursionError. Bracket the descent with Py_EnterRecursiveCall(\" while hashing\")/Py_LeaveRecursiveCall().",
+      "file": "Objects/dictobject.c"
+    },
+    {
+      "type": "missing_recursion_guard",
+      "function": "setitem_take2_lock_held",
+      "slot": "not_a_slot",
+      "shape": "hash_entry_point",
+      "element_op": "_PyObject_HashDictKey",
+      "argument_kind": "parameter",
+      "tail_call": false,
+      "line": 2823,
+      "sites": [
+        {
+          "line": 2823,
+          "argument_kind": "parameter",
+          "argument": "key",
+          "dispatcher": "_PyObject_HashDictKey"
+        }
+      ],
+      "confidence": "low",
+      "detail": "'setitem_take2_lock_held' calls _PyObject_HashDictKey on a caller-supplied value \u2014 this adds exactly one C frame, so it is an entry point into the unguarded hash graph rather than an additive descent. _PyObject_HashDictKey (Include/internal/pycore_object.h:840 \u2014 a Py_ALWAYS_INLINE wrapper whose tail is PyObject_Hash) is an element-descent dispatcher with NO recursion guard, so a tp_hash descent is unguarded at every level: a deeply-nested or cyclic object overflows the C stack (SIGSEGV) instead of raising RecursionError. Bracket the descent with Py_EnterRecursiveCall(\" while hashing\")/Py_LeaveRecursiveCall().",
+      "file": "Objects/dictobject.c"
+    },
+    {
+      "type": "missing_recursion_guard",
+      "function": "PyDict_DelItem",
+      "slot": "not_a_slot",
+      "shape": "hash_entry_point",
+      "element_op": "_PyObject_HashDictKey",
+      "argument_kind": "parameter",
+      "tail_call": false,
+      "line": 3001,
+      "sites": [
+        {
+          "line": 3001,
+          "argument_kind": "parameter",
+          "argument": "key",
+          "dispatcher": "_PyObject_HashDictKey"
+        }
+      ],
+      "confidence": "low",
+      "detail": "'PyDict_DelItem' calls _PyObject_HashDictKey on a caller-supplied value \u2014 this adds exactly one C frame, so it is an entry point into the unguarded hash graph rather than an additive descent. _PyObject_HashDictKey (Include/internal/pycore_object.h:840 \u2014 a Py_ALWAYS_INLINE wrapper whose tail is PyObject_Hash) is an element-descent dispatcher with NO recursion guard, so a tp_hash descent is unguarded at every level: a deeply-nested or cyclic object overflows the C stack (SIGSEGV) instead of raising RecursionError. Bracket the descent with Py_EnterRecursiveCall(\" while hashing\")/Py_LeaveRecursiveCall().",
+      "file": "Objects/dictobject.c"
+    },
+    {
+      "type": "missing_recursion_guard",
+      "function": "delitemif_lock_held",
+      "slot": "not_a_slot",
+      "shape": "hash_entry_point",
+      "element_op": "PyObject_Hash",
+      "argument_kind": "parameter",
+      "tail_call": false,
+      "line": 3067,
+      "sites": [
+        {
+          "line": 3067,
+          "argument_kind": "parameter",
+          "argument": "key",
+          "dispatcher": "PyObject_Hash"
+        }
+      ],
+      "confidence": "low",
+      "detail": "'delitemif_lock_held' calls PyObject_Hash on a caller-supplied value \u2014 this adds exactly one C frame, so it is an entry point into the unguarded hash graph rather than an additive descent. PyObject_Hash (Objects/object.c:1158) is an element-descent dispatcher with NO recursion guard, so a tp_hash descent is unguarded at every level: a deeply-nested or cyclic object overflows the C stack (SIGSEGV) instead of raising RecursionError. Bracket the descent with Py_EnterRecursiveCall(\" while hashing\")/Py_LeaveRecursiveCall().",
+      "file": "Objects/dictobject.c"
+    },
+    {
+      "type": "missing_recursion_guard",
+      "function": "pop_lock_held",
+      "slot": "not_a_slot",
+      "shape": "hash_entry_point",
+      "element_op": "_PyObject_HashDictKey",
+      "argument_kind": "parameter",
+      "tail_call": false,
+      "line": 3345,
+      "sites": [
+        {
+          "line": 3345,
+          "argument_kind": "parameter",
+          "argument": "key",
+          "dispatcher": "_PyObject_HashDictKey"
+        }
+      ],
+      "confidence": "low",
+      "detail": "'pop_lock_held' calls _PyObject_HashDictKey on a caller-supplied value \u2014 this adds exactly one C frame, so it is an entry point into the unguarded hash graph rather than an additive descent. _PyObject_HashDictKey (Include/internal/pycore_object.h:840 \u2014 a Py_ALWAYS_INLINE wrapper whose tail is PyObject_Hash) is an element-descent dispatcher with NO recursion guard, so a tp_hash descent is unguarded at every level: a deeply-nested or cyclic object overflows the C stack (SIGSEGV) instead of raising RecursionError. Bracket the descent with Py_EnterRecursiveCall(\" while hashing\")/Py_LeaveRecursiveCall().",
+      "file": "Objects/dictobject.c"
+    },
+    {
+      "type": "missing_recursion_guard",
+      "function": "_PyDict_Subscript",
+      "slot": "not_a_slot",
+      "shape": "hash_entry_point",
+      "element_op": "_PyObject_HashDictKey",
+      "argument_kind": "parameter",
+      "tail_call": false,
+      "line": 3831,
+      "sites": [
+        {
+          "line": 3831,
+          "argument_kind": "parameter",
+          "argument": "key",
+          "dispatcher": "_PyObject_HashDictKey"
+        }
+      ],
+      "confidence": "low",
+      "detail": "'_PyDict_Subscript' calls _PyObject_HashDictKey on a caller-supplied value \u2014 this adds exactly one C frame, so it is an entry point into the unguarded hash graph rather than an additive descent. _PyObject_HashDictKey (Include/internal/pycore_object.h:840 \u2014 a Py_ALWAYS_INLINE wrapper whose tail is PyObject_Hash) is an element-descent dispatcher with NO recursion guard, so a tp_hash descent is unguarded at every level: a deeply-nested or cyclic object overflows the C stack (SIGSEGV) instead of raising RecursionError. Bracket the descent with Py_EnterRecursiveCall(\" while hashing\")/Py_LeaveRecursiveCall().",
+      "file": "Objects/dictobject.c"
+    },
+    {
+      "type": "missing_recursion_guard",
+      "function": "dict_get_impl",
+      "slot": "not_a_slot",
+      "shape": "hash_entry_point",
+      "element_op": "_PyObject_HashDictKey",
+      "argument_kind": "parameter",
+      "tail_call": false,
+      "line": 4798,
+      "sites": [
+        {
+          "line": 4798,
+          "argument_kind": "parameter",
+          "argument": "key",
+          "dispatcher": "_PyObject_HashDictKey"
+        }
+      ],
+      "confidence": "low",
+      "detail": "'dict_get_impl' calls _PyObject_HashDictKey on a caller-supplied value \u2014 this adds exactly one C frame, so it is an entry point into the unguarded hash graph rather than an additive descent. _PyObject_HashDictKey (Include/internal/pycore_object.h:840 \u2014 a Py_ALWAYS_INLINE wrapper whose tail is PyObject_Hash) is an element-descent dispatcher with NO recursion guard, so a tp_hash descent is unguarded at every level: a deeply-nested or cyclic object overflows the C stack (SIGSEGV) instead of raising RecursionError. Bracket the descent with Py_EnterRecursiveCall(\" while hashing\")/Py_LeaveRecursiveCall().",
+      "file": "Objects/dictobject.c"
+    },
+    {
+      "type": "missing_recursion_guard",
+      "function": "dict_setdefault_ref_lock_held",
+      "slot": "not_a_slot",
+      "shape": "hash_entry_point",
+      "element_op": "_PyObject_HashDictKey",
+      "argument_kind": "parameter",
+      "tail_call": false,
+      "line": 4835,
+      "sites": [
+        {
+          "line": 4835,
+          "argument_kind": "parameter",
+          "argument": "key",
+          "dispatcher": "_PyObject_HashDictKey"
+        }
+      ],
+      "confidence": "low",
+      "detail": "'dict_setdefault_ref_lock_held' calls _PyObject_HashDictKey on a caller-supplied value \u2014 this adds exactly one C frame, so it is an entry point into the unguarded hash graph rather than an additive descent. _PyObject_HashDictKey (Include/internal/pycore_object.h:840 \u2014 a Py_ALWAYS_INLINE wrapper whose tail is PyObject_Hash) is an element-descent dispatcher with NO recursion guard, so a tp_hash descent is unguarded at every level: a deeply-nested or cyclic object overflows the C stack (SIGSEGV) instead of raising RecursionError. Bracket the descent with Py_EnterRecursiveCall(\" while hashing\")/Py_LeaveRecursiveCall().",
+      "file": "Objects/dictobject.c"
+    },
+    {
+      "type": "missing_recursion_guard",
+      "function": "dict_contains",
+      "slot": "not_a_slot",
+      "shape": "hash_entry_point",
+      "element_op": "_PyObject_HashDictKey",
+      "argument_kind": "parameter",
+      "tail_call": false,
+      "line": 5278,
+      "sites": [
+        {
+          "line": 5278,
+          "argument_kind": "parameter",
+          "argument": "key",
+          "dispatcher": "_PyObject_HashDictKey"
+        }
+      ],
+      "confidence": "low",
+      "detail": "'dict_contains' calls _PyObject_HashDictKey on a caller-supplied value \u2014 this adds exactly one C frame, so it is an entry point into the unguarded hash graph rather than an additive descent. _PyObject_HashDictKey (Include/internal/pycore_object.h:840 \u2014 a Py_ALWAYS_INLINE wrapper whose tail is PyObject_Hash) is an element-descent dispatcher with NO recursion guard, so a tp_hash descent is unguarded at every level: a deeply-nested or cyclic object overflows the C stack (SIGSEGV) instead of raising RecursionError. Bracket the descent with Py_EnterRecursiveCall(\" while hashing\")/Py_LeaveRecursiveCall().",
+      "file": "Objects/dictobject.c"
+    },
+    {
+      "type": "missing_recursion_guard",
+      "function": "_PyDict_SetItem_LockHeld",
+      "slot": "not_a_slot",
+      "shape": "hash_entry_point",
+      "element_op": "_PyObject_HashDictKey",
+      "argument_kind": "parameter",
+      "tail_call": false,
+      "line": 7423,
+      "sites": [
+        {
+          "line": 7423,
+          "argument_kind": "parameter",
+          "argument": "name",
+          "dispatcher": "_PyObject_HashDictKey"
+        }
+      ],
+      "confidence": "low",
+      "detail": "'_PyDict_SetItem_LockHeld' calls _PyObject_HashDictKey on a caller-supplied value \u2014 this adds exactly one C frame, so it is an entry point into the unguarded hash graph rather than an additive descent. _PyObject_HashDictKey (Include/internal/pycore_object.h:840 \u2014 a Py_ALWAYS_INLINE wrapper whose tail is PyObject_Hash) is an element-descent dispatcher with NO recursion guard, so a tp_hash descent is unguarded at every level: a deeply-nested or cyclic object overflows the C stack (SIGSEGV) instead of raising RecursionError. Bracket the descent with Py_EnterRecursiveCall(\" while hashing\")/Py_LeaveRecursiveCall().",
+      "file": "Objects/dictobject.c"
+    },
+    {
+      "type": "missing_recursion_guard",
+      "function": "frozendict_pair_hash",
+      "slot": "tp_hash",
+      "shape": "slot_helper_descent",
+      "element_op": "PyObject_Hash",
+      "argument_kind": "parameter",
+      "tail_call": false,
+      "line": 8427,
+      "sites": [
+        {
+          "line": 8427,
+          "argument_kind": "parameter",
+          "argument": "value",
+          "dispatcher": "PyObject_Hash"
+        }
+      ],
+      "confidence": "high",
+      "detail": "'frozendict_pair_hash' calls PyObject_Hash on a parameter and is called from recursion-prone slot(s) frozendict_hash in the same file, so the descent is additive per nesting level. PyObject_Hash (Objects/object.c:1158) is an element-descent dispatcher with NO recursion guard, so a tp_hash descent is unguarded at every level: a deeply-nested or cyclic object overflows the C stack (SIGSEGV) instead of raising RecursionError. Bracket the descent with Py_EnterRecursiveCall(\" while hashing\")/Py_LeaveRecursiveCall().",
+      "file": "Objects/dictobject.c"
+    },
+    {
+      "type": "missing_recursion_guard",
+      "function": "_PySet_AddTakeRef",
+      "slot": "not_a_slot",
+      "shape": "hash_entry_point",
+      "element_op": "PyObject_Hash",
+      "argument_kind": "parameter",
+      "tail_call": false,
+      "line": 364,
+      "sites": [
+        {
+          "line": 364,
+          "argument_kind": "parameter",
+          "argument": "key",
+          "dispatcher": "PyObject_Hash"
+        }
+      ],
+      "confidence": "low",
+      "detail": "'_PySet_AddTakeRef' calls PyObject_Hash on a caller-supplied value \u2014 this adds exactly one C frame, so it is an entry point into the unguarded hash graph rather than an additive descent. PyObject_Hash (Objects/object.c:1158) is an element-descent dispatcher with NO recursion guard, so a tp_hash descent is unguarded at every level: a deeply-nested or cyclic object overflows the C stack (SIGSEGV) instead of raising RecursionError. Bracket the descent with Py_EnterRecursiveCall(\" while hashing\")/Py_LeaveRecursiveCall().",
+      "file": "Objects/setobject.c"
+    },
+    {
+      "type": "missing_recursion_guard",
+      "function": "set_add_key",
+      "slot": "not_a_slot",
+      "shape": "hash_entry_point",
+      "element_op": "PyObject_Hash",
+      "argument_kind": "parameter",
+      "tail_call": false,
+      "line": 603,
+      "sites": [
+        {
+          "line": 603,
+          "argument_kind": "parameter",
+          "argument": "key",
+          "dispatcher": "PyObject_Hash"
+        }
+      ],
+      "confidence": "low",
+      "detail": "'set_add_key' calls PyObject_Hash on a caller-supplied value \u2014 this adds exactly one C frame, so it is an entry point into the unguarded hash graph rather than an additive descent. PyObject_Hash (Objects/object.c:1158) is an element-descent dispatcher with NO recursion guard, so a tp_hash descent is unguarded at every level: a deeply-nested or cyclic object overflows the C stack (SIGSEGV) instead of raising RecursionError. Bracket the descent with Py_EnterRecursiveCall(\" while hashing\")/Py_LeaveRecursiveCall().",
+      "file": "Objects/setobject.c"
+    },
+    {
+      "type": "missing_recursion_guard",
+      "function": "set_contains_key",
+      "slot": "not_a_slot",
+      "shape": "hash_entry_point",
+      "element_op": "PyObject_Hash",
+      "argument_kind": "parameter",
+      "tail_call": false,
+      "line": 614,
+      "sites": [
+        {
+          "line": 614,
+          "argument_kind": "parameter",
+          "argument": "key",
+          "dispatcher": "PyObject_Hash"
+        }
+      ],
+      "confidence": "low",
+      "detail": "'set_contains_key' calls PyObject_Hash on a caller-supplied value \u2014 this adds exactly one C frame, so it is an entry point into the unguarded hash graph rather than an additive descent. PyObject_Hash (Objects/object.c:1158) is an element-descent dispatcher with NO recursion guard, so a tp_hash descent is unguarded at every level: a deeply-nested or cyclic object overflows the C stack (SIGSEGV) instead of raising RecursionError. Bracket the descent with Py_EnterRecursiveCall(\" while hashing\")/Py_LeaveRecursiveCall().",
+      "file": "Objects/setobject.c"
+    },
+    {
+      "type": "missing_recursion_guard",
+      "function": "set_discard_key",
+      "slot": "not_a_slot",
+      "shape": "hash_entry_point",
+      "element_op": "PyObject_Hash",
+      "argument_kind": "parameter",
+      "tail_call": false,
+      "line": 625,
+      "sites": [
+        {
+          "line": 625,
+          "argument_kind": "parameter",
+          "argument": "key",
+          "dispatcher": "PyObject_Hash"
+        }
+      ],
+      "confidence": "low",
+      "detail": "'set_discard_key' calls PyObject_Hash on a caller-supplied value \u2014 this adds exactly one C frame, so it is an entry point into the unguarded hash graph rather than an additive descent. PyObject_Hash (Objects/object.c:1158) is an element-descent dispatcher with NO recursion guard, so a tp_hash descent is unguarded at every level: a deeply-nested or cyclic object overflows the C stack (SIGSEGV) instead of raising RecursionError. Bracket the descent with Py_EnterRecursiveCall(\" while hashing\")/Py_LeaveRecursiveCall().",
+      "file": "Objects/setobject.c"
+    },
+    {
+      "type": "missing_recursion_guard",
+      "function": "set_intersection",
+      "slot": "not_a_slot",
+      "shape": "hash_entry_point",
+      "element_op": "PyObject_Hash",
+      "argument_kind": "unknown",
+      "tail_call": false,
+      "line": 1773,
+      "sites": [
+        {
+          "line": 1773,
+          "argument_kind": "unknown",
+          "argument": "key",
+          "dispatcher": "PyObject_Hash"
+        }
+      ],
+      "confidence": "low",
+      "detail": "'set_intersection' calls PyObject_Hash on a caller-supplied value \u2014 this adds exactly one C frame, so it is an entry point into the unguarded hash graph rather than an additive descent. PyObject_Hash (Objects/object.c:1158) is an element-descent dispatcher with NO recursion guard, so a tp_hash descent is unguarded at every level: a deeply-nested or cyclic object overflows the C stack (SIGSEGV) instead of raising RecursionError. Bracket the descent with Py_EnterRecursiveCall(\" while hashing\")/Py_LeaveRecursiveCall().",
+      "file": "Objects/setobject.c"
+    },
+    {
+      "type": "missing_recursion_guard",
+      "function": "_PySet_Contains",
+      "slot": "not_a_slot",
+      "shape": "hash_entry_point",
+      "element_op": "PyObject_Hash",
+      "argument_kind": "parameter",
+      "tail_call": false,
+      "line": 2559,
+      "sites": [
+        {
+          "line": 2559,
+          "argument_kind": "parameter",
+          "argument": "key",
+          "dispatcher": "PyObject_Hash"
+        }
+      ],
+      "confidence": "low",
+      "detail": "'_PySet_Contains' calls PyObject_Hash on a caller-supplied value \u2014 this adds exactly one C frame, so it is an entry point into the unguarded hash graph rather than an additive descent. PyObject_Hash (Objects/object.c:1158) is an element-descent dispatcher with NO recursion guard, so a tp_hash descent is unguarded at every level: a deeply-nested or cyclic object overflows the C stack (SIGSEGV) instead of raising RecursionError. Bracket the descent with Py_EnterRecursiveCall(\" while hashing\")/Py_LeaveRecursiveCall().",
+      "file": "Objects/setobject.c"
+    },
+    {
+      "type": "missing_recursion_guard",
+      "function": "frozenset___contains___impl",
+      "slot": "not_a_slot",
+      "shape": "hash_entry_point",
+      "element_op": "PyObject_Hash",
+      "argument_kind": "parameter",
+      "tail_call": false,
+      "line": 2619,
+      "sites": [
+        {
+          "line": 2619,
+          "argument_kind": "parameter",
+          "argument": "key",
+          "dispatcher": "PyObject_Hash"
+        }
+      ],
+      "confidence": "low",
+      "detail": "'frozenset___contains___impl' calls PyObject_Hash on a caller-supplied value \u2014 this adds exactly one C frame, so it is an entry point into the unguarded hash graph rather than an additive descent. PyObject_Hash (Objects/object.c:1158) is an element-descent dispatcher with NO recursion guard, so a tp_hash descent is unguarded at every level: a deeply-nested or cyclic object overflows the C stack (SIGSEGV) instead of raising RecursionError. Bracket the descent with Py_EnterRecursiveCall(\" while hashing\")/Py_LeaveRecursiveCall().",
+      "file": "Objects/setobject.c"
+    },
+    {
+      "type": "missing_recursion_guard",
+      "function": "PySet_Contains",
+      "slot": "not_a_slot",
+      "shape": "hash_entry_point",
+      "element_op": "PyObject_Hash",
+      "argument_kind": "parameter",
+      "tail_call": false,
+      "line": 3084,
+      "sites": [
+        {
+          "line": 3084,
+          "argument_kind": "parameter",
+          "argument": "key",
+          "dispatcher": "PyObject_Hash"
+        }
+      ],
+      "confidence": "low",
+      "detail": "'PySet_Contains' calls PyObject_Hash on a caller-supplied value \u2014 this adds exactly one C frame, so it is an entry point into the unguarded hash graph rather than an additive descent. PyObject_Hash (Objects/object.c:1158) is an element-descent dispatcher with NO recursion guard, so a tp_hash descent is unguarded at every level: a deeply-nested or cyclic object overflows the C stack (SIGSEGV) instead of raising RecursionError. Bracket the descent with Py_EnterRecursiveCall(\" while hashing\")/Py_LeaveRecursiveCall().",
+      "file": "Objects/setobject.c"
+    }
+  ],
+  "summary": {
+    "total_findings": 25,
+    "missing_recursion_guard": 25,
+    "guarded_by_dispatcher": 0,
+    "by_confidence": {
+      "low": 24,
+      "high": 1
+    },
+    "by_shape": {
+      "hash_entry_point": 24,
+      "slot_helper_descent": 1
+    },
+    "by_type": {
+      "missing_recursion_guard": 25
+    }
+  },
+  "recursion_prone_slot_functions": 17,
+  "dispatcher_guard_model": {
+    "unguarded": {
+      "PyObject_Hash": "Objects/object.c:1158 \u2014 NO guard",
+      "_PyObject_HashDictKey": "Include/internal/pycore_object.h:840 \u2014 Py_ALWAYS_INLINE alias, tail-calls PyObject_Hash, so equally unguarded"
+    },
+    "guarded": {
+      "PyObject_Repr": "Objects/object.c:759",
+      "PyObject_Str": "Objects/object.c:800",
+      "PyObject_ASCII": "Objects/object.c:759 (via PyObject_Repr)",
+      "PyObject_RichCompare": "Objects/object.c:1099",
+      "PyObject_RichCompareBool": "Objects/object.c:1099 (via PyObject_RichCompare)"
+    },
+    "bound_zero_excluded": [
+      "PyObject_GenericHash",
+      "Py_HashBuffer",
+      "Py_HashPointer",
+      "PyObject_GenericHash",
+      "Py_HashBuffer",
+      "Py_HashPointer"
+    ],
+    "note": "Verified against CPython main @ 3.16.0a0. Only the hash dispatchers lack _Py_EnterRecursiveCallTstate, so only hash descents are unguarded at every level. Self-recursion is unguarded regardless of dispatcher. bound_zero_excluded lists hash spellings deliberately kept out of the vocabulary because they never descend into the object graph (identity, raw pointer, flat byte range)."
+  },
+  "large_cycles_not_reported": [],
+  "cycle_reporting_cap": 6,
+  "skipped_files": [],
+  "denominators": {
+    "files_analyzed": 2,
+    "functions_analyzed": 404,
+    "findings": 25,
+    "recursion_prone_slot_functions": 17
+  },
+  "_sample": {
+    "files_requested": [
+      "Objects/dictobject.c",
+      "Objects/setobject.c"
+    ],
+    "files_scanned": [
+      "Objects/dictobject.c",
+      "Objects/setobject.c"
+    ],
+    "files_missing": [],
+    "method": "the scanner was RE-RUN over exactly these files; every count in this report is sample-scoped. This is not a post-hoc filter of a corpus-wide scan -- a filtered report keeps corpus-wide denominators next to sample-scoped findings, which makes an unearned zero look earned.",
+    "merge_policy": {
+      "project_root": "carried (constant, not a count)",
+      "scan_root": "carried (constant, not a count)",
+      "files_analyzed": "summed",
+      "functions_analyzed": "summed",
+      "findings": "concatenated",
+      "summary": "merged key-wise",
+      "summary.total_findings": "summed",
+      "summary.missing_recursion_guard": "summed",
+      "summary.guarded_by_dispatcher": "summed",
+      "summary.by_confidence": "merged key-wise",
+      "summary.by_confidence.low": "summed",
+      "summary.by_shape": "merged key-wise",
+      "summary.by_shape.hash_entry_point": "summed",
+      "summary.by_type": "merged key-wise",
+      "summary.by_type.missing_recursion_guard": "summed",
+      "recursion_prone_slot_functions": "summed",
+      "dispatcher_guard_model": "merged key-wise",
+      "dispatcher_guard_model.unguarded": "merged key-wise",
+      "dispatcher_guard_model.unguarded.PyObject_Hash": "carried (first)",
+      "dispatcher_guard_model.unguarded._PyObject_HashDictKey": "carried (first)",
+      "dispatcher_guard_model.guarded": "merged key-wise",
+      "dispatcher_guard_model.guarded.PyObject_Repr": "carried (first)",
+      "dispatcher_guard_model.guarded.PyObject_Str": "carried (first)",
+      "dispatcher_guard_model.guarded.PyObject_ASCII": "carried (first)",
+      "dispatcher_guard_model.guarded.PyObject_RichCompare": "carried (first)",
+      "dispatcher_guard_model.guarded.PyObject_RichCompareBool": "carried (first)",
+      "dispatcher_guard_model.bound_zero_excluded": "concatenated",
+      "dispatcher_guard_model.note": "carried (first)",
+      "large_cycles_not_reported": "concatenated",
+      "cycle_reporting_cap": "summed",
+      "skipped_files": "concatenated",
+      "denominators": "merged key-wise",
+      "denominators.files_analyzed": "summed",
+      "denominators.functions_analyzed": "summed",
+      "denominators.findings": "summed",
+      "denominators.recursion_prone_slot_functions": "summed"
+    }
+  }
+}

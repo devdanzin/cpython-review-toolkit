@@ -1,0 +1,101 @@
+{
+  "project_root": "/home/danzin/projects/cpython",
+  "scan_root": "/home/danzin/projects/cpython",
+  "files_analyzed": 2,
+  "functions_analyzed": 312,
+  "denominators": {
+    "files_analyzed": 2,
+    "functions_analyzed": 312,
+    "findings": 4,
+    "fallible_assignment_sites": 36,
+    "int_status_callees_resolved": 112,
+    "int_status_callees_discovered": 52
+  },
+  "findings": [
+    {
+      "type": "alloc_null_no_memerror",
+      "api_call": "PyMem_Malloc",
+      "variable": "res",
+      "detail": "PyMem_Malloc does not set MemoryError; the failure branch for 'res' returns an error sentinel without PyErr_NoMemory()",
+      "confidence": "high",
+      "file": "Objects/dictobject.c",
+      "function": "new_values",
+      "line": 917,
+      "guard_line": 918
+    },
+    {
+      "type": "unconditional_pyerr_clear",
+      "api_call": "PyErr_Clear",
+      "detail": "PyErr_Clear() with no PyErr_ExceptionMatches within the preceding 3 lines \u2014 swallows any live exception, including KeyboardInterrupt and MemoryError raised by user code",
+      "confidence": "medium",
+      "file": "Objects/dictobject.c",
+      "function": "_PyDictKeys_StringLookupSplit",
+      "line": 1336
+    },
+    {
+      "type": "alloc_null_no_memerror",
+      "api_call": "PyMem_Malloc",
+      "variable": "shared_keys",
+      "detail": "PyMem_Malloc does not set MemoryError; the failure branch for 'shared_keys' returns an error sentinel without PyErr_NoMemory()",
+      "confidence": "high",
+      "file": "Objects/dictobject.c",
+      "function": "_PyDict_NewKeysForClass",
+      "line": 7264,
+      "guard_line": 7268
+    },
+    {
+      "type": "unconditional_pyerr_clear",
+      "api_call": "PyErr_Clear",
+      "detail": "PyErr_Clear() with no PyErr_ExceptionMatches within the preceding 3 lines \u2014 swallows any live exception, including KeyboardInterrupt and MemoryError raised by user code",
+      "confidence": "medium",
+      "file": "Objects/dictobject.c",
+      "function": "_PyDict_NewKeysForClass",
+      "line": 7269
+    }
+  ],
+  "summary": {
+    "missing_null_checks": 0,
+    "unchecked_returns": 0,
+    "alloc_null_no_memerror": 2,
+    "unconditional_pyerr_clear": 2,
+    "pylong_sentinel_no_errcheck": 0,
+    "unchecked_parse_calls": 0,
+    "int_status_never_tested": 0,
+    "total_findings": 4
+  },
+  "_sample": {
+    "files_requested": [
+      "Objects/dictobject.c",
+      "Objects/setobject.c"
+    ],
+    "files_scanned": [
+      "Objects/dictobject.c",
+      "Objects/setobject.c"
+    ],
+    "files_missing": [],
+    "method": "the scanner was RE-RUN over exactly these files; every count in this report is sample-scoped. This is not a post-hoc filter of a corpus-wide scan -- a filtered report keeps corpus-wide denominators next to sample-scoped findings, which makes an unearned zero look earned.",
+    "merge_policy": {
+      "project_root": "carried (constant, not a count)",
+      "scan_root": "carried (constant, not a count)",
+      "files_analyzed": "summed",
+      "functions_analyzed": "summed",
+      "denominators": "merged key-wise",
+      "denominators.files_analyzed": "summed",
+      "denominators.functions_analyzed": "summed",
+      "denominators.findings": "summed",
+      "denominators.fallible_assignment_sites": "summed",
+      "denominators.int_status_callees_resolved": "summed",
+      "denominators.int_status_callees_discovered": "summed",
+      "findings": "concatenated",
+      "summary": "merged key-wise",
+      "summary.missing_null_checks": "summed",
+      "summary.unchecked_returns": "summed",
+      "summary.alloc_null_no_memerror": "summed",
+      "summary.unconditional_pyerr_clear": "summed",
+      "summary.pylong_sentinel_no_errcheck": "summed",
+      "summary.unchecked_parse_calls": "summed",
+      "summary.int_status_never_tested": "summed",
+      "summary.total_findings": "summed"
+    }
+  }
+}

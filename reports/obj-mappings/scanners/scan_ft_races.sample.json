@@ -1,0 +1,293 @@
+{
+  "project_root": "/home/danzin/projects/cpython",
+  "scan_root": "/home/danzin/projects/cpython",
+  "files_analyzed": 2,
+  "functions_analyzed": 404,
+  "findings": [
+    {
+      "type": "atomic_plain_asymmetry",
+      "ft_class": "T1",
+      "file": "Objects/dictobject.c",
+      "member": "PyDictKeysObject.dk_nentries",
+      "function": "dictkeys_decref",
+      "line": 508,
+      "guarded_twin": "split_keys_entry_added:248",
+      "confidence": "low",
+      "detail": "'PyDictKeysObject.dk_nentries' (`dk->dk_nentries`) is accessed via an atomic macro (_Py_atomic_* / FT_ATOMIC_*) at split_keys_entry_added:248 but is read plainly here, outside any critical section \u2014 this access is unsynchronized (cf. itertools count_repr / TSAN-0006). Make every access to a concurrently-shared field atomic, or hold the same lock at both sites."
+    },
+    {
+      "type": "atomic_plain_asymmetry",
+      "ft_class": "T1",
+      "file": "Objects/dictobject.c",
+      "member": "PyDictKeysObject.dk_nentries",
+      "function": "dictkeys_decref",
+      "line": 516,
+      "guarded_twin": "split_keys_entry_added:248",
+      "confidence": "low",
+      "detail": "'PyDictKeysObject.dk_nentries' (`dk->dk_nentries`) is accessed via an atomic macro (_Py_atomic_* / FT_ATOMIC_*) at split_keys_entry_added:248 but is read plainly here, outside any critical section \u2014 this access is unsynchronized (cf. itertools count_repr / TSAN-0006). Make every access to a concurrently-shared field atomic, or hold the same lock at both sites."
+    },
+    {
+      "type": "atomic_plain_asymmetry",
+      "ft_class": "T1",
+      "file": "Objects/dictobject.c",
+      "member": "PyDictObject.ma_values",
+      "function": "get_index_from_order",
+      "line": 676,
+      "guarded_twin": "set_values:215",
+      "confidence": "low",
+      "detail": "'PyDictObject.ma_values' (`mp->ma_values`) is accessed via an atomic macro (_Py_atomic_* / FT_ATOMIC_*) at set_values:215 but is read plainly here, outside any critical section \u2014 this access is unsynchronized (cf. itertools count_repr / TSAN-0006). Make every access to a concurrently-shared field atomic, or hold the same lock at both sites."
+    },
+    {
+      "type": "atomic_plain_asymmetry",
+      "ft_class": "T1",
+      "file": "Objects/dictobject.c",
+      "member": "PyDictKeysObject.dk_usable",
+      "function": "insert_to_emptydict",
+      "line": 2122,
+      "guarded_twin": "_PyObject_InitInlineValues:7315",
+      "confidence": "low",
+      "detail": "'PyDictKeysObject.dk_usable' (`newkeys->dk_usable`) is written plainly here under a critical section, but is accessed with an atomic macro and no lock at _PyObject_InitInlineValues:7315. The two synchronisation disciplines do not compose: an atomic access racing a non-atomic one is a data race by definition, and the atomic spelling is proof the maintainers already knew the field was shared (reproduced under TSan at _collectionsmodule.c dequeiter_next_lock_held / dequeiter_len). Use FT_ATOMIC_* here too."
+    },
+    {
+      "type": "atomic_plain_asymmetry",
+      "ft_class": "T1",
+      "file": "Objects/dictobject.c",
+      "member": "PyDictKeysObject.dk_nentries",
+      "function": "insert_to_emptydict",
+      "line": 2123,
+      "guarded_twin": "load_keys_nentries:201",
+      "confidence": "low",
+      "detail": "'PyDictKeysObject.dk_nentries' (`newkeys->dk_nentries`) is written plainly here under a critical section, but is accessed with an atomic macro and no lock at load_keys_nentries:201. The two synchronisation disciplines do not compose: an atomic access racing a non-atomic one is a data race by definition, and the atomic spelling is proof the maintainers already knew the field was shared (reproduced under TSan at _collectionsmodule.c dequeiter_next_lock_held / dequeiter_len). Use FT_ATOMIC_* here too."
+    },
+    {
+      "type": "atomic_plain_asymmetry",
+      "ft_class": "T1",
+      "file": "Objects/dictobject.c",
+      "member": "PyDictValues.size",
+      "function": "delete_index_from_values",
+      "line": 2951,
+      "guarded_twin": "dictiter_iternext_threadsafe:6091",
+      "confidence": "low",
+      "detail": "'PyDictValues.size' (`values->size`) is written plainly here under a critical section, but is accessed with an atomic macro and no lock at dictiter_iternext_threadsafe:6091. The two synchronisation disciplines do not compose: an atomic access racing a non-atomic one is a data race by definition, and the atomic spelling is proof the maintainers already knew the field was shared (reproduced under TSan at _collectionsmodule.c dequeiter_next_lock_held / dequeiter_len). Use FT_ATOMIC_* here too."
+    },
+    {
+      "type": "atomic_plain_asymmetry",
+      "ft_class": "T1",
+      "file": "Objects/dictobject.c",
+      "member": "PyDictValues.size",
+      "function": "clear_embedded_values",
+      "line": 3117,
+      "guarded_twin": "dictiter_iternext_threadsafe:6091",
+      "confidence": "low",
+      "detail": "'PyDictValues.size' (`values->size`) is written plainly here under a critical section, but is accessed with an atomic macro and no lock at dictiter_iternext_threadsafe:6091. The two synchronisation disciplines do not compose: an atomic access racing a non-atomic one is a data race by definition, and the atomic spelling is proof the maintainers already knew the field was shared (reproduced under TSan at _collectionsmodule.c dequeiter_next_lock_held / dequeiter_len). Use FT_ATOMIC_* here too."
+    },
+    {
+      "type": "atomic_plain_asymmetry",
+      "ft_class": "T1",
+      "file": "Objects/dictobject.c",
+      "member": "PyDictObject.ma_values",
+      "function": "_PyDict_Next",
+      "line": 3206,
+      "guarded_twin": "set_values:215",
+      "confidence": "low",
+      "detail": "'PyDictObject.ma_values' (`mp->ma_values`) is accessed via an atomic macro (_Py_atomic_* / FT_ATOMIC_*) at set_values:215 but is read plainly here, outside any critical section \u2014 this access is unsynchronized (cf. itertools count_repr / TSAN-0006). Make every access to a concurrently-shared field atomic, or hold the same lock at both sites."
+    },
+    {
+      "type": "guarded_writer_unguarded_reader",
+      "ft_class": "T1",
+      "file": "Objects/dictobject.c",
+      "member": "PyDictUnicodeEntry.me_hash",
+      "function": "_PyDict_Next",
+      "line": 3236,
+      "guarded_twin": "insert_to_emptydict:2118",
+      "confidence": "low",
+      "detail": "'PyDictUnicodeEntry.me_hash' (`entry_ptr->me_hash`) is accessed under a critical section at insert_to_emptydict:2118 but is read plainly here, with nothing synchronising it. A lock held by only some accessors of a field serialises nothing: the guarded and unguarded accessors race each other. This is the shape of gh-153298 (ga_parameters / CPY-0025), gh-128714 (func.__annotations__ / CPY-0029) and gh-153908 (itertools count_repr). Py_ssize_t does not tear on LP64, so the visible effect is a stale value rather than memory unsafety \u2014 one FT_ATOMIC_* on each access is the fix. Guarded twin: insert_to_emptydict:2118."
+    },
+    {
+      "type": "atomic_plain_asymmetry",
+      "ft_class": "T1",
+      "file": "Objects/dictobject.c",
+      "member": "PyDictValues.size",
+      "function": "copy_values",
+      "line": 4462,
+      "guarded_twin": "dictiter_iternext_threadsafe:6091",
+      "confidence": "low",
+      "detail": "'PyDictValues.size' (`newvalues->size`) is written plainly here under a critical section, but is accessed with an atomic macro and no lock at dictiter_iternext_threadsafe:6091. The two synchronisation disciplines do not compose: an atomic access racing a non-atomic one is a data race by definition, and the atomic spelling is proof the maintainers already knew the field was shared (reproduced under TSan at _collectionsmodule.c dequeiter_next_lock_held / dequeiter_len). Use FT_ATOMIC_* here too."
+    },
+    {
+      "type": "guarded_writer_unguarded_reader",
+      "ft_class": "T1",
+      "file": "Objects/dictobject.c",
+      "member": "dictiterobject.di_used",
+      "function": "dictiter_len",
+      "line": 5682,
+      "guarded_twin": "dictiter_iternextitem_lock_held:5971",
+      "confidence": "low",
+      "detail": "'dictiterobject.di_used' (`di->di_used`) is accessed under a critical section at dictiter_iternextitem_lock_held:5971 but is read plainly here, with nothing synchronising it. A lock held by only some accessors of a field serialises nothing: the guarded and unguarded accessors race each other. This is the shape of gh-153298 (ga_parameters / CPY-0025), gh-128714 (func.__annotations__ / CPY-0029) and gh-153908 (itertools count_repr). Py_ssize_t does not tear on LP64, so the visible effect is a stale value rather than memory unsafety \u2014 one FT_ATOMIC_* on each access is the fix. Guarded twin: dictiter_iternextitem_lock_held:5971."
+    },
+    {
+      "type": "atomic_plain_asymmetry",
+      "ft_class": "T1",
+      "file": "Objects/dictobject.c",
+      "member": "dictiterobject.di_pos",
+      "function": "dictiter_iternextitem_lock_held",
+      "line": 6017,
+      "guarded_twin": "dictiter_iternextitem_lock_held:5975",
+      "confidence": "low",
+      "detail": "'dictiterobject.di_pos' (`di->di_pos`) is written plainly here under a critical section, but is accessed with an atomic macro and no lock at dictiter_iternextitem_lock_held:5975. The two synchronisation disciplines do not compose: an atomic access racing a non-atomic one is a data race by definition, and the atomic spelling is proof the maintainers already knew the field was shared (reproduced under TSan at _collectionsmodule.c dequeiter_next_lock_held / dequeiter_len). Use FT_ATOMIC_* here too."
+    },
+    {
+      "type": "atomic_plain_asymmetry",
+      "ft_class": "T1",
+      "file": "Objects/dictobject.c",
+      "member": "dictiterobject.len",
+      "function": "dictiter_iternextitem_lock_held",
+      "line": 6018,
+      "guarded_twin": "dictiter_len:5683",
+      "confidence": "low",
+      "detail": "'dictiterobject.len' (`di->len`) is written plainly here under a critical section, but is accessed with an atomic macro and no lock at dictiter_len:5683. The two synchronisation disciplines do not compose: an atomic access racing a non-atomic one is a data race by definition, and the atomic spelling is proof the maintainers already knew the field was shared (reproduced under TSan at _collectionsmodule.c dequeiter_next_lock_held / dequeiter_len). Use FT_ATOMIC_* here too."
+    },
+    {
+      "type": "atomic_plain_asymmetry",
+      "ft_class": "T1",
+      "file": "Objects/dictobject.c",
+      "member": "dictiterobject.di_pos",
+      "function": "dictreviter_iter_lock_held",
+      "line": 6305,
+      "guarded_twin": "dictiter_iternextitem_lock_held:5975",
+      "confidence": "low",
+      "detail": "'dictiterobject.di_pos' (`di->di_pos`) is written plainly here under a critical section, but is accessed with an atomic macro and no lock at dictiter_iternextitem_lock_held:5975. The two synchronisation disciplines do not compose: an atomic access racing a non-atomic one is a data race by definition, and the atomic spelling is proof the maintainers already knew the field was shared (reproduced under TSan at _collectionsmodule.c dequeiter_next_lock_held / dequeiter_len). Use FT_ATOMIC_* here too."
+    },
+    {
+      "type": "atomic_plain_asymmetry",
+      "ft_class": "T1",
+      "file": "Objects/dictobject.c",
+      "member": "dictiterobject.len",
+      "function": "dictreviter_iter_lock_held",
+      "line": 6306,
+      "guarded_twin": "dictiter_len:5683",
+      "confidence": "low",
+      "detail": "'dictiterobject.len' (`di->len`) is written plainly here under a critical section, but is accessed with an atomic macro and no lock at dictiter_len:5683. The two synchronisation disciplines do not compose: an atomic access racing a non-atomic one is a data race by definition, and the atomic spelling is proof the maintainers already knew the field was shared (reproduced under TSan at _collectionsmodule.c dequeiter_next_lock_held / dequeiter_len). Use FT_ATOMIC_* here too."
+    },
+    {
+      "type": "atomic_plain_asymmetry",
+      "ft_class": "T1",
+      "file": "Objects/dictobject.c",
+      "member": "PyDictKeysObject.dk_nentries",
+      "function": "_PyObject_IsInstanceDictEmpty",
+      "line": 7725,
+      "guarded_twin": "split_keys_entry_added:248",
+      "confidence": "low",
+      "detail": "'PyDictKeysObject.dk_nentries' (`keys->dk_nentries`) is accessed via an atomic macro (_Py_atomic_* / FT_ATOMIC_*) at split_keys_entry_added:248 but is read plainly here, outside any critical section \u2014 this access is unsynchronized (cf. itertools count_repr / TSAN-0006). Make every access to a concurrently-shared field atomic, or hold the same lock at both sites."
+    },
+    {
+      "type": "atomic_plain_asymmetry",
+      "ft_class": "T1",
+      "file": "Objects/dictobject.c",
+      "member": "PyDictValues.valid",
+      "function": "PyObject_VisitManagedDict",
+      "line": 7763,
+      "guarded_twin": "invalidate_and_clear_inline_values:2171",
+      "confidence": "low",
+      "detail": "'PyDictValues.valid' (`values->valid`) is accessed via an atomic macro (_Py_atomic_* / FT_ATOMIC_*) at invalidate_and_clear_inline_values:2171 but is read plainly here, outside any critical section \u2014 this access is unsynchronized (cf. itertools count_repr / TSAN-0006). Make every access to a concurrently-shared field atomic, or hold the same lock at both sites."
+    },
+    {
+      "type": "atomic_plain_asymmetry",
+      "ft_class": "T1",
+      "file": "Objects/dictobject.c",
+      "member": "PyDictValues.values",
+      "function": "PyObject_VisitManagedDict",
+      "line": 7765,
+      "guarded_twin": "invalidate_and_clear_inline_values:2173",
+      "confidence": "low",
+      "detail": "'PyDictValues.values' (`values->values`) is accessed via an atomic macro (_Py_atomic_* / FT_ATOMIC_*) at invalidate_and_clear_inline_values:2173 but is read plainly here, outside any critical section \u2014 this access is unsynchronized (cf. itertools count_repr / TSAN-0006). Make every access to a concurrently-shared field atomic, or hold the same lock at both sites."
+    },
+    {
+      "type": "atomic_plain_asymmetry",
+      "ft_class": "T1",
+      "file": "Objects/dictobject.c",
+      "member": "PyDictObject.ma_values",
+      "function": "PyObject_ClearManagedDict",
+      "line": 8019,
+      "guarded_twin": "_Py_dict_lookup_threadsafe:1626",
+      "confidence": "low",
+      "detail": "'PyDictObject.ma_values' (`dict->ma_values`) is written plainly here under a critical section, but is accessed with an atomic macro and no lock at _Py_dict_lookup_threadsafe:1626. The two synchronisation disciplines do not compose: an atomic access racing a non-atomic one is a data race by definition, and the atomic spelling is proof the maintainers already knew the field was shared (reproduced under TSan at _collectionsmodule.c dequeiter_next_lock_held / dequeiter_len). Use FT_ATOMIC_* here too."
+    },
+    {
+      "type": "publish_before_init_complete",
+      "ft_class": "T4",
+      "function": "set_intersection",
+      "member": "result.fill",
+      "access": "result->fill",
+      "line": 1780,
+      "publish_line": 1762,
+      "publish_api": "_PyObject_GC_TRACK",
+      "written_in": "set_add_entry():342",
+      "call_hops": 3,
+      "confidence": "low",
+      "detail": "'result' becomes reachable from other threads at _PyObject_GC_TRACK() (line 1762), and 'fill' is still written afterwards, in set_add_entry():342, with a plain non-atomic store and no critical section. On a free-threaded build another thread can observe the object between the two \u2014 half-initialised, and torn if the store is wider than a word. Finish initialising before publishing, or make the tail stores atomic. This is the fixup_slot_dispatchers shape (gh-151377).",
+      "file": "Objects/setobject.c"
+    }
+  ],
+  "summary": {
+    "total_findings": 20,
+    "by_class": {
+      "T1": 19,
+      "T4": 1
+    },
+    "by_type": {
+      "atomic_plain_asymmetry": 17,
+      "guarded_writer_unguarded_reader": 2,
+      "publish_before_init_complete": 1
+    },
+    "by_confidence": {
+      "low": 20
+    }
+  },
+  "iternext_functions": 8,
+  "lock_held_functions": 33,
+  "files_with_ft_regions": 2,
+  "skipped_files": [],
+  "denominators": {
+    "files_analyzed": 2,
+    "functions_analyzed": 404,
+    "findings": 20,
+    "iternext_functions": 8,
+    "lock_held_functions": 33
+  },
+  "_sample": {
+    "files_requested": [
+      "Objects/dictobject.c",
+      "Objects/setobject.c"
+    ],
+    "files_scanned": [
+      "Objects/dictobject.c",
+      "Objects/setobject.c"
+    ],
+    "files_missing": [],
+    "method": "the scanner was RE-RUN over exactly these files; every count in this report is sample-scoped. This is not a post-hoc filter of a corpus-wide scan -- a filtered report keeps corpus-wide denominators next to sample-scoped findings, which makes an unearned zero look earned.",
+    "merge_policy": {
+      "project_root": "carried (constant, not a count)",
+      "scan_root": "carried (constant, not a count)",
+      "files_analyzed": "summed",
+      "functions_analyzed": "summed",
+      "findings": "concatenated",
+      "summary": "merged key-wise",
+      "summary.total_findings": "summed",
+      "summary.by_class": "merged key-wise",
+      "summary.by_type": "merged key-wise",
+      "summary.by_confidence": "merged key-wise",
+      "summary.by_confidence.low": "summed",
+      "iternext_functions": "summed",
+      "lock_held_functions": "summed",
+      "files_with_ft_regions": "summed",
+      "skipped_files": "concatenated",
+      "denominators": "merged key-wise",
+      "denominators.files_analyzed": "summed",
+      "denominators.functions_analyzed": "summed",
+      "denominators.findings": "summed",
+      "denominators.iternext_functions": "summed",
+      "denominators.lock_held_functions": "summed"
+    }
+  }
+}

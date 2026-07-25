@@ -1,0 +1,34 @@
+{
+  "python": "/home/danzin/projects/python_build_matrix/builds/release-gil-nojit/python",
+  "payload": "# Payload for the CPY-0079 re-run OOM sweep (runs ARMED, one allocation fails).\n# Shares the namespace with CPY-0079_setup.py.\nexercise()\n",
+  "setup": "# Setup for the CPY-0079 re-run OOM sweep (runs UNARMED, before set_nomemory).\n# Purpose: build every dict/set shape the payload copies, and warm every code\n# path once so that import / freelist / bytecode-specialisation allocations do\n# not burn the injection budget.\n\nclass Inst:\n    def __init__(self):\n        self.a = 1\n        self.b = 2\n        self.c = 3\n\n\nempty_dict = {}\nempty_frozen = frozendict()\ncombined = {\"k%d\" % i: i for i in range(12)}\ngeneral = {i: i for i in range(12)}          # non-unicode keys -> DICT_KEYS_GENERAL\ninst = Inst()                                 # split table via managed dict\nsparse = {i: i for i in range(64)}\nfor i in range(0, 64, 2):                     # make it non-compact -> dict_merge path\n    del sparse[i]\nfrozen_nonempty = frozendict(combined)\nempty_set = set()\nsmall_set = {1, 2, 3, 4, 5}\nbig_set = set(range(64))\nfrozen_set = frozenset(range(12))\nempty_frozenset = frozenset()\n\n\ndef exercise():\n    # --- dict copy family ---------------------------------------------------\n    empty_dict.copy()               # ma_used == 0  -> dict_new_untracked  (CPY-0079)\n    empty_frozen.copy()             # ma_used == 0  -> frozendict_new_untracked (CPY-0079)\n    frozendict(empty_dict)\n    combined.copy()                 # fast-copy -> clone_combined_dict_keys\n    dict(combined)\n    general.copy()\n    inst.__dict__.copy()            # split table -> copy_values / new_values\n    dict(inst.__dict__)\n    sparse.copy()                   # non-compact -> dict_merge path\n    frozen_nonempty.copy()\n    frozendict(combined)\n    dict.fromkeys((\"x\", \"y\", \"z\"))\n    {**combined}\n    combined | general\n    # --- set copy family ----------------------------------------------------\n    empty_set.copy()\n    small_set.copy()\n    big_set.copy()\n    frozen_set.copy()\n    empty_frozenset.copy()\n    set(small_set)\n    frozenset(small_set)\n    small_set | big_set\n    small_set & big_set\n    small_set - big_set\n    small_set ^ big_set\n    set(range(8))\n    # --- fresh instances: exercises _PyDict_NewKeysForClass / split keys -----\n    Inst().__dict__.copy()\n\n\n# Warm every path once, unarmed.\nfor _ in range(3):\n    exercise()\n",
+  "dry_run": {
+    "ok": true,
+    "phase": null,
+    "returncode": 0,
+    "stderr": ""
+  },
+  "range": {
+    "start": 0,
+    "stop": 400
+  },
+  "width": 1,
+  "iterations_run": 400,
+  "allocation_failure_points": 46,
+  "outcome_counts": {
+    "memory_error": 46,
+    "completed": 354
+  },
+  "crashes": [],
+  "first_crash": null,
+  "payload_exceptions": [],
+  "reproduced": false,
+  "summary": {
+    "total_crashes": 0,
+    "crash_indices": [],
+    "crash_outcomes": [],
+    "allocation_failure_points": 46,
+    "thin_evidence": false,
+    "verdict": "no crash over N=46 allocation-failure points (all handled cleanly)"
+  }
+}

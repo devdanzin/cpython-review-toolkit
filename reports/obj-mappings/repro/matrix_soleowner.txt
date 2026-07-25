@@ -1,0 +1,41 @@
+=== debug-ft-nojit ===
+/bin/bash: line 1: 2680184 Aborted                    (core dumped) env $G timeout 120 /home/danzin/projects/python_build_matrix/builds/$b/python gh154130_iter_sole_owner.py $k 8000 > /dev/null 2>&1
+/bin/bash: line 1: 2680384 Aborted                    (core dumped) env $G timeout 120 /home/danzin/projects/python_build_matrix/builds/$b/python gh154130_iter_sole_owner.py $k 8000 > /dev/null 2>&1
+  dict: 134 0 134 0 0
+/bin/bash: line 1: 2680670 Aborted                    (core dumped) env $G timeout 120 /home/danzin/projects/python_build_matrix/builds/$b/python gh154130_iter_sole_owner.py $k 8000 > /dev/null 2>&1
+/bin/bash: line 1: 2680764 Aborted                    (core dumped) env $G timeout 120 /home/danzin/projects/python_build_matrix/builds/$b/python gh154130_iter_sole_owner.py $k 8000 > /dev/null 2>&1
+/bin/bash: line 1: 2680950 Aborted                    (core dumped) env $G timeout 120 /home/danzin/projects/python_build_matrix/builds/$b/python gh154130_iter_sole_owner.py $k 8000 > /dev/null 2>&1
+/bin/bash: line 1: 2681050 Aborted                    (core dumped) env $G timeout 120 /home/danzin/projects/python_build_matrix/builds/$b/python gh154130_iter_sole_owner.py $k 8000 > /dev/null 2>&1
+  dict1: 134 134 0 134 134
+/bin/bash: line 1: 2681355 Aborted                    (core dumped) env $G timeout 120 /home/danzin/projects/python_build_matrix/builds/$b/python gh154130_iter_sole_owner.py $k 8000 > /dev/null 2>&1
+  values: 0 0 0 134 0
+/bin/bash: line 1: 2681549 Aborted                    (core dumped) env $G timeout 120 /home/danzin/projects/python_build_matrix/builds/$b/python gh154130_iter_sole_owner.py $k 8000 > /dev/null 2>&1
+/bin/bash: line 1: 2681578 Aborted                    (core dumped) env $G timeout 120 /home/danzin/projects/python_build_matrix/builds/$b/python gh154130_iter_sole_owner.py $k 8000 > /dev/null 2>&1
+  items: 134 134 0 0 0
+/bin/bash: line 1: 2681879 Aborted                    (core dumped) env $G timeout 120 /home/danzin/projects/python_build_matrix/builds/$b/python gh154130_iter_sole_owner.py $k 8000 > /dev/null 2>&1
+/bin/bash: line 1: 2682048 Aborted                    (core dumped) env $G timeout 120 /home/danzin/projects/python_build_matrix/builds/$b/python gh154130_iter_sole_owner.py $k 8000 > /dev/null 2>&1
+  set: 0 134 0 0 134
+/bin/bash: line 1: 2682222 Aborted                    (core dumped) env $G timeout 120 /home/danzin/projects/python_build_matrix/builds/$b/python gh154130_iter_sole_owner.py $k 8000 > /dev/null 2>&1
+/bin/bash: line 1: 2682356 Aborted                    (core dumped) env $G timeout 120 /home/danzin/projects/python_build_matrix/builds/$b/python gh154130_iter_sole_owner.py $k 8000 > /dev/null 2>&1
+  set1: 0 134 134 0 0
+=== release-ft-nojit ===
+  dict: 0 0 0 0 0
+  dict1: 0 0 0 0 0
+  values: 0 0 0 0 0
+  items: 0 0 0 0 0
+  set: 0 0 0 0 0
+  set1: 0 0 0 0 0
+=== debug-gil-nojit ===
+  dict: 0 0 0 0 0
+  dict1: 0 0 0 0 0
+  values: 0 0 0 0 0
+  items: 0 0 0 0 0
+  set: 0 0 0 0 0
+  set1: 0 0 0 0 0
+=== release-gil-nojit ===
+  dict: 0 0 0 0 0
+  dict1: 0 0 0 0 0
+  values: 0 0 0 0 0
+  items: 0 0 0 0 0
+  set: 0 0 0 0 0
+  set1: 0 0 0 0 0

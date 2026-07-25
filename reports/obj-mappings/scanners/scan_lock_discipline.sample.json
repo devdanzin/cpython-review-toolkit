@@ -1,0 +1,112 @@
+{
+  "project_root": "/home/danzin/projects/cpython",
+  "scan_root": "/home/danzin/projects/cpython",
+  "files_analyzed": 2,
+  "functions_analyzed": 404,
+  "findings": [],
+  "summary": {
+    "total_findings": 0,
+    "by_type": {},
+    "by_classification": {}
+  },
+  "critical_section_functions": 64,
+  "mutex_functions": 0,
+  "lock_families": [
+    "critical_section",
+    "python_mutex",
+    "critical_section",
+    "python_mutex"
+  ],
+  "local_lock_macros": {
+    "Objects/dictobject.c": {
+      "aliases": {
+        "LOCK_KEYS": [
+          "python_mutex",
+          "acquire"
+        ],
+        "LOCK_KEYS_IF_SPLIT": [
+          "python_mutex",
+          "acquire"
+        ],
+        "UNLOCK_KEYS": [
+          "python_mutex",
+          "release"
+        ],
+        "UNLOCK_KEYS_IF_SPLIT": [
+          "python_mutex",
+          "release"
+        ]
+      },
+      "lock_held_assertions": [
+        "ASSERT_KEYS_LOCKED",
+        "ASSERT_WORLD_STOPPED_OR_OBJ_LOCKED"
+      ]
+    }
+  },
+  "vocabulary_counts": {
+    "LOCK_KEYS": 11,
+    "LOCK_KEYS_IF_SPLIT": 4,
+    "PyMutex_LockFlags": 1,
+    "PyMutex_Unlock": 1,
+    "Py_BEGIN_CRITICAL_SECTION": 59,
+    "Py_BEGIN_CRITICAL_SECTION2": 17,
+    "Py_BEGIN_CRITICAL_SECTION_MUTEX": 1,
+    "Py_END_CRITICAL_SECTION": 60,
+    "Py_END_CRITICAL_SECTION2": 17,
+    "UNLOCK_KEYS": 8,
+    "UNLOCK_KEYS_IF_SPLIT": 4
+  },
+  "skipped_files": [],
+  "rule_not_applicable": false,
+  "denominators": {
+    "files_analyzed": 2,
+    "functions_analyzed": 404,
+    "findings": 0,
+    "vocabulary_resolved": 183,
+    "vocabulary_tokens_seen": 15,
+    "critical_section_functions": 64,
+    "mutex_functions": 0
+  },
+  "_sample": {
+    "files_requested": [
+      "Objects/dictobject.c",
+      "Objects/setobject.c"
+    ],
+    "files_scanned": [
+      "Objects/dictobject.c",
+      "Objects/setobject.c"
+    ],
+    "files_missing": [],
+    "method": "the scanner was RE-RUN over exactly these files; every count in this report is sample-scoped. This is not a post-hoc filter of a corpus-wide scan -- a filtered report keeps corpus-wide denominators next to sample-scoped findings, which makes an unearned zero look earned.",
+    "merge_policy": {
+      "project_root": "carried (constant, not a count)",
+      "scan_root": "carried (constant, not a count)",
+      "files_analyzed": "summed",
+      "functions_analyzed": "summed",
+      "findings": "concatenated",
+      "summary": "merged key-wise",
+      "summary.total_findings": "summed",
+      "summary.by_type": "merged key-wise",
+      "summary.by_classification": "merged key-wise",
+      "critical_section_functions": "summed",
+      "mutex_functions": "summed",
+      "lock_families": "concatenated",
+      "local_lock_macros": "merged key-wise",
+      "vocabulary_counts": "merged key-wise",
+      "vocabulary_counts.Py_BEGIN_CRITICAL_SECTION": "summed",
+      "vocabulary_counts.Py_BEGIN_CRITICAL_SECTION2": "summed",
+      "vocabulary_counts.Py_END_CRITICAL_SECTION": "summed",
+      "vocabulary_counts.Py_END_CRITICAL_SECTION2": "summed",
+      "skipped_files": "concatenated",
+      "rule_not_applicable": "or",
+      "denominators": "merged key-wise",
+      "denominators.files_analyzed": "summed",
+      "denominators.functions_analyzed": "summed",
+      "denominators.findings": "summed",
+      "denominators.vocabulary_resolved": "summed",
+      "denominators.vocabulary_tokens_seen": "summed",
+      "denominators.critical_section_functions": "summed",
+      "denominators.mutex_functions": "summed"
+    }
+  }
+}

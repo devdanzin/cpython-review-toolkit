@@ -1,0 +1,81 @@
+{
+  "project_root": "/home/danzin/projects/cpython",
+  "scan_root": "/home/danzin/projects/cpython",
+  "files_analyzed": 2,
+  "functions_analyzed": 404,
+  "findings": [],
+  "summary": {
+    "total_findings": 0,
+    "by_allocator": {},
+    "allocation_sites": 8
+  },
+  "nonzeroing_tp_allocs": {},
+  "allocator_model": {
+    "non_zeroing": [
+      "PyObject_GC_New",
+      "PyObject_GC_NewVar",
+      "PyObject_GC_NewWithExtra",
+      "PyObject_New",
+      "PyObject_NewVar",
+      "_PyObject_GC_New",
+      "_PyObject_GC_NewVar",
+      "_PyObject_New",
+      "_PyObject_NewVar",
+      "PyObject_GC_New",
+      "PyObject_GC_NewVar",
+      "PyObject_GC_NewWithExtra",
+      "PyObject_New",
+      "PyObject_NewVar",
+      "_PyObject_GC_New",
+      "_PyObject_GC_NewVar",
+      "_PyObject_New",
+      "_PyObject_NewVar"
+    ],
+    "zeroing_by_evidence": {
+      "PyType_GenericAlloc": "forwards to _PyType_AllocNoTrack, which memsets the object after the PyObject header (Objects/typeobject.c:2542)"
+    },
+    "tp_alloc_rule": "a `->tp_alloc(...)` call counts as non-zeroing only in a file that registers its own allocfunc returning raw storage; the two in-tree instances are Modules/_datetimemodule.c time_alloc / datetime_alloc"
+  },
+  "skipped_files": [],
+  "denominators": {
+    "files_analyzed": 2,
+    "functions_analyzed": 404,
+    "findings": 0,
+    "allocation_sites": 8
+  },
+  "_sample": {
+    "files_requested": [
+      "Objects/dictobject.c",
+      "Objects/setobject.c"
+    ],
+    "files_scanned": [
+      "Objects/dictobject.c",
+      "Objects/setobject.c"
+    ],
+    "files_missing": [],
+    "method": "the scanner was RE-RUN over exactly these files; every count in this report is sample-scoped. This is not a post-hoc filter of a corpus-wide scan -- a filtered report keeps corpus-wide denominators next to sample-scoped findings, which makes an unearned zero look earned.",
+    "merge_policy": {
+      "project_root": "carried (constant, not a count)",
+      "scan_root": "carried (constant, not a count)",
+      "files_analyzed": "summed",
+      "functions_analyzed": "summed",
+      "findings": "concatenated",
+      "summary": "merged key-wise",
+      "summary.total_findings": "summed",
+      "summary.by_allocator": "merged key-wise",
+      "summary.allocation_sites": "summed",
+      "nonzeroing_tp_allocs": "merged key-wise",
+      "allocator_model": "merged key-wise",
+      "allocator_model.non_zeroing": "concatenated",
+      "allocator_model.zeroing_by_evidence": "merged key-wise",
+      "allocator_model.zeroing_by_evidence.PyType_GenericAlloc": "carried (first)",
+      "allocator_model.tp_alloc_rule": "carried (first)",
+      "skipped_files": "concatenated",
+      "denominators": "merged key-wise",
+      "denominators.files_analyzed": "summed",
+      "denominators.functions_analyzed": "summed",
+      "denominators.findings": "summed",
+      "denominators.allocation_sites": "summed"
+    }
+  }
+}

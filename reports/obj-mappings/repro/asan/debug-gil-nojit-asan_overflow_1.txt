@@ -1,0 +1,1 @@
+python: Objects/dictobject.c:1980: Py_ssize_t insert_split_key(PyDictKeysObject *, PyObject *, Py_hash_t): Assertion `ix < SHARED_KEYS_MAX_SIZE' failed.

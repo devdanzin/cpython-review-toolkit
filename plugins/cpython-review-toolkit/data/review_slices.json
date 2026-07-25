@@ -192,10 +192,10 @@
       "family": "Objects: dict + set",
       "tier": "A",
       "scope": "Objects",
-      "status": "pending",
+      "status": "done",
       "passes": 1,
       "oracle": null,
-      "notes": "Both already yielded on shallow sweeps (CPY-0015, CPY-0019) with 11,825 lines never read. Iterator invalidation and user __hash__ re-entry. INHERITS FROM obj-typeobject PASS 2 -- start here, these are already reproduced: (1) CPY-0096, insert_split_key holds keys->dk_mutex (non-reentrant, _Py_LOCK_DONT_DETACH) and calls _PyType_Modified_Unlocked, which runs arbitrary Python via a watcher callback and sys.unraisablehook -- 24/24 FT hang, 0/12 GIL, gdb-proven, and dictobject.c:218-227 EXPLICITLY forbids this, naming PyType_Modified. Its THREE further consequences reproduce on the DEFAULT GIL build and belong to this slice: an ASan heap-buffer-overflow, a dk_usable invariant break 5/5 from a single re-entry, and unbounded recursion -> SIGSEGV. (2) CPY-0107, _Py_dict_lookup:1385 -- compare_unicode_generic runs PyObject_RichCompareBool under LOCK_KEYS; the only lock-order inversion found tree-wide, and the prohibiting comment (bef570622263, 2026-06-25) was written 26 MONTHS after the violating code (d5df25268b03) and never applied backwards. (3) CPY-0079 needs re-running: its clean OOM sweep had a denominator of 2.",
+      "notes": "Both already yielded on shallow sweeps (CPY-0015, CPY-0019) with 11,825 lines never read. Iterator invalidation and user __hash__ re-entry. DONE 2026-07-25 (19 agents): 16 findings / 14 reproduced -> CPY-0116..CPY-0130 + TSAN-0062. Flagship CPY-0116: reversed(dict) OOB read, SIGSEGV on RELEASED 3.14.4 and 3.12.13 from pure Python; the bound was deleted in PR GH-16846 (bpo-38525) after review, and the shape is 1 of 16 sites tree-wide -- not a class. CPY-0117: a DOC-CONFORMING dict watcher makes CPython re-enter Python via PyErr_FormatUnraisable on the mandated -1; 10 of 14 notify sites hold stale state across it. All 4 inherited items discharged: CPY-0096's three GIL consequences anchored (LOCK_KEYS expands to NOTHING in the #else arm), CPY-0079 re-run at 48 failure points and FLIPPED clean -> reproduced. CPY-0107 also upgraded to reproduced (deterministic SINGLE-THREADED self-deadlock, not primarily a lock-order inversion). The CPY-0096 sibling hunt is EMPTY: fix surface bounded at exactly 2 call sites of 9 DONT_DETACH acquires.",
       "lines": 11825,
       "files": [
         "Objects/dictobject.c",

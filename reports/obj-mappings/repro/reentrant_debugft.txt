@@ -1,0 +1,5 @@
+TSan/FT stress -- re-entrant __hash__ / __eq__ in dict & set
+  python : 3.16.0a0 free-threading build (heads/main:a1d580430c8, Jul 18 2026, 20:36:44) [Clang 21.1.8 (6ubuntu1)]
+  gil    : False
+  threads=8 iterations=8000
+

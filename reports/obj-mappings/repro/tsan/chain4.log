@@ -1,0 +1,9 @@
+### tsan_stress_iter_methods
+exit=0
+### tsan_stress_reentrant_hash_eq
+exit=0
+### tsan_stress_split_combined
+exit=0
+### tsan_stress_dictset_resize
+exit=0
+ALLDONE

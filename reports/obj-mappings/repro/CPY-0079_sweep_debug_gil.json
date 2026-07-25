@@ -1,0 +1,51 @@
+{
+  "python": "/home/danzin/projects/python_build_matrix/builds/debug-gil-nojit/python",
+  "payload": "# Payload for the CPY-0079 re-run OOM sweep (runs ARMED, one allocation fails).\n# Shares the namespace with CPY-0079_setup.py.\nexercise()\n",
+  "setup": "# Setup for the CPY-0079 re-run OOM sweep (runs UNARMED, before set_nomemory).\n# Purpose: build every dict/set shape the payload copies, and warm every code\n# path once so that import / freelist / bytecode-specialisation allocations do\n# not burn the injection budget.\n\nclass Inst:\n    def __init__(self):\n        self.a = 1\n        self.b = 2\n        self.c = 3\n\n\nempty_dict = {}\nempty_frozen = frozendict()\ncombined = {\"k%d\" % i: i for i in range(12)}\ngeneral = {i: i for i in range(12)}          # non-unicode keys -> DICT_KEYS_GENERAL\ninst = Inst()                                 # split table via managed dict\nsparse = {i: i for i in range(64)}\nfor i in range(0, 64, 2):                     # make it non-compact -> dict_merge path\n    del sparse[i]\nfrozen_nonempty = frozendict(combined)\nempty_set = set()\nsmall_set = {1, 2, 3, 4, 5}\nbig_set = set(range(64))\nfrozen_set = frozenset(range(12))\nempty_frozenset = frozenset()\n\n\ndef exercise():\n    # --- dict copy family ---------------------------------------------------\n    empty_dict.copy()               # ma_used == 0  -> dict_new_untracked  (CPY-0079)\n    empty_frozen.copy()             # ma_used == 0  -> frozendict_new_untracked (CPY-0079)\n    frozendict(empty_dict)\n    combined.copy()                 # fast-copy -> clone_combined_dict_keys\n    dict(combined)\n    general.copy()\n    inst.__dict__.copy()            # split table -> copy_values / new_values\n    dict(inst.__dict__)\n    sparse.copy()                   # non-compact -> dict_merge path\n    frozen_nonempty.copy()\n    frozendict(combined)\n    dict.fromkeys((\"x\", \"y\", \"z\"))\n    {**combined}\n    combined | general\n    # --- set copy family ----------------------------------------------------\n    empty_set.copy()\n    small_set.copy()\n    big_set.copy()\n    frozen_set.copy()\n    empty_frozenset.copy()\n    set(small_set)\n    frozenset(small_set)\n    small_set | big_set\n    small_set & big_set\n    small_set - big_set\n    small_set ^ big_set\n    set(range(8))\n    # --- fresh instances: exercises _PyDict_NewKeysForClass / split keys -----\n    Inst().__dict__.copy()\n\n\n# Warm every path once, unarmed.\nfor _ in range(3):\n    exercise()\n",
+  "dry_run": {
+    "ok": true,
+    "phase": null,
+    "returncode": 0,
+    "stderr": ""
+  },
+  "range": {
+    "start": 0,
+    "stop": 400
+  },
+  "width": 1,
+  "iterations_run": 400,
+  "allocation_failure_points": 48,
+  "outcome_counts": {
+    "memory_error": 47,
+    "segv": 1,
+    "completed": 352
+  },
+  "crashes": [
+    {
+      "n": 1,
+      "outcome": "segv",
+      "returncode": -11,
+      "stderr": "Fatal Python error: Segmentation fault\n\nCurrent thread 0x00007067da3e0780 [python] (most recent call first):\n  File \"<oom-setup>\", line 31 in exercise\n  File \"<oom-payload>\", line 3 in <module>\n  File \"<string>\", line 44 in <module>\n\nCurrent thread's C stack trace (most recent call first):\n  Binary file \"/home/danzin/projects/python_build_matrix/builds/debug-gil-nojit/python\", at _Py_DumpStack+0x32 [0x6433f52742e2]\n  Binary file \"/home/danzin/projects/python_build_matrix/builds/debug-gil-nojit/python\", at +0x42ff54 [0x6433f5298f54]\n  Binary file \"/usr/lib/x86_64-linux-gnu/libc.so.6\", at +0x45cb0 [0x7067da045cb0]\n  Binary file \"/home/danzin/projects/python_build_matrix/builds/debug-gil-nojit/python\", at +0x1b156b [0x6433f501a56b]\n  Binary file \"/home/danzin/projects/python_build_matrix/builds/debug-gil-nojit/python\", at +0x1bb521 [0x6433f5024521]\n  Binary file \"/home/danzin/projects/python_build_matrix/builds/debug-gil-nojit/python\", at _PyEval_EvalFrameDefault+0x11a9d [0x6433f516731d]\n  Binary file \"/home/danzin/projects/python_build_matrix/builds/debug-gil-nojit/python\", at +0x2ea86b [0x6433f515386b]\n  Binary file \"/home/danzin/projects/python_build_matrix/builds/debug-gil-nojit/python\", at PyEval_EvalCode+0xce [0x6433f51535fe]\n  Binary file \"/home/danzin/projects/python_build_matrix/builds/debug-gil-nojit/python\", at +0x2e4821 [0x6433f514d821]\n  Binary file \"/home/danzin/projects/python_build_matrix/builds/debug-gil-nojit/python\", at +0x1c8bd7 [0x6433f5031bd7]\n  Binary file \"/home/danzin/projects/python_build_matrix/builds/debug-gil-nojit/python\", at +0x14b79e [0x6433f4fb479e]\n  Binary file \"/home/danzin/projects/python_build_matrix/builds/debug-gil-nojit/python\", at _Py_VectorCallInstrumentation_StackRefSteal+0x119 [0x6433f5154049]\n  Binary file \"/home/danzin/projects/python_build_matrix/builds/debug-gil-nojit/python\", at _PyEval_EvalFrameDefault+0x85ef [0x6433f515de6f]\n  Binary file \"/home/danzin/projects/python_build_matrix/builds/debug-gil-nojit/python\", at +0x2ea86b [0x6433f515386b]\n  Binary file \"/home/danzin/projects/python_build_matrix/builds/debug-gil-nojit/python\", at PyEval_EvalCode+0xce [0x6433f51535fe]\n  Binary file \"/home/danzin/projects/python_build_matrix/builds/debug-gil-nojit/python\", at +0x3ebabe [0x6433f5254abe]\n  Binary file \"/home/danzin/projects/python_build_matrix/builds/debug-gil-nojit/python\", at +0x3eb60b [0x6433f525460b]\n  Binary file \"/home/danzin/projects/python_build_matrix/builds/debug-gil-nojit/python\", at +0x3e9204 [0x6433f5252204]\n  Binary file \"/home/danzin/projects/python_build_matrix/builds/debug-gil-nojit/python\", at +0x3e9053 [0x6433f5252053]\n  Binary file \"/home/danzin/projects/python_build_matrix/builds/debug-gil-nojit/python\", at Py_RunMain+0x902 [0x6433f5287512]\n  Binary file \"/home/danzin/projects/python_build_matrix/builds/debug-gil-nojit/python\", at +0x41e931 [0x6433f5287931]\n  Binary file \"/home/danzin/projects/python_build_matrix/builds/debug-gil-nojit/python\", at Py_BytesMain+0x32 [0x6433f5287992]\n  Binary file \"/usr/lib/x86_64-linux-gnu/libc.so.6\", at +0x2a601 [0x7067da02a601]\n  Binary file \"/usr/lib/x86_64-linux-gnu/libc.so.6\", at __libc_start_main+0x88 [0x7067da02a718]\n  Binary file \"/home/danzin/projects/python_build_matrix/builds/debug-gil-nojit/python\", at _start+0x25 [0x6433f4f060d5]\n\nExtension modules: _testcapi (total: 1)\n"
+    }
+  ],
+  "first_crash": {
+    "n": 1,
+    "outcome": "segv",
+    "returncode": -11,
+    "stderr": "Fatal Python error: Segmentation fault\n\nCurrent thread 0x00007067da3e0780 [python] (most recent call first):\n  File \"<oom-setup>\", line 31 in exercise\n  File \"<oom-payload>\", line 3 in <module>\n  File \"<string>\", line 44 in <module>\n\nCurrent thread's C stack trace (most recent call first):\n  Binary file \"/home/danzin/projects/python_build_matrix/builds/debug-gil-nojit/python\", at _Py_DumpStack+0x32 [0x6433f52742e2]\n  Binary file \"/home/danzin/projects/python_build_matrix/builds/debug-gil-nojit/python\", at +0x42ff54 [0x6433f5298f54]\n  Binary file \"/usr/lib/x86_64-linux-gnu/libc.so.6\", at +0x45cb0 [0x7067da045cb0]\n  Binary file \"/home/danzin/projects/python_build_matrix/builds/debug-gil-nojit/python\", at +0x1b156b [0x6433f501a56b]\n  Binary file \"/home/danzin/projects/python_build_matrix/builds/debug-gil-nojit/python\", at +0x1bb521 [0x6433f5024521]\n  Binary file \"/home/danzin/projects/python_build_matrix/builds/debug-gil-nojit/python\", at _PyEval_EvalFrameDefault+0x11a9d [0x6433f516731d]\n  Binary file \"/home/danzin/projects/python_build_matrix/builds/debug-gil-nojit/python\", at +0x2ea86b [0x6433f515386b]\n  Binary file \"/home/danzin/projects/python_build_matrix/builds/debug-gil-nojit/python\", at PyEval_EvalCode+0xce [0x6433f51535fe]\n  Binary file \"/home/danzin/projects/python_build_matrix/builds/debug-gil-nojit/python\", at +0x2e4821 [0x6433f514d821]\n  Binary file \"/home/danzin/projects/python_build_matrix/builds/debug-gil-nojit/python\", at +0x1c8bd7 [0x6433f5031bd7]\n  Binary file \"/home/danzin/projects/python_build_matrix/builds/debug-gil-nojit/python\", at +0x14b79e [0x6433f4fb479e]\n  Binary file \"/home/danzin/projects/python_build_matrix/builds/debug-gil-nojit/python\", at _Py_VectorCallInstrumentation_StackRefSteal+0x119 [0x6433f5154049]\n  Binary file \"/home/danzin/projects/python_build_matrix/builds/debug-gil-nojit/python\", at _PyEval_EvalFrameDefault+0x85ef [0x6433f515de6f]\n  Binary file \"/home/danzin/projects/python_build_matrix/builds/debug-gil-nojit/python\", at +0x2ea86b [0x6433f515386b]\n  Binary file \"/home/danzin/projects/python_build_matrix/builds/debug-gil-nojit/python\", at PyEval_EvalCode+0xce [0x6433f51535fe]\n  Binary file \"/home/danzin/projects/python_build_matrix/builds/debug-gil-nojit/python\", at +0x3ebabe [0x6433f5254abe]\n  Binary file \"/home/danzin/projects/python_build_matrix/builds/debug-gil-nojit/python\", at +0x3eb60b [0x6433f525460b]\n  Binary file \"/home/danzin/projects/python_build_matrix/builds/debug-gil-nojit/python\", at +0x3e9204 [0x6433f5252204]\n  Binary file \"/home/danzin/projects/python_build_matrix/builds/debug-gil-nojit/python\", at +0x3e9053 [0x6433f5252053]\n  Binary file \"/home/danzin/projects/python_build_matrix/builds/debug-gil-nojit/python\", at Py_RunMain+0x902 [0x6433f5287512]\n  Binary file \"/home/danzin/projects/python_build_matrix/builds/debug-gil-nojit/python\", at +0x41e931 [0x6433f5287931]\n  Binary file \"/home/danzin/projects/python_build_matrix/builds/debug-gil-nojit/python\", at Py_BytesMain+0x32 [0x6433f5287992]\n  Binary file \"/usr/lib/x86_64-linux-gnu/libc.so.6\", at +0x2a601 [0x7067da02a601]\n  Binary file \"/usr/lib/x86_64-linux-gnu/libc.so.6\", at __libc_start_main+0x88 [0x7067da02a718]\n  Binary file \"/home/danzin/projects/python_build_matrix/builds/debug-gil-nojit/python\", at _start+0x25 [0x6433f4f060d5]\n\nExtension modules: _testcapi (total: 1)\n"
+  },
+  "payload_exceptions": [],
+  "reproduced": true,
+  "summary": {
+    "total_crashes": 1,
+    "crash_indices": [
+      1
+    ],
+    "crash_outcomes": [
+      "segv"
+    ],
+    "allocation_failure_points": 48,
+    "thin_evidence": false,
+    "verdict": "REPRODUCED \u2014 allocation failure crashes the interpreter"
+  }
+}

@@ -1,0 +1,76 @@
+{
+  "project_root": "/home/danzin/projects/cpython",
+  "scan_root": "/home/danzin/projects/cpython",
+  "files_analyzed": 2,
+  "functions_analyzed": 404,
+  "findings": [
+    {
+      "type": "gc_untrack_without_track",
+      "function": "dictiter_new",
+      "line": 5646,
+      "confidence": "low",
+      "gate": "file",
+      "tp_dealloc": null,
+      "detail": "'di' is allocated via PyObject_GC_New() and freed with Py_DECREF() on an error path before any PyObject_GC_Track(di), and the type could not be resolved in this file, which does use _PyObject_GC_UNTRACK somewhere (file-level fallback \u2014 confirm against this type's own tp_dealloc). The macro unconditionally unlinks an object it assumes is tracked, so a never-tracked object corrupts the GC list (debug build: _PyObject_AssertFailed, 'object not tracked by the garbage collector'). Bug class O6; cf. gh-152107 OOM-0006/0017. Ensure the error path does not reach an unconditional untrack, or track before the fallible step.",
+      "file": "Objects/dictobject.c"
+    }
+  ],
+  "summary": {
+    "total_findings": 1,
+    "by_type": {
+      "gc_untrack_without_track": 1
+    },
+    "by_confidence": {
+      "low": 1
+    }
+  },
+  "varobject_allocation_census": {
+    "sites": 2,
+    "via_slot_pointer": 0,
+    "non_constant_nitems": 0
+  },
+  "skipped_files": [],
+  "denominators": {
+    "files_analyzed": 2,
+    "functions_analyzed": 404,
+    "findings": 1,
+    "varobject_allocation_census.sites": 2,
+    "varobject_allocation_census.via_slot_pointer": 0,
+    "varobject_allocation_census.non_constant_nitems": 0
+  },
+  "_sample": {
+    "files_requested": [
+      "Objects/dictobject.c",
+      "Objects/setobject.c"
+    ],
+    "files_scanned": [
+      "Objects/dictobject.c",
+      "Objects/setobject.c"
+    ],
+    "files_missing": [],
+    "method": "the scanner was RE-RUN over exactly these files; every count in this report is sample-scoped. This is not a post-hoc filter of a corpus-wide scan -- a filtered report keeps corpus-wide denominators next to sample-scoped findings, which makes an unearned zero look earned.",
+    "merge_policy": {
+      "project_root": "carried (constant, not a count)",
+      "scan_root": "carried (constant, not a count)",
+      "files_analyzed": "summed",
+      "functions_analyzed": "summed",
+      "findings": "concatenated",
+      "summary": "merged key-wise",
+      "summary.total_findings": "summed",
+      "summary.by_type": "merged key-wise",
+      "summary.by_confidence": "merged key-wise",
+      "varobject_allocation_census": "merged key-wise",
+      "varobject_allocation_census.sites": "summed",
+      "varobject_allocation_census.via_slot_pointer": "summed",
+      "varobject_allocation_census.non_constant_nitems": "summed",
+      "skipped_files": "concatenated",
+      "denominators": "merged key-wise",
+      "denominators.files_analyzed": "summed",
+      "denominators.functions_analyzed": "summed",
+      "denominators.findings": "summed",
+      "denominators.varobject_allocation_census.sites": "summed",
+      "denominators.varobject_allocation_census.via_slot_pointer": "summed",
+      "denominators.varobject_allocation_census.non_constant_nitems": "summed"
+    }
+  }
+}

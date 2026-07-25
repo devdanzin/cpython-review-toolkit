@@ -1,0 +1,12 @@
+TSan/FT stress -- dict & set resize under contention
+  python : 3.16.0a0 free-threading build (heads/main:a1d580430c8, Jul 18 2026, 20:30:06) [Clang 21.1.8 (6ubuntu1)]
+  gil    : False
+  threads=4 iterations=400
+
+  dict: resize vs iterate/len/copy/compare ...   ok
+  set: resize vs iterate/len/copy/setops ...     ok
+  dict: clear() vs list(items()) walk ...        ok
+  set: clear() vs list() walk ...                ok
+  dict: view set-ops vs mutation ...             ok
+
+Done -- check stderr for TSan warnings.

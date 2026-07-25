@@ -1,0 +1,122 @@
+{
+  "project_root": "/home/danzin/projects/cpython",
+  "scan_root": "/home/danzin/projects/cpython",
+  "files_analyzed": 2,
+  "functions_analyzed": -2,
+  "findings": [
+    {
+      "type": "deprecated-api",
+      "rule": "deprecated-api",
+      "file": "Objects/dictobject.c",
+      "line": 2788,
+      "api": "PyEval_GetBuiltins",
+      "tier": "soft",
+      "deprecated_in": "3.13",
+      "removed_in": "",
+      "replacement": "PyEval_GetFrameBuiltins",
+      "drop_in": false,
+      "caveat": "NOT a drop-in rename: the replacement returns a STRONG reference (Py_XNewRef) where this returns a BORROWED one, so a bare rename leaks the referent at every call site. Correct migration is rename + a matching Py_DECREF once the value is no longer needed. No-frame behaviour is identical (both return NULL without setting an exception), so the NULL guard needs no change.",
+      "severity": "CONSIDER",
+      "confidence": "high",
+      "code": "return Py_NewRef(PyEval_GetBuiltins());",
+      "detail": "PyEval_GetBuiltins is deprecated since 3.13. The named replacement is PyEval_GetFrameBuiltins, but it is NOT a drop-in. CAVEAT: NOT a drop-in rename: the replacement returns a STRONG reference (Py_XNewRef) where this returns a BORROWED one, so a bare rename leaks the referent at every call site. Correct migration is rename + a matching Py_DECREF once the value is no longer needed. No-frame behaviour is identical (both return NULL without setting an exception), so the NULL guard needs no change. (Doc/c-api/reflection.rst:10 (PEP 667). Returns a borrowed reference.)"
+    },
+    {
+      "type": "gc-untrack-macro-form",
+      "rule": "gc-untrack-macro-form",
+      "file": "Objects/dictobject.c",
+      "line": 5662,
+      "function": "dictiter_dealloc",
+      "severity": "FIX",
+      "confidence": "high",
+      "api": "_PyObject_GC_UNTRACK",
+      "replacement": "PyObject_GC_UnTrack",
+      "detail": "_PyObject_GC_UNTRACK in tp_dealloc 'dictiter_dealloc', but the constructor 'dictiter_new' frees the object at line 5646 before _PyObject_GC_TRACK runs (linked via name prefix). On that error path dealloc gets an untracked object and the macro's _PyObject_ASSERT_FROM(op, _PyObject_GC_IS_TRACKED(op)) aborts -- a recoverable allocation failure becomes a SIGABRT. Use the untracked-tolerant PyObject_GC_UnTrack here. (It is tolerant of the untracked *state*, not of a NULL pointer: _PyObject_GC_IS_TRACKED still dereferences unconditionally.)"
+    },
+    {
+      "type": "deprecated-api",
+      "rule": "deprecated-api",
+      "file": "Objects/setobject.c",
+      "line": 527,
+      "api": "PyMem_NEW",
+      "tier": "soft",
+      "deprecated_in": "2.0",
+      "removed_in": "",
+      "replacement": "PyMem_New",
+      "drop_in": true,
+      "caveat": "",
+      "severity": "CONSIDER",
+      "confidence": "high",
+      "code": "newtable = PyMem_NEW(setentry, newsize);",
+      "detail": "PyMem_NEW is deprecated since 2.0. Use PyMem_New instead (drop-in). (Doc/c-api/memory.rst:304. 26 real call sites.)"
+    }
+  ],
+  "summary": {
+    "total_findings": 3,
+    "denominator_note": "line-based rule: functions_analyzed is -1 (N/A). The denominator is files_analyzed x apis_in_vocabulary.",
+    "by_api": {
+      "PyEval_GetBuiltins": 1,
+      "_PyObject_GC_UNTRACK": 1,
+      "PyMem_NEW": 1
+    },
+    "by_tier": {
+      "soft": 2,
+      "safety-rule": 1
+    },
+    "by_severity": {
+      "CONSIDER": 2,
+      "FIX": 1
+    },
+    "by_removal": {
+      "none": 2
+    },
+    "findings_needing_a_caveat": 1,
+    "suppressed_compat_shim": 0,
+    "apis_in_vocabulary": 93,
+    "apis_with_hits": 3
+  },
+  "vocabulary_source": "data/deprecated_c_apis.json",
+  "denominators": {
+    "files_analyzed": 2,
+    "functions_analyzed": -2,
+    "findings": 3
+  },
+  "_sample": {
+    "files_requested": [
+      "Objects/dictobject.c",
+      "Objects/setobject.c"
+    ],
+    "files_scanned": [
+      "Objects/dictobject.c",
+      "Objects/setobject.c"
+    ],
+    "files_missing": [],
+    "method": "the scanner was RE-RUN over exactly these files; every count in this report is sample-scoped. This is not a post-hoc filter of a corpus-wide scan -- a filtered report keeps corpus-wide denominators next to sample-scoped findings, which makes an unearned zero look earned.",
+    "merge_policy": {
+      "project_root": "carried (constant, not a count)",
+      "scan_root": "carried (constant, not a count)",
+      "files_analyzed": "summed",
+      "functions_analyzed": "summed",
+      "findings": "concatenated",
+      "summary": "merged key-wise",
+      "summary.total_findings": "summed",
+      "summary.denominator_note": "carried (first)",
+      "summary.by_api": "merged key-wise",
+      "summary.by_tier": "merged key-wise",
+      "summary.by_tier.soft": "summed",
+      "summary.by_severity": "merged key-wise",
+      "summary.by_severity.CONSIDER": "summed",
+      "summary.by_removal": "merged key-wise",
+      "summary.by_removal.none": "summed",
+      "summary.findings_needing_a_caveat": "summed",
+      "summary.suppressed_compat_shim": "summed",
+      "summary.apis_in_vocabulary": "carried (constant, not a count)",
+      "summary.apis_with_hits": "summed",
+      "vocabulary_source": "carried (constant, not a count)",
+      "denominators": "merged key-wise",
+      "denominators.files_analyzed": "summed",
+      "denominators.functions_analyzed": "summed",
+      "denominators.findings": "summed"
+    }
+  }
+}

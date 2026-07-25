@@ -1,0 +1,135 @@
+[main] calling d.popitem()
+  [hook] clearing the dict from inside popitem's notify
+  [hook] returning
+=================================================================
+==1786775==ERROR: AddressSanitizer: heap-use-after-free on address 0x770c0dc330e8 at pc 0x5e7715ef91b9 bp 0x7ffd78db8a10 sp 0x7ffd78db8a08
+READ of size 8 at 0x770c0dc330e8 thread T0
+    #0 0x5e7715ef91b8 in dict_popitem_impl /home/danzin/projects/python_build_matrix/builds/release-gil-nojit-asan/Objects/dictobject.c:5052:16
+    #1 0x5e7715ef91b8 in dict_popitem /home/danzin/projects/python_build_matrix/builds/release-gil-nojit-asan/Objects/clinic/dictobject.c.h:231:20
+    #2 0x5e7715e2761f in _PyObject_VectorcallTstate /home/danzin/projects/python_build_matrix/builds/release-gil-nojit-asan/./Include/internal/pycore_call.h:144:11
+    #3 0x5e7715e2761f in PyObject_Vectorcall /home/danzin/projects/python_build_matrix/builds/release-gil-nojit-asan/Objects/call.c:327:12
+    #4 0x5e77161a0941 in _Py_VectorCallInstrumentation_StackRefSteal /home/danzin/projects/python_build_matrix/builds/release-gil-nojit-asan/Python/ceval.c:768:11
+    #5 0x5e77161b40d3 in _PyEval_EvalFrameDefault /home/danzin/projects/python_build_matrix/builds/release-gil-nojit-asan/Python/generated_cases.c.h:1906:35
+    #6 0x5e771619eeed in _PyEval_EvalFrame /home/danzin/projects/python_build_matrix/builds/release-gil-nojit-asan/./Include/internal/pycore_ceval.h:122:16
+    #7 0x5e771619eeed in _PyEval_Vector /home/danzin/projects/python_build_matrix/builds/release-gil-nojit-asan/Python/ceval.c:2172:12
+    #8 0x5e771619eeed in PyEval_EvalCode /home/danzin/projects/python_build_matrix/builds/release-gil-nojit-asan/Python/ceval.c:679:21
+    #9 0x5e7716311789 in run_mod /home/danzin/projects/python_build_matrix/builds/release-gil-nojit-asan/Python/pythonrun.c:1509:19
+    #10 0x5e771630b9cc in _PyRun_File /home/danzin/projects/python_build_matrix/builds/release-gil-nojit-asan/Python/pythonrun.c:1332:15
+    #11 0x5e771630b9cc in _PyRun_SimpleFile /home/danzin/projects/python_build_matrix/builds/release-gil-nojit-asan/Python/pythonrun.c:544:15
+    #12 0x5e771630af81 in _PyRun_AnyFile /home/danzin/projects/python_build_matrix/builds/release-gil-nojit-asan/Python/pythonrun.c:92:18
+    #13 0x5e771637f0fd in pymain_run_file_obj /home/danzin/projects/python_build_matrix/builds/release-gil-nojit-asan/Modules/main.c:478:24
+    #14 0x5e771637f0fd in pymain_run_file /home/danzin/projects/python_build_matrix/builds/release-gil-nojit-asan/Modules/main.c:494:20
+    #15 0x5e771637dd30 in pymain_run_python /home/danzin/projects/python_build_matrix/builds/release-gil-nojit-asan/Modules/main.c:804:21
+    #16 0x5e771637dd30 in Py_RunMain /home/danzin/projects/python_build_matrix/builds/release-gil-nojit-asan/Modules/main.c:891:5
+    #17 0x5e771637e843 in pymain_main /home/danzin/projects/python_build_matrix/builds/release-gil-nojit-asan/Modules/main.c:921:12
+    #18 0x5e771637e9a2 in Py_BytesMain /home/danzin/projects/python_build_matrix/builds/release-gil-nojit-asan/Modules/main.c:945:12
+    #19 0x7acc0ea2a600 in __libc_start_call_main csu/../sysdeps/nptl/libc_start_call_main.h:59:16
+    #20 0x7acc0ea2a717 in __libc_start_main csu/../csu/libc-start.c:360:3
+    #21 0x5e7715c2deb4 in _start (/home/danzin/projects/python_build_matrix/builds/release-gil-nojit-asan/python+0x1d9eb4) (BuildId: 122a1ef0f157604175441a62bd3151f00f44a928)
+
+0x770c0dc330e8 is located 24 bytes inside of 45-byte region [0x770c0dc330d0,0x770c0dc330fd)
+freed by thread T0 here:
+    #0 0x5e7715cd31ba in free (/home/danzin/projects/python_build_matrix/builds/release-gil-nojit-asan/python+0x27f1ba) (BuildId: 122a1ef0f157604175441a62bd3151f00f44a928)
+    #1 0x5e7716046d81 in unicode_dealloc /home/danzin/projects/python_build_matrix/builds/release-gil-nojit-asan/Objects/unicodeobject.c:1714:5
+    #2 0x5e7715f317d5 in _Py_Dealloc /home/danzin/projects/python_build_matrix/builds/release-gil-nojit-asan/Objects/object.c:3319:5
+    #3 0x5e7715ef2833 in Py_DECREF /home/danzin/projects/python_build_matrix/builds/release-gil-nojit-asan/./Include/refcount.h:427:9
+    #4 0x5e7715ef2833 in Py_XDECREF /home/danzin/projects/python_build_matrix/builds/release-gil-nojit-asan/./Include/refcount.h:520:9
+    #5 0x5e7715ef2833 in dictkeys_decref /home/danzin/projects/python_build_matrix/builds/release-gil-nojit-asan/Objects/dictobject.c:509:17
+    #6 0x5e7715ee05a9 in clear_lock_held /home/danzin/projects/python_build_matrix/builds/release-gil-nojit-asan/Objects/dictobject.c
+    #7 0x5e7715ef9338 in PyDict_Clear /home/danzin/projects/python_build_matrix/builds/release-gil-nojit-asan/Objects/dictobject.c:3178:5
+    #8 0x5e7715ef9338 in dict_clear_impl /home/danzin/projects/python_build_matrix/builds/release-gil-nojit-asan/Objects/dictobject.c:4969:5
+    #9 0x5e7715ef9338 in dict_clear /home/danzin/projects/python_build_matrix/builds/release-gil-nojit-asan/Objects/clinic/dictobject.c.h:170:12
+    #10 0x5e7715e2761f in _PyObject_VectorcallTstate /home/danzin/projects/python_build_matrix/builds/release-gil-nojit-asan/./Include/internal/pycore_call.h:144:11
+    #11 0x5e7715e2761f in PyObject_Vectorcall /home/danzin/projects/python_build_matrix/builds/release-gil-nojit-asan/Objects/call.c:327:12
+    #12 0x5e77161a0941 in _Py_VectorCallInstrumentation_StackRefSteal /home/danzin/projects/python_build_matrix/builds/release-gil-nojit-asan/Python/ceval.c:768:11
+    #13 0x5e77161b40d3 in _PyEval_EvalFrameDefault /home/danzin/projects/python_build_matrix/builds/release-gil-nojit-asan/Python/generated_cases.c.h:1906:35
+    #14 0x5e771619f904 in _PyEval_EvalFrame /home/danzin/projects/python_build_matrix/builds/release-gil-nojit-asan/./Include/internal/pycore_ceval.h:122:16
+    #15 0x5e771619f904 in _PyEval_Vector /home/danzin/projects/python_build_matrix/builds/release-gil-nojit-asan/Python/ceval.c:2172:12
+    #16 0x5e7715e27ec6 in _PyObject_VectorcallTstate /home/danzin/projects/python_build_matrix/builds/release-gil-nojit-asan/./Include/internal/pycore_call.h:144:11
+    #17 0x5e7715e27ec6 in PyObject_CallOneArg /home/danzin/projects/python_build_matrix/builds/release-gil-nojit-asan/Objects/call.c:395:12
+    #18 0x5e7716245717 in format_unraisable_v /home/danzin/projects/python_build_matrix/builds/release-gil-nojit-asan/Python/errors.c:1737:21
+    #19 0x5e7716245118 in PyErr_FormatUnraisable /home/danzin/projects/python_build_matrix/builds/release-gil-nojit-asan/Python/errors.c:1777:5
+    #20 0x5e7715ef37ca in _PyDict_SendEvent /home/danzin/projects/python_build_matrix/builds/release-gil-nojit-asan/Objects/dictobject.c:8314:17
+    #21 0x5e7715ef8d6b in _PyDict_NotifyEvent /home/danzin/projects/python_build_matrix/builds/release-gil-nojit-asan/./Include/internal/pycore_dict.h:327:9
+    #22 0x5e7715ef8d6b in dict_popitem_impl /home/danzin/projects/python_build_matrix/builds/release-gil-nojit-asan/Objects/dictobject.c:5051:9
+    #23 0x5e7715ef8d6b in dict_popitem /home/danzin/projects/python_build_matrix/builds/release-gil-nojit-asan/Objects/clinic/dictobject.c.h:231:20
+    #24 0x5e7715e2761f in _PyObject_VectorcallTstate /home/danzin/projects/python_build_matrix/builds/release-gil-nojit-asan/./Include/internal/pycore_call.h:144:11
+    #25 0x5e7715e2761f in PyObject_Vectorcall /home/danzin/projects/python_build_matrix/builds/release-gil-nojit-asan/Objects/call.c:327:12
+    #26 0x5e77161a0941 in _Py_VectorCallInstrumentation_StackRefSteal /home/danzin/projects/python_build_matrix/builds/release-gil-nojit-asan/Python/ceval.c:768:11
+    #27 0x5e77161b40d3 in _PyEval_EvalFrameDefault /home/danzin/projects/python_build_matrix/builds/release-gil-nojit-asan/Python/generated_cases.c.h:1906:35
+    #28 0x5e771619eeed in _PyEval_EvalFrame /home/danzin/projects/python_build_matrix/builds/release-gil-nojit-asan/./Include/internal/pycore_ceval.h:122:16
+    #29 0x5e771619eeed in _PyEval_Vector /home/danzin/projects/python_build_matrix/builds/release-gil-nojit-asan/Python/ceval.c:2172:12
+    #30 0x5e771619eeed in PyEval_EvalCode /home/danzin/projects/python_build_matrix/builds/release-gil-nojit-asan/Python/ceval.c:679:21
+    #31 0x5e7716311789 in run_mod /home/danzin/projects/python_build_matrix/builds/release-gil-nojit-asan/Python/pythonrun.c:1509:19
+    #32 0x5e771630b9cc in _PyRun_File /home/danzin/projects/python_build_matrix/builds/release-gil-nojit-asan/Python/pythonrun.c:1332:15
+    #33 0x5e771630b9cc in _PyRun_SimpleFile /home/danzin/projects/python_build_matrix/builds/release-gil-nojit-asan/Python/pythonrun.c:544:15
+    #34 0x5e771630af81 in _PyRun_AnyFile /home/danzin/projects/python_build_matrix/builds/release-gil-nojit-asan/Python/pythonrun.c:92:18
+    #35 0x5e771637f0fd in pymain_run_file_obj /home/danzin/projects/python_build_matrix/builds/release-gil-nojit-asan/Modules/main.c:478:24
+    #36 0x5e771637f0fd in pymain_run_file /home/danzin/projects/python_build_matrix/builds/release-gil-nojit-asan/Modules/main.c:494:20
+    #37 0x5e771637dd30 in pymain_run_python /home/danzin/projects/python_build_matrix/builds/release-gil-nojit-asan/Modules/main.c:804:21
+    #38 0x5e771637dd30 in Py_RunMain /home/danzin/projects/python_build_matrix/builds/release-gil-nojit-asan/Modules/main.c:891:5
+    #39 0x5e771637e843 in pymain_main /home/danzin/projects/python_build_matrix/builds/release-gil-nojit-asan/Modules/main.c:921:12
+    #40 0x5e771637e9a2 in Py_BytesMain /home/danzin/projects/python_build_matrix/builds/release-gil-nojit-asan/Modules/main.c:945:12
+    #41 0x7acc0ea2a600 in __libc_start_call_main csu/../sysdeps/nptl/libc_start_call_main.h:59:16
+    #42 0x7acc0ea2a717 in __libc_start_main csu/../csu/libc-start.c:360:3
+    #43 0x5e7715c2deb4 in _start (/home/danzin/projects/python_build_matrix/builds/release-gil-nojit-asan/python+0x1d9eb4) (BuildId: 122a1ef0f157604175441a62bd3151f00f44a928)
+
+previously allocated by thread T0 here:
+    #0 0x5e7715cd3860 in realloc (/home/danzin/projects/python_build_matrix/builds/release-gil-nojit-asan/python+0x27f860) (BuildId: 122a1ef0f157604175441a62bd3151f00f44a928)
+    #1 0x5e7715ff8031 in _PyUnicode_ResizeCompact /home/danzin/projects/python_build_matrix/builds/release-gil-nojit-asan/Objects/unicodeobject.c:1114:31
+    #2 0x5e7715ff2792 in _PyUnicodeWriter_Finish /home/danzin/projects/python_build_matrix/builds/release-gil-nojit-asan/Objects/unicode_writer.c:620:16
+    #3 0x5e7715fe4b80 in PyUnicode_Format /home/danzin/projects/python_build_matrix/builds/release-gil-nojit-asan/Objects/unicode_format.c:1102:12
+    #4 0x5e7715dd602a in binary_op1 /home/danzin/projects/python_build_matrix/builds/release-gil-nojit-asan/Objects/abstract.c:974:13
+    #5 0x5e7715dd6a96 in binary_op /home/danzin/projects/python_build_matrix/builds/release-gil-nojit-asan/Objects/abstract.c:1013:24
+    #6 0x5e7715dd6a96 in PyNumber_Remainder /home/danzin/projects/python_build_matrix/builds/release-gil-nojit-asan/Objects/abstract.c:1197:1
+    #7 0x5e77161ba612 in _PyEval_EvalFrameDefault /home/danzin/projects/python_build_matrix/builds/release-gil-nojit-asan/Python/generated_cases.c.h:67:35
+    #8 0x5e771619eeed in _PyEval_EvalFrame /home/danzin/projects/python_build_matrix/builds/release-gil-nojit-asan/./Include/internal/pycore_ceval.h:122:16
+    #9 0x5e771619eeed in _PyEval_Vector /home/danzin/projects/python_build_matrix/builds/release-gil-nojit-asan/Python/ceval.c:2172:12
+    #10 0x5e771619eeed in PyEval_EvalCode /home/danzin/projects/python_build_matrix/builds/release-gil-nojit-asan/Python/ceval.c:679:21
+    #11 0x5e7716311789 in run_mod /home/danzin/projects/python_build_matrix/builds/release-gil-nojit-asan/Python/pythonrun.c:1509:19
+    #12 0x5e771630b9cc in _PyRun_File /home/danzin/projects/python_build_matrix/builds/release-gil-nojit-asan/Python/pythonrun.c:1332:15
+    #13 0x5e771630b9cc in _PyRun_SimpleFile /home/danzin/projects/python_build_matrix/builds/release-gil-nojit-asan/Python/pythonrun.c:544:15
+    #14 0x5e771630af81 in _PyRun_AnyFile /home/danzin/projects/python_build_matrix/builds/release-gil-nojit-asan/Python/pythonrun.c:92:18
+    #15 0x5e771637f0fd in pymain_run_file_obj /home/danzin/projects/python_build_matrix/builds/release-gil-nojit-asan/Modules/main.c:478:24
+    #16 0x5e771637f0fd in pymain_run_file /home/danzin/projects/python_build_matrix/builds/release-gil-nojit-asan/Modules/main.c:494:20
+    #17 0x5e771637dd30 in pymain_run_python /home/danzin/projects/python_build_matrix/builds/release-gil-nojit-asan/Modules/main.c:804:21
+    #18 0x5e771637dd30 in Py_RunMain /home/danzin/projects/python_build_matrix/builds/release-gil-nojit-asan/Modules/main.c:891:5
+    #19 0x5e771637e843 in pymain_main /home/danzin/projects/python_build_matrix/builds/release-gil-nojit-asan/Modules/main.c:921:12
+    #20 0x5e771637e9a2 in Py_BytesMain /home/danzin/projects/python_build_matrix/builds/release-gil-nojit-asan/Modules/main.c:945:12
+    #21 0x7acc0ea2a600 in __libc_start_call_main csu/../sysdeps/nptl/libc_start_call_main.h:59:16
+    #22 0x7acc0ea2a717 in __libc_start_main csu/../csu/libc-start.c:360:3
+    #23 0x5e7715c2deb4 in _start (/home/danzin/projects/python_build_matrix/builds/release-gil-nojit-asan/python+0x1d9eb4) (BuildId: 122a1ef0f157604175441a62bd3151f00f44a928)
+
+SUMMARY: AddressSanitizer: heap-use-after-free /home/danzin/projects/python_build_matrix/builds/release-gil-nojit-asan/Objects/dictobject.c:5052:16 in dict_popitem_impl
+Shadow bytes around the buggy address:
+  0x770c0dc32e00: fa fa fd fd fd fd fd fd fa fa 00 00 00 00 00 00
+  0x770c0dc32e80: fa fa 00 00 00 00 00 06 fa fa 00 00 00 00 04 fa
+  0x770c0dc32f00: fa fa 00 00 00 00 04 fa fa fa fd fd fd fd fd fd
+  0x770c0dc32f80: fa fa 00 00 00 00 00 fa fa fa fd fd fd fd fd fd
+  0x770c0dc33000: fa fa fd fd fd fd fd fd fa fa fd fd fd fd fd fd
+=>0x770c0dc33080: fa fa fd fd fd fd fd fd fa fa fd fd fd[fd]fd fd
+  0x770c0dc33100: fa fa fd fd fd fd fd fd fa fa fd fd fd fd fd fd
+  0x770c0dc33180: fa fa fa fa fa fa fa fa fa fa fa fa fa fa fa fa
+  0x770c0dc33200: fa fa fa fa fa fa fa fa fa fa fa fa fa fa fa fa
+  0x770c0dc33280: fa fa fa fa fa fa fa fa fa fa fa fa fa fa fa fa
+  0x770c0dc33300: fa fa fa fa fa fa fa fa fa fa fa fa fa fa fa fa
+Shadow byte legend (one shadow byte represents 8 application bytes):
+  Addressable:           00
+  Partially addressable: 01 02 03 04 05 06 07 
+  Heap left redzone:       fa
+  Freed heap region:       fd
+  Stack left redzone:      f1
+  Stack mid redzone:       f2
+  Stack right redzone:     f3
+  Stack after return:      f5
+  Stack use after scope:   f8
+  Global redzone:          f9
+  Global init order:       f6
+  Poisoned by user:        f7
+  Container overflow:      fc
+  Array cookie:            ac
+  Intra object redzone:    bb
+  ASan internal:           fe
+  Left alloca redzone:     ca
+  Right alloca redzone:    cb
+==1786775==ABORTING

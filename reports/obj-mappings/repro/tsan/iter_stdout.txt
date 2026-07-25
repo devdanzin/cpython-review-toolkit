@@ -1,0 +1,17 @@
+TSan/FT stress -- CPython dict & set iterators (gh-154130 shape)
+  python : 3.16.0a0 free-threading build (heads/main:a1d580430c8, Jul 18 2026, 20:30:06) [Clang 21.1.8 (6ubuntu1)]
+  gil    : False
+  threads=4 rounds=300
+
+  dict keys iter, empty dict ...                 FAIL (exit 66)
+  dict keys iter, 1-elem dict ...                FAIL (exit 66)
+  dict values iter, empty dict ...               FAIL (exit 66)
+  dict items iter, empty dict ...                FAIL (exit 66)
+  dict reversed-keys iter, empty ...             FAIL (exit 66)
+  dict reversed-items iter, empty ...            FAIL (exit 66)
+  split-dict (__dict__) keys iter ...            FAIL (exit 66)
+  set iter, empty set ...                        FAIL (exit 66)
+  set iter, 1-elem set ...                       FAIL (exit 66)
+  frozenset iter, 1-elem ...                     FAIL (exit 66)
+
+RESULTS {'dict keys iter, empty dict': 'exit66', 'dict keys iter, 1-elem dict': 'exit66', 'dict values iter, empty dict': 'exit66', 'dict items iter, empty dict': 'exit66', 'dict reversed-keys iter, empty': 'exit66', 'dict reversed-items iter, empty': 'exit66', 'split-dict (__dict__) keys iter': 'exit66', 'set iter, empty set': 'exit66', 'set iter, 1-elem set': 'exit66', 'frozenset iter, 1-elem': 'exit66'}

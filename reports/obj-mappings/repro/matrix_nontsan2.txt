@@ -1,0 +1,11 @@
+########## REENTRANT ##########
+=== debug-ft-nojit : exits 0 0
+=== release-ft-nojit : exits 0 0
+=== debug-gil-nojit : exits 0 0
+=== release-gil-nojit : exits 0 0
+########## SPLIT ##########
+=== debug-ft-nojit : exits 0 0
+=== release-ft-nojit : exits 0 0
+=== debug-gil-nojit : exits 0 0
+=== release-gil-nojit : exits 0 0
+ALLDONE

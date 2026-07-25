@@ -1,0 +1,2 @@
+[setup] dk_nentries=28 dk_usable=1  (invariant sum == 30)
+[fire] mode=overflow DEPTH=8 -- outer setattr with dk_usable == 1

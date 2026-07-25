@@ -1,0 +1,15 @@
+TSan/FT stress -- dict & set iterator methods vs exhaustion drop
+  python : 3.16.0a0 free-threading build (heads/main:a1d580430c8, Jul 18 2026, 20:30:06) [Clang 21.1.8 (6ubuntu1)]
+  gil    : False
+  threads=4 rounds=400
+
+  dict iter: next vs __length_hint__ ...         FAIL (exit 66)
+  dict iter: next vs __reduce__ ...              FAIL (exit 66)
+  dict iter: next vs list() ...                  FAIL (exit 66)
+  dict items iter: next vs __length_hint__ ...   FAIL (exit 66)
+  dict items iter: next vs __reduce__ ...        FAIL (exit 66)
+  set iter: next vs __length_hint__ ...          FAIL (exit 66)
+  set iter: next vs __reduce__ ...               TIMEOUT/HANG (180s)
+  set iter: next vs list() ...                   FAIL (exit 66)
+
+RESULTS {'dict iter: next vs __length_hint__': 'exit66', 'dict iter: next vs __reduce__': 'exit66', 'dict iter: next vs list()': 'exit66', 'dict items iter: next vs __length_hint__': 'exit66', 'dict items iter: next vs __reduce__': 'exit66', 'set iter: next vs __length_hint__': 'exit66', 'set iter: next vs __reduce__': 'TIMEOUT', 'set iter: next vs list()': 'exit66'}

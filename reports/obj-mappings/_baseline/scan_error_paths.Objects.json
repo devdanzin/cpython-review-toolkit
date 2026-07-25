@@ -1,0 +1,390 @@
+{
+  "project_root": "/home/danzin/projects/cpython",
+  "scan_root": "/home/danzin/projects/cpython/Objects",
+  "files_analyzed": 123,
+  "functions_analyzed": 3073,
+  "denominators": {
+    "files_analyzed": 123,
+    "functions_analyzed": 3073,
+    "findings": 38,
+    "fallible_assignment_sites": 400,
+    "int_status_callees_resolved": 444,
+    "int_status_callees_discovered": 414
+  },
+  "findings": [
+    {
+      "type": "unconditional_pyerr_clear",
+      "api_call": "PyErr_Clear",
+      "detail": "PyErr_Clear() with no PyErr_ExceptionMatches within the preceding 3 lines \u2014 swallows any live exception, including KeyboardInterrupt and MemoryError raised by user code",
+      "confidence": "medium",
+      "file": "Objects/abstract.c",
+      "function": "PyObject_CheckReadBuffer",
+      "line": 350
+    },
+    {
+      "type": "unconditional_pyerr_clear",
+      "api_call": "PyErr_Clear",
+      "detail": "PyErr_Clear() with no PyErr_ExceptionMatches within the preceding 3 lines \u2014 swallows any live exception, including KeyboardInterrupt and MemoryError raised by user code",
+      "confidence": "medium",
+      "file": "Objects/bytearrayobject.c",
+      "function": "bytearray_richcompare",
+      "line": 1171
+    },
+    {
+      "type": "unconditional_pyerr_clear",
+      "api_call": "PyErr_Clear",
+      "detail": "PyErr_Clear() with no PyErr_ExceptionMatches within the preceding 3 lines \u2014 swallows any live exception, including KeyboardInterrupt and MemoryError raised by user code",
+      "confidence": "medium",
+      "file": "Objects/bytearrayobject.c",
+      "function": "bytearray_richcompare",
+      "line": 1177
+    },
+    {
+      "type": "unconditional_pyerr_clear",
+      "api_call": "PyErr_Clear",
+      "detail": "PyErr_Clear() with no PyErr_ExceptionMatches within the preceding 3 lines \u2014 swallows any live exception, including KeyboardInterrupt and MemoryError raised by user code",
+      "confidence": "medium",
+      "file": "Objects/bytes_methods.c",
+      "function": "_Py_bytes_contains",
+      "line": 608
+    },
+    {
+      "type": "unconditional_pyerr_clear",
+      "api_call": "PyErr_Clear",
+      "detail": "PyErr_Clear() with no PyErr_ExceptionMatches within the preceding 3 lines \u2014 swallows any live exception, including KeyboardInterrupt and MemoryError raised by user code",
+      "confidence": "medium",
+      "file": "Objects/call.c",
+      "function": "object_is_not_callable",
+      "line": 173
+    },
+    {
+      "type": "unconditional_pyerr_clear",
+      "api_call": "PyErr_Clear",
+      "detail": "PyErr_Clear() with no PyErr_ExceptionMatches within the preceding 3 lines \u2014 swallows any live exception, including KeyboardInterrupt and MemoryError raised by user code",
+      "confidence": "medium",
+      "file": "Objects/call.c",
+      "function": "object_is_not_callable",
+      "line": 179
+    },
+    {
+      "type": "alloc_null_no_memerror",
+      "api_call": "PyMem_Malloc",
+      "variable": "res",
+      "detail": "PyMem_Malloc does not set MemoryError; the failure branch for 'res' returns an error sentinel without PyErr_NoMemory()",
+      "confidence": "high",
+      "file": "Objects/dictobject.c",
+      "function": "new_values",
+      "line": 917,
+      "guard_line": 918
+    },
+    {
+      "type": "unconditional_pyerr_clear",
+      "api_call": "PyErr_Clear",
+      "detail": "PyErr_Clear() with no PyErr_ExceptionMatches within the preceding 3 lines \u2014 swallows any live exception, including KeyboardInterrupt and MemoryError raised by user code",
+      "confidence": "medium",
+      "file": "Objects/dictobject.c",
+      "function": "_PyDictKeys_StringLookupSplit",
+      "line": 1336
+    },
+    {
+      "type": "alloc_null_no_memerror",
+      "api_call": "PyMem_Malloc",
+      "variable": "shared_keys",
+      "detail": "PyMem_Malloc does not set MemoryError; the failure branch for 'shared_keys' returns an error sentinel without PyErr_NoMemory()",
+      "confidence": "high",
+      "file": "Objects/dictobject.c",
+      "function": "_PyDict_NewKeysForClass",
+      "line": 7264,
+      "guard_line": 7268
+    },
+    {
+      "type": "unconditional_pyerr_clear",
+      "api_call": "PyErr_Clear",
+      "detail": "PyErr_Clear() with no PyErr_ExceptionMatches within the preceding 3 lines \u2014 swallows any live exception, including KeyboardInterrupt and MemoryError raised by user code",
+      "confidence": "medium",
+      "file": "Objects/dictobject.c",
+      "function": "_PyDict_NewKeysForClass",
+      "line": 7269
+    },
+    {
+      "type": "unconditional_pyerr_clear",
+      "api_call": "PyErr_Clear",
+      "detail": "PyErr_Clear() with no PyErr_ExceptionMatches within the preceding 3 lines \u2014 swallows any live exception, including KeyboardInterrupt and MemoryError raised by user code",
+      "confidence": "medium",
+      "file": "Objects/fileobject.c",
+      "function": "stdprinter_write",
+      "line": 335
+    },
+    {
+      "type": "unconditional_pyerr_clear",
+      "api_call": "PyErr_Clear",
+      "detail": "PyErr_Clear() with no PyErr_ExceptionMatches within the preceding 3 lines \u2014 swallows any live exception, including KeyboardInterrupt and MemoryError raised by user code",
+      "confidence": "medium",
+      "file": "Objects/fileobject.c",
+      "function": "stdprinter_write",
+      "line": 351
+    },
+    {
+      "type": "alloc_null_no_memerror",
+      "api_call": "PyMem_New",
+      "variable": "linestarts",
+      "detail": "PyMem_New does not set MemoryError; the failure branch for 'linestarts' returns an error sentinel without PyErr_NoMemory()",
+      "confidence": "high",
+      "file": "Objects/frameobject.c",
+      "function": "marklines",
+      "line": 1586,
+      "guard_line": 1587
+    },
+    {
+      "type": "unconditional_pyerr_clear",
+      "api_call": "PyErr_Clear",
+      "detail": "PyErr_Clear() with no PyErr_ExceptionMatches within the preceding 3 lines \u2014 swallows any live exception, including KeyboardInterrupt and MemoryError raised by user code",
+      "confidence": "medium",
+      "file": "Objects/memoryobject.c",
+      "function": "memory_richcompare",
+      "line": 3255
+    },
+    {
+      "type": "unconditional_pyerr_clear",
+      "api_call": "PyErr_Clear",
+      "detail": "PyErr_Clear() with no PyErr_ExceptionMatches within the preceding 3 lines \u2014 swallows any live exception, including KeyboardInterrupt and MemoryError raised by user code",
+      "confidence": "medium",
+      "file": "Objects/memoryobject.c",
+      "function": "memory_richcompare",
+      "line": 3262
+    },
+    {
+      "type": "unconditional_pyerr_clear",
+      "api_call": "PyErr_Clear",
+      "detail": "PyErr_Clear() with no PyErr_ExceptionMatches within the preceding 3 lines \u2014 swallows any live exception, including KeyboardInterrupt and MemoryError raised by user code",
+      "confidence": "medium",
+      "file": "Objects/moduleobject.c",
+      "function": "_PyModule_ClearDict",
+      "line": 1071
+    },
+    {
+      "type": "unconditional_pyerr_clear",
+      "api_call": "PyErr_Clear",
+      "detail": "PyErr_Clear() with no PyErr_ExceptionMatches within the preceding 3 lines \u2014 swallows any live exception, including KeyboardInterrupt and MemoryError raised by user code",
+      "confidence": "medium",
+      "file": "Objects/moduleobject.c",
+      "function": "_PyModule_ClearDict",
+      "line": 1093
+    },
+    {
+      "type": "unconditional_pyerr_clear",
+      "api_call": "PyErr_Clear",
+      "detail": "PyErr_Clear() with no PyErr_ExceptionMatches within the preceding 3 lines \u2014 swallows any live exception, including KeyboardInterrupt and MemoryError raised by user code",
+      "confidence": "medium",
+      "file": "Objects/moduleobject.c",
+      "function": "try_load_lazy_submodule",
+      "line": 1319
+    },
+    {
+      "type": "unconditional_pyerr_clear",
+      "api_call": "PyErr_Clear",
+      "detail": "PyErr_Clear() with no PyErr_ExceptionMatches within the preceding 3 lines \u2014 swallows any live exception, including KeyboardInterrupt and MemoryError raised by user code",
+      "confidence": "medium",
+      "file": "Objects/object.c",
+      "function": "_PyObject_GetDictPtr",
+      "line": 1617
+    },
+    {
+      "type": "alloc_null_no_memerror",
+      "api_call": "PyMem_RawMalloc",
+      "variable": "str2",
+      "detail": "PyMem_RawMalloc does not set MemoryError; the failure branch for 'str2' returns an error sentinel without PyErr_NoMemory()",
+      "confidence": "high",
+      "file": "Objects/obmalloc.c",
+      "function": "_PyMem_RawWcsdup",
+      "line": 1305,
+      "guard_line": 1306
+    },
+    {
+      "type": "alloc_null_no_memerror",
+      "api_call": "PyMem_RawMalloc",
+      "variable": "copy",
+      "detail": "PyMem_RawMalloc does not set MemoryError; the failure branch for 'copy' returns an error sentinel without PyErr_NoMemory()",
+      "confidence": "high",
+      "file": "Objects/obmalloc.c",
+      "function": "_PyMem_RawStrdup",
+      "line": 1319,
+      "guard_line": 1320
+    },
+    {
+      "type": "alloc_null_no_memerror",
+      "api_call": "PyMem_Malloc",
+      "variable": "copy",
+      "detail": "PyMem_Malloc does not set MemoryError; the failure branch for 'copy' returns an error sentinel without PyErr_NoMemory()",
+      "confidence": "high",
+      "file": "Objects/obmalloc.c",
+      "function": "_PyMem_Strdup",
+      "line": 1332,
+      "guard_line": 1333
+    },
+    {
+      "type": "alloc_null_no_memerror",
+      "api_call": "PyMem_RawCalloc",
+      "variable": "n",
+      "detail": "PyMem_RawCalloc does not set MemoryError; the failure branch for 'n' returns an error sentinel without PyErr_NoMemory()",
+      "confidence": "high",
+      "file": "Objects/obmalloc.c",
+      "function": "arena_map_get",
+      "line": 2001,
+      "guard_line": 2002
+    },
+    {
+      "type": "alloc_null_no_memerror",
+      "api_call": "PyMem_RawCalloc",
+      "variable": "n",
+      "detail": "PyMem_RawCalloc does not set MemoryError; the failure branch for 'n' returns an error sentinel without PyErr_NoMemory()",
+      "confidence": "high",
+      "file": "Objects/obmalloc.c",
+      "function": "arena_map_get",
+      "line": 2013,
+      "guard_line": 2014
+    },
+    {
+      "type": "alloc_null_no_memerror",
+      "api_call": "PyMem_RawRealloc",
+      "variable": "arenaobj",
+      "detail": "PyMem_RawRealloc does not set MemoryError; the failure branch for 'arenaobj' returns an error sentinel without PyErr_NoMemory()",
+      "confidence": "high",
+      "file": "Objects/obmalloc.c",
+      "function": "new_arena",
+      "line": 2155,
+      "guard_line": 2156
+    },
+    {
+      "type": "alloc_null_no_memerror",
+      "api_call": "PyMem_RawCalloc",
+      "variable": "interp->obmalloc",
+      "detail": "PyMem_RawCalloc does not set MemoryError; the failure branch for 'interp->obmalloc' returns an error sentinel without PyErr_NoMemory()",
+      "confidence": "high",
+      "file": "Objects/obmalloc.c",
+      "function": "_PyMem_init_obmalloc",
+      "line": 3577,
+      "guard_line": 3578
+    },
+    {
+      "type": "unconditional_pyerr_clear",
+      "api_call": "PyErr_Clear",
+      "detail": "PyErr_Clear() with no PyErr_ExceptionMatches within the preceding 3 lines \u2014 swallows any live exception, including KeyboardInterrupt and MemoryError raised by user code",
+      "confidence": "medium",
+      "file": "Objects/rangeobject.c",
+      "function": "range_iter",
+      "line": 1240
+    },
+    {
+      "type": "unconditional_pyerr_clear",
+      "api_call": "PyErr_Clear",
+      "detail": "PyErr_Clear() with no PyErr_ExceptionMatches within the preceding 3 lines \u2014 swallows any live exception, including KeyboardInterrupt and MemoryError raised by user code",
+      "confidence": "medium",
+      "file": "Objects/rangeobject.c",
+      "function": "range_iter",
+      "line": 1245
+    },
+    {
+      "type": "unconditional_pyerr_clear",
+      "api_call": "PyErr_Clear",
+      "detail": "PyErr_Clear() with no PyErr_ExceptionMatches within the preceding 3 lines \u2014 swallows any live exception, including KeyboardInterrupt and MemoryError raised by user code",
+      "confidence": "medium",
+      "file": "Objects/rangeobject.c",
+      "function": "range_iter",
+      "line": 1250
+    },
+    {
+      "type": "int_status_never_tested",
+      "api_call": "add_all_subclasses",
+      "variable": "res",
+      "detail": "'res' takes add_all_subclasses's int status and is never tested. Unlike a NULL pointer returned straight back to the caller, a `return res` at the end of the function stops nothing in between: the code below runs with a live exception, and anything it commits or skips (a rollback, a slot update) happens anyway. Test res at the assignment and take the error path there.",
+      "confidence": "high",
+      "file": "Objects/typeobject.c",
+      "function": "type_set_bases_unlocked",
+      "line": 1966,
+      "use_line": 1982
+    },
+    {
+      "type": "unconditional_pyerr_clear",
+      "api_call": "PyErr_Clear",
+      "detail": "PyErr_Clear() with no PyErr_ExceptionMatches within the preceding 3 lines \u2014 swallows any live exception, including KeyboardInterrupt and MemoryError raised by user code",
+      "confidence": "medium",
+      "file": "Objects/typeobject.c",
+      "function": "type_repr",
+      "line": 2405
+    },
+    {
+      "type": "unconditional_pyerr_clear",
+      "api_call": "PyErr_Clear",
+      "detail": "PyErr_Clear() with no PyErr_ExceptionMatches within the preceding 3 lines \u2014 swallows any live exception, including KeyboardInterrupt and MemoryError raised by user code",
+      "confidence": "medium",
+      "file": "Objects/typeobject.c",
+      "function": "find_name_in_mro",
+      "line": 6149
+    },
+    {
+      "type": "unconditional_pyerr_clear",
+      "api_call": "PyErr_Clear",
+      "detail": "PyErr_Clear() with no PyErr_ExceptionMatches within the preceding 3 lines \u2014 swallows any live exception, including KeyboardInterrupt and MemoryError raised by user code",
+      "confidence": "medium",
+      "file": "Objects/typeobject.c",
+      "function": "find_name_in_mro",
+      "line": 6158
+    },
+    {
+      "type": "unconditional_pyerr_clear",
+      "api_call": "PyErr_Clear",
+      "detail": "PyErr_Clear() with no PyErr_ExceptionMatches within the preceding 3 lines \u2014 swallows any live exception, including KeyboardInterrupt and MemoryError raised by user code",
+      "confidence": "medium",
+      "file": "Objects/typeobject.c",
+      "function": "object_repr",
+      "line": 7490
+    },
+    {
+      "type": "unconditional_pyerr_clear",
+      "api_call": "PyErr_Clear",
+      "detail": "PyErr_Clear() with no PyErr_ExceptionMatches within the preceding 3 lines \u2014 swallows any live exception, including KeyboardInterrupt and MemoryError raised by user code",
+      "confidence": "medium",
+      "file": "Objects/typeobject.c",
+      "function": "get_subclasses_key",
+      "line": 9748
+    },
+    {
+      "type": "unconditional_pyerr_clear",
+      "api_call": "PyErr_Clear",
+      "detail": "PyErr_Clear() with no PyErr_ExceptionMatches within the preceding 3 lines \u2014 swallows any live exception, including KeyboardInterrupt and MemoryError raised by user code",
+      "confidence": "medium",
+      "file": "Objects/typevarobject.c",
+      "function": "caller",
+      "line": 402
+    },
+    {
+      "type": "unconditional_pyerr_clear",
+      "api_call": "PyErr_Clear",
+      "detail": "PyErr_Clear() with no PyErr_ExceptionMatches within the preceding 3 lines \u2014 swallows any live exception, including KeyboardInterrupt and MemoryError raised by user code",
+      "confidence": "medium",
+      "file": "Objects/unicodeobject.c",
+      "function": "init_global_interned_strings",
+      "line": 342
+    },
+    {
+      "type": "unconditional_pyerr_clear",
+      "api_call": "PyErr_Clear",
+      "detail": "PyErr_Clear() with no PyErr_ExceptionMatches within the preceding 3 lines \u2014 swallows any live exception, including KeyboardInterrupt and MemoryError raised by user code",
+      "confidence": "medium",
+      "file": "Objects/unionobject.c",
+      "function": "unionbuilder_add_single_unchecked",
+      "line": 172
+    }
+  ],
+  "summary": {
+    "missing_null_checks": 0,
+    "unchecked_returns": 0,
+    "alloc_null_no_memerror": 10,
+    "unconditional_pyerr_clear": 27,
+    "pylong_sentinel_no_errcheck": 0,
+    "unchecked_parse_calls": 0,
+    "int_status_never_tested": 1,
+    "total_findings": 38
+  }
+}

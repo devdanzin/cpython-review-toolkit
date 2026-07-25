@@ -1,0 +1,118 @@
+{
+  "project_root": "/home/danzin/projects/cpython",
+  "scan_root": "/home/danzin/projects/cpython/Objects",
+  "files_analyzed": 113,
+  "functions_analyzed": 4861,
+  "findings": [
+    {
+      "type": "gc_untrack_without_track",
+      "function": "dictiter_new",
+      "line": 5646,
+      "confidence": "low",
+      "gate": "file",
+      "tp_dealloc": null,
+      "detail": "'di' is allocated via PyObject_GC_New() and freed with Py_DECREF() on an error path before any PyObject_GC_Track(di), and the type could not be resolved in this file, which does use _PyObject_GC_UNTRACK somewhere (file-level fallback \u2014 confirm against this type's own tp_dealloc). The macro unconditionally unlinks an object it assumes is tracked, so a never-tracked object corrupts the GC list (debug build: _PyObject_AssertFailed, 'object not tracked by the garbage collector'). Bug class O6; cf. gh-152107 OOM-0006/0017. Ensure the error path does not reach an unconditional untrack, or track before the fallible step.",
+      "file": "Objects/dictobject.c"
+    },
+    {
+      "type": "varobject_nitems_unguarded",
+      "function": "long_subtype_new",
+      "line": 6036,
+      "confidence": "low",
+      "nitems": "ndigits",
+      "operands": [
+        "ndigits"
+      ],
+      "dispatch": "slot_pointer",
+      "detail": "type->tp_alloc(..., ndigits) reaches _PyObject_VAR_SIZE(tp, nitems) = tp_basicsize + nitems * tp_itemsize with **no** overflow guard before the call (no PY_SSIZE_T_MAX/itemsize division check, no __builtin_mul_overflow). The multiply is inside the macro, so it never appears in source and alloc_size_overflow cannot see it. If nitems is attacker-controlled the product wraps, the allocation succeeds far too small, and the first ob_item write is a heap overflow (Objects/structseq.c:77 PyStructSequence_New \u2014 reachable from pure Python via `os.terminal_size.n_fields = 2**62`). Guarded twin: Objects/tupleobject.c:52 tuple_alloc (`n > (PY_SSIZE_T_MAX - base) / sizeof(PyObject *)`).",
+      "file": "Objects/longobject.c"
+    },
+    {
+      "type": "gc_untrack_without_track",
+      "function": "odictiter_new",
+      "line": 1952,
+      "confidence": "medium",
+      "gate": "type:macro",
+      "tp_dealloc": "odictiter_dealloc",
+      "detail": "'di' is allocated via PyObject_GC_New() and freed with Py_DECREF() on an error path before any PyObject_GC_Track(di), and its tp_dealloc (odictiter_dealloc) runs the unchecked macro _PyObject_GC_UNTRACK. The macro unconditionally unlinks an object it assumes is tracked, so a never-tracked object corrupts the GC list (debug build: _PyObject_AssertFailed, 'object not tracked by the garbage collector'). Bug class O6; cf. gh-152107 OOM-0006/0017. Ensure the error path does not reach an unconditional untrack, or track before the fallible step.",
+      "file": "Objects/odictobject.c"
+    },
+    {
+      "type": "varobject_nitems_unguarded",
+      "function": "PyStructSequence_New",
+      "line": 77,
+      "confidence": "low",
+      "nitems": "size",
+      "operands": [
+        "size"
+      ],
+      "dispatch": "direct",
+      "detail": "PyObject_GC_NewVar(..., size) reaches _PyObject_VAR_SIZE(tp, nitems) = tp_basicsize + nitems * tp_itemsize with **no** overflow guard before the call (no PY_SSIZE_T_MAX/itemsize division check, no __builtin_mul_overflow). The multiply is inside the macro, so it never appears in source and alloc_size_overflow cannot see it. If nitems is attacker-controlled the product wraps, the allocation succeeds far too small, and the first ob_item write is a heap overflow (Objects/structseq.c:77 PyStructSequence_New \u2014 reachable from pure Python via `os.terminal_size.n_fields = 2**62`). Guarded twin: Objects/tupleobject.c:52 tuple_alloc (`n > (PY_SSIZE_T_MAX - base) / sizeof(PyObject *)`).",
+      "file": "Objects/structseq.c"
+    },
+    {
+      "type": "varobject_nitems_unguarded",
+      "function": "_PyTuple_Resize",
+      "line": 1083,
+      "confidence": "low",
+      "nitems": "newsize",
+      "operands": [
+        "newsize"
+      ],
+      "dispatch": "direct",
+      "detail": "PyObject_GC_Resize(..., newsize) reaches _PyObject_VAR_SIZE(tp, nitems) = tp_basicsize + nitems * tp_itemsize with **no** overflow guard before the call (no PY_SSIZE_T_MAX/itemsize division check, no __builtin_mul_overflow). The multiply is inside the macro, so it never appears in source and alloc_size_overflow cannot see it. If nitems is attacker-controlled the product wraps, the allocation succeeds far too small, and the first ob_item write is a heap overflow (Objects/structseq.c:77 PyStructSequence_New \u2014 reachable from pure Python via `os.terminal_size.n_fields = 2**62`). Guarded twin: Objects/tupleobject.c:52 tuple_alloc (`n > (PY_SSIZE_T_MAX - base) / sizeof(PyObject *)`).",
+      "file": "Objects/tupleobject.c"
+    },
+    {
+      "type": "varobject_nitems_unguarded",
+      "function": "PyType_GenericAlloc",
+      "line": 2559,
+      "confidence": "low",
+      "nitems": "nitems",
+      "operands": [
+        "nitems"
+      ],
+      "dispatch": "direct",
+      "detail": "_PyType_AllocNoTrack(..., nitems) reaches _PyObject_VAR_SIZE(tp, nitems) = tp_basicsize + nitems * tp_itemsize with **no** overflow guard before the call (no PY_SSIZE_T_MAX/itemsize division check, no __builtin_mul_overflow). The multiply is inside the macro, so it never appears in source and alloc_size_overflow cannot see it. If nitems is attacker-controlled the product wraps, the allocation succeeds far too small, and the first ob_item write is a heap overflow (Objects/structseq.c:77 PyStructSequence_New \u2014 reachable from pure Python via `os.terminal_size.n_fields = 2**62`). Guarded twin: Objects/tupleobject.c:52 tuple_alloc (`n > (PY_SSIZE_T_MAX - base) / sizeof(PyObject *)`).",
+      "file": "Objects/typeobject.c"
+    },
+    {
+      "type": "varobject_nitems_unguarded",
+      "function": "type_from_slots_or_spec",
+      "line": 5623,
+      "confidence": "low",
+      "nitems": "nmembers",
+      "operands": [
+        "nmembers"
+      ],
+      "dispatch": "slot_pointer",
+      "detail": "metaclass->tp_alloc(..., nmembers) reaches _PyObject_VAR_SIZE(tp, nitems) = tp_basicsize + nitems * tp_itemsize with **no** overflow guard before the call (no PY_SSIZE_T_MAX/itemsize division check, no __builtin_mul_overflow). The multiply is inside the macro, so it never appears in source and alloc_size_overflow cannot see it. If nitems is attacker-controlled the product wraps, the allocation succeeds far too small, and the first ob_item write is a heap overflow (Objects/structseq.c:77 PyStructSequence_New \u2014 reachable from pure Python via `os.terminal_size.n_fields = 2**62`). Guarded twin: Objects/tupleobject.c:52 tuple_alloc (`n > (PY_SSIZE_T_MAX - base) / sizeof(PyObject *)`).",
+      "file": "Objects/typeobject.c"
+    }
+  ],
+  "summary": {
+    "total_findings": 7,
+    "by_type": {
+      "gc_untrack_without_track": 2,
+      "varobject_nitems_unguarded": 5
+    },
+    "by_confidence": {
+      "low": 6,
+      "medium": 1
+    }
+  },
+  "varobject_allocation_census": {
+    "sites": 44,
+    "via_slot_pointer": 21,
+    "non_constant_nitems": 12
+  },
+  "skipped_files": [],
+  "denominators": {
+    "files_analyzed": 113,
+    "functions_analyzed": 4861,
+    "findings": 7,
+    "varobject_allocation_census.sites": 44,
+    "varobject_allocation_census.via_slot_pointer": 21,
+    "varobject_allocation_census.non_constant_nitems": 12
+  }
+}

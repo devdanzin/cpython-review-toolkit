@@ -1,0 +1,79 @@
+{
+  "project_root": "/home/danzin/projects/cpython",
+  "scan_root": "/home/danzin/projects/cpython/Objects",
+  "files_analyzed": 123,
+  "functions_analyzed": 4212,
+  "outparam_wrappers": [
+    "PyBytes_Concat",
+    "tuple_extend"
+  ],
+  "denominators": {
+    "files_analyzed": 123,
+    "functions_analyzed": 4212,
+    "findings": 4,
+    "assignment_sites": 15672,
+    "fallible_sources_resolved": 1405,
+    "local_nullable_helpers": 1389,
+    "outparam_wrappers": 2
+  },
+  "assignment_sites": 15672,
+  "fallible_sources_resolved": 1405,
+  "local_nullable_helpers": 1389,
+  "findings": [
+    {
+      "type": "unchecked_alloc",
+      "api_call": "frozendict_new_untracked",
+      "variable": "d",
+      "deref_is_assert": true,
+      "detail": "Result of frozendict_new_untracked assigned to 'd' is never checked for NULL and is dereferenced (assert(!_PyObject_GC_IS_TRACKED(d)). The dereference is inside an assert(), which is NOT a NULL check -- it is the opposite. On a debug build it dereferences NULL; on a release build NDEBUG compiles it out, so the crash and the real damage live on different builds. The damage is that the dereference is undefined behaviour, which licenses the optimizer to conclude the pointer cannot be NULL and delete NULL checks downstream, including inside an inlined callee (CPY-0079: no `test %rax,%rax` before the store in the release disassembly).",
+      "confidence": "medium",
+      "file": "Objects/dictobject.c",
+      "function": "copy_lock_held_untracked",
+      "line": 4489,
+      "deref_line": 4494
+    },
+    {
+      "type": "decref_of_nulled_outparam",
+      "api_call": "tuple_extend",
+      "variable": "subargs",
+      "detail": "Py_DECREF(subargs) runs in the failure branch of tuple_extend(&subargs, ...), which NULLs its out-parameter on every failure path -- this is a guaranteed Py_DECREF(NULL). The correct forms in-tree assert it instead (Objects/structseq.c:523, Objects/genericaliasobject.c:555).",
+      "confidence": "high",
+      "file": "Objects/genericaliasobject.c",
+      "function": "subs_tvars",
+      "line": 302
+    },
+    {
+      "type": "unchecked_alloc",
+      "api_call": "unpack_typevartuples",
+      "variable": "params",
+      "deref_is_assert": false,
+      "detail": "Result of unpack_typevartuples assigned to 'params' is never checked for NULL and is dereferenced (Py_DECREF(params))",
+      "confidence": "medium",
+      "file": "Objects/typevarobject.c",
+      "function": "_Py_subscript_generic",
+      "line": 2360,
+      "deref_line": 2363
+    },
+    {
+      "type": "unchecked_alloc",
+      "api_call": "PyUnicode_DATA",
+      "variable": "to",
+      "deref_is_assert": false,
+      "detail": "Result of PyUnicode_DATA assigned to 'to' is never checked for NULL and is dereferenced (PyBytes_RepeatBuffer(to,)",
+      "confidence": "medium",
+      "file": "Objects/unicodeobject.c",
+      "function": "_PyUnicode_Repeat",
+      "line": 12922,
+      "deref_line": 12923
+    }
+  ],
+  "summary": {
+    "unchecked_allocations": 3,
+    "deref_before_check": 0,
+    "decref_of_nulled_outparam": 1,
+    "decref_of_nulled_outparam_call_sites": 6,
+    "assert_only_derefs": 1,
+    "total_findings": 4,
+    "high_confidence": 1
+  }
+}

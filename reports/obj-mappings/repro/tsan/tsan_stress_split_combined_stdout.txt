@@ -1,0 +1,12 @@
+TSan/FT stress -- split-table / combined-table transitions
+  python : 3.16.0a0 free-threading build (heads/main:a1d580430c8, Jul 18 2026, 20:30:06) [Clang 21.1.8 (6ubuntu1)]
+  gil    : False
+  threads=4 iterations=300
+
+  split keys: concurrent new-attribute storm ... ok
+  split dict: setattr vs __dict__ materialise ... ok
+  split dict: setattr vs delattr vs __dict__= ... ok
+  split keys: instantiate vs insert (dk_usable) ... ok
+  split dict: iterate while crossing to combined ... ok
+
+Done -- check stderr for TSan warnings.
