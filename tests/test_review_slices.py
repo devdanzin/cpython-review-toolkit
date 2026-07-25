@@ -271,6 +271,42 @@ class TestMakeSliceContext(unittest.TestCase):
     def setUp(self):
         self.tool = _load_tool("make_slice_context")
 
+    def test_scope_for_a_one_file_slice_is_the_file_itself(self):
+        """Not the parent directory -- that would point agents at 50 files."""
+        with TempProject(
+            {"Objects/typeobject.c": "int t;", "Objects/other.c": "int o;"}
+        ) as r:
+            scope, exact = self.tool.scope_for(
+                {"files": ["Objects/typeobject.c"]}, Path(r)
+            )
+        self.assertEqual(scope, "Objects/typeobject.c")
+        self.assertTrue(exact)
+
+    def test_scope_for_a_whole_package_is_the_package_and_is_exact(self):
+        with TempProject(
+            {"Modules/_io/a.c": "int a;", "Modules/_io/b.c": "int b;"}
+        ) as r:
+            scope, exact = self.tool.scope_for(
+                {"files": ["Modules/_io/a.c", "Modules/_io/b.c"]}, Path(r)
+            )
+        self.assertEqual(scope, "Modules/_io")
+        self.assertTrue(exact)
+
+    def test_scope_wider_than_the_slice_is_reported_as_inexact(self):
+        """Objects/ holds files this slice does not own -- the caller must be told."""
+        with TempProject(
+            {
+                "Objects/listobject.c": "int l;",
+                "Objects/bytesobject.c": "int b;",
+                "Objects/dictobject.c": "int d;",
+            }
+        ) as r:
+            scope, exact = self.tool.scope_for(
+                {"files": ["Objects/listobject.c", "Objects/bytesobject.c"]}, Path(r)
+            )
+        self.assertEqual(scope, "Objects")
+        self.assertFalse(exact)
+
     def test_corpus_rejects_a_slice_spanning_two_directories(self):
         with self.assertRaises(SystemExit):
             self.tool.corpus_of({"files": ["Objects/a.c", "Modules/b.c"]})

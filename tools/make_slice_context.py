@@ -41,6 +41,7 @@ from __future__ import annotations
 import argparse
 import importlib.util
 import json
+import os
 import sys
 import time
 from pathlib import Path
@@ -99,6 +100,30 @@ def corpus_of(spec: dict) -> str:
     if len(tops) != 1:
         raise SystemExit(f"slice spans multiple top-level dirs: {sorted(tops)}")
     return tops.pop()
+
+
+def scope_for(spec: dict, cpython: Path) -> tuple[str, bool]:
+    """Narrowest path covering the slice, and whether it covers *only* the slice.
+
+    The manifest stores a hand-written ``scope`` for readability, but it is the
+    parent directory, and handing that to informed-explore points agents at
+    every file in it -- 50 files of ``Objects/`` for a one-file slice. So the
+    scope actually used is derived from the files, and when no single path
+    covers the slice exactly the caller is told, rather than silently scanning
+    a superset.
+    """
+    files = spec["files"]
+    common = os.path.commonpath(files) if len(files) > 1 else files[0]
+    target = cpython / common
+    if target.is_file():
+        return common, True
+    on_disk = {
+        os.path.relpath(os.path.join(dirpath, fn), cpython)
+        for dirpath, _, filenames in os.walk(target)
+        for fn in filenames
+        if fn.endswith(".c")
+    }
+    return common, on_disk == set(files)
 
 
 def known_bug_files(tsv: Path) -> dict[str, list[str]]:
@@ -200,6 +225,8 @@ def write_run_context(
     line_counts: dict[str, int],
     catalog_dir: Path | None,
     git_ref: str,
+    scope: str,
+    scope_exact: bool,
 ) -> None:
     new_territory = [f for f in spec["files"] if f not in calibration]
     lines: list[str] = []
@@ -208,8 +235,17 @@ def write_run_context(
     add(f"# Run context -- informed-explore, slice `{sid}`\n")
     add(f"**Slice:** {spec['family']} -- tier {spec['tier']}")
     add(f"**Target:** `{cpython}` @ `{git_ref}`")
-    add(f"**Scope argument:** `{spec['scope']}`")
     add(f"**Size:** {len(spec['files'])} files, {spec['lines']:,} lines")
+    if scope_exact:
+        add(f"**Scope:** `{scope}` -- covers exactly this slice.")
+    else:
+        add(
+            f"**Scope:** `{scope}` -- **WIDER THAN THIS SLICE.** No single path covers "
+            f"the slice exactly, so `{scope}` will pull in files owned by other slices. "
+            "Review only the files listed below (also in `preflight/slice_files.txt`); "
+            "anything you notice outside them belongs to another slice's pass -- note it "
+            "in one line and leave it there."
+        )
     if spec.get("oracle"):
         add(
             f"**Differential oracle:** `{spec['oracle']}` -- a shipped pure-Python twin. "
@@ -410,6 +446,11 @@ def main(argv: list[str] | None = None) -> int:
     (run_dir / "agents").mkdir(exist_ok=True)
     (run_dir / "repro").mkdir(exist_ok=True)
 
+    scope, scope_exact = scope_for(spec, cpython)
+    (run_dir / "preflight" / "slice_files.txt").write_text(
+        "\n".join(spec["files"]) + "\n", encoding="utf-8"
+    )
+
     sample_scan = _import(_REPO / "tools" / "sample_scan.py", "sample_scan")
     briefing_mod = _import(
         _SCRIPTS / "build_informed_briefing.py", "build_informed_briefing"
@@ -481,6 +522,8 @@ def main(argv: list[str] | None = None) -> int:
         line_counts,
         args.catalog_dir.resolve() if args.catalog_dir else None,
         git_ref,
+        scope,
+        scope_exact,
     )
 
     total = sum(len(r.get("findings", [])) for r in samples.values())
@@ -490,7 +533,12 @@ def main(argv: list[str] | None = None) -> int:
         f"  {len(calibration)} calibration file(s), "
         f"{len(spec['files']) - len(calibration)} new territory"
     )
-    _log(f"\nnext: /cpython-review-toolkit:informed-explore {spec['scope']} all")
+    if not scope_exact:
+        _log(
+            f"  NOTE: `{scope}` is wider than the slice -- agents must be held to "
+            "preflight/slice_files.txt"
+        )
+    _log(f"\nnext: /cpython-review-toolkit:informed-explore {scope} all")
     return 0
 
 
