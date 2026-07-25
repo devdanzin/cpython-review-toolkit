@@ -81,10 +81,10 @@ ctypes, no C API)**.
 | `debug-ft-nojit` | ctypes | **8/8 nonzero** — 6× SIGSEGV, 2× SIGABRT (60 rounds, 4 hammers) |
 | `release-ft-nojit` | ctypes | **8/8 SIGSEGV** |
 | `debug-ft-nojit` | **gcobjects** | **5/8 nonzero** — 4× SIGSEGV, 1× SIGABRT (150 rounds, 4 hammers) |
-| `release-ft-nojit` | gcobjects | RELEASE_FT_GCOBJ |
-| `debug-gil-nojit` | gcobjects | DEBUG_GIL_GCOBJ |
-| `release-gil-nojit` | gcobjects | RELEASE_GIL_GCOBJ |
-| `release-ft-nojit-asan-mitrack` | ctypes | 6/6 ASan ABORT |
+| `release-ft-nojit` | gcobjects | **not claimed — still running at report time.** `gc.get_objects()` under free-threading takes a stop-the-world per call, so with 4 hammers polling it these runs are ~100× slower than the `ctypes` ones and the machine also had four long-running fuzzer processes on it. The FT-vs-GIL contrast is already carried by the `debug-ft-nojit` row against the two GIL rows below, in the same mode. |
+| `debug-gil-nojit` | **gcobjects (the control)** | **0/6 clean** (60 rounds, 4 hammers) |
+| `release-gil-nojit` | **gcobjects (the control)** | **0/6 clean** |
+| `release-ft-nojit-asan-mitrack` | ctypes | 6/6 ASan ABORT — **inadmissible for the same reason as the other ctypes rows**; not used as evidence |
 
 **Honest correction, stated because it changes what counts as evidence.** The
 `ctypes` mode is *not* a clean control: `debug-gil-nojit` came back **2/6** and
@@ -92,7 +92,8 @@ ctypes, no C API)**.
 artifact — a hammer can read `ADDR[0]` from the previous round after the object
 has died and `ctypes.cast` a dangling address. `gc.get_objects()` cannot dangle
 (it increfs under stop-the-world), so **only the `gcobjects` rows are admissible
-as evidence**, and the GIL rows above are the control that matters.
+as evidence**. In that mode the contrast is clean and one-sided:
+**`debug-ft-nojit` 5/8 crashed, `debug-gil-nojit` 0/6, `release-gil-nojit` 0/6.**
 
 ### Two crash faces, both from gdb (`repro/gdb_CPY-0127_debug-ft.txt`)
 
