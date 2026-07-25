@@ -607,3 +607,78 @@ class TestLocalLockMacroResolution(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class TestFlagsTakingAcquireMatchesItsRelease(unittest.TestCase):
+    """A lock's identity is its FIRST argument, not the whole argument text.
+
+    `FT_MUTEX_LOCK_FLAGS(m, _Py_LOCK_DONT_DETACH)` releases through
+    `FT_MUTEX_UNLOCK(m)` — two arguments against one. Comparing whole argument
+    text made them look like different locks, so the correct `goto done; ...
+    done: FT_MUTEX_UNLOCK(...)` ladder in Objects/dictobject.c's
+    PyDict_AddWatcher and PyDict_ClearWatcher read as four leaks. The same
+    applies to PyMutex_LockFlags, and therefore to LOCK_KEYS, which expands to
+    it.
+    """
+
+    def setUp(self):
+        self.mod = import_script("scan_lock_discipline")
+
+    def _findings(self, files):
+        with TempProject(files) as root:
+            return self.mod.analyze(str(root))["findings"]
+
+    def test_first_top_level_arg_ignores_the_flags(self):
+        self.assertEqual(
+            self.mod._first_top_level_arg(
+                "&interp->dict_state.watcher_mutex, _Py_LOCK_DONT_DETACH"
+            ).strip(),
+            "&interp->dict_state.watcher_mutex",
+        )
+
+    def test_first_top_level_arg_ignores_commas_inside_parens(self):
+        self.assertEqual(
+            self.mod._first_top_level_arg("FOO(a, b), _Py_LOCK_DONT_DETACH").strip(),
+            "FOO(a, b)",
+        )
+
+    def test_goto_to_a_label_that_unlocks_is_not_a_leak(self):
+        # The PyDict_AddWatcher shape, verbatim in structure.
+        src = (
+            "int\n"
+            "add_watcher(PyInterpreterState *interp, void *callback)\n"
+            "{\n"
+            "    int watcher_id = -1;\n"
+            "    FT_MUTEX_LOCK_FLAGS(&interp->dict_state.watcher_mutex,\n"
+            "                        _Py_LOCK_DONT_DETACH);\n"
+            "    for (int i = 0; i < 8; i++) {\n"
+            "        if (!interp->dict_state.watchers[i]) {\n"
+            "            watcher_id = i;\n"
+            "            goto done;\n"
+            "        }\n"
+            "    }\n"
+            "    PyErr_SetString(PyExc_RuntimeError, \"no more\");\n"
+            "done:\n"
+            "    FT_MUTEX_UNLOCK(&interp->dict_state.watcher_mutex);\n"
+            "    return watcher_id;\n"
+            "}\n"
+        )
+        self.assertEqual(self._findings({"Objects/w.c": src}), [])
+
+    def test_a_genuine_leak_past_a_flags_acquire_is_still_reported(self):
+        src = (
+            "int\n"
+            "leaky(PyInterpreterState *interp, int bad)\n"
+            "{\n"
+            "    FT_MUTEX_LOCK_FLAGS(&interp->dict_state.watcher_mutex,\n"
+            "                        _Py_LOCK_DONT_DETACH);\n"
+            "    if (bad) {\n"
+            "        return -1;\n"
+            "    }\n"
+            "    FT_MUTEX_UNLOCK(&interp->dict_state.watcher_mutex);\n"
+            "    return 0;\n"
+            "}\n"
+        )
+        found = self._findings({"Objects/w.c": src})
+        self.assertEqual(len(found), 1, found)
+        self.assertEqual(found[0]["type"], "mutex_leak_on_error")

@@ -82,6 +82,75 @@ class TestScanFtRaces(unittest.TestCase):
         )
         self.assertEqual([f for f in result["findings"] if f["ft_class"] == "T3"], [])
 
+    def test_t3_drop_after_the_critical_section_closes_is_flagged(self):
+        """The setiter_iternext shape: a lock is present, the drop is outside it.
+
+        Objects/setobject.c ends its critical section at :1127 and drops the
+        owning reference at :1130-1131. Suppressing on "the body contains a
+        lock" hid TSAN-0053, TSAN-0054 and TSAN-0062 — every instance of the
+        class this rule exists for.
+        """
+        result = self._findings(
+            {
+                "Objects/myiter.c": (
+                    "static PyObject *\n"
+                    "myiter_iternext(PyObject *self)\n"
+                    "{\n"
+                    "    MyIter *it = (MyIter *)self;\n"
+                    "    PyObject *key = NULL;\n"
+                    "    Py_BEGIN_CRITICAL_SECTION(self);\n"
+                    "    key = it->it_key;\n"
+                    "    Py_END_CRITICAL_SECTION();\n"
+                    "    if (key == NULL) {\n"
+                    "        Py_CLEAR(it->it_seq);\n"
+                    "    }\n"
+                    "    return key;\n"
+                    "}\n"
+                )
+            }
+        )
+        t3 = [f for f in result["findings"] if f["ft_class"] == "T3"]
+        self.assertEqual(len(t3), 1, t3)
+        self.assertEqual(t3[0]["type"], "iternext_double_decref")
+        self.assertEqual(t3[0]["member"], "it_seq")
+
+    def test_t3_opaque_lock_still_suppresses_the_whole_function(self):
+        """A PyMutex has no delimitable region, so stay conservative there."""
+        result = self._findings(
+            {
+                "Objects/myiter.c": (
+                    "static PyObject *\n"
+                    "myiter_iternext(PyObject *self)\n"
+                    "{\n"
+                    "    MyIter *it = (MyIter *)self;\n"
+                    "    PyMutex_Lock(&it->it_mutex);\n"
+                    "    PyMutex_Unlock(&it->it_mutex);\n"
+                    "    Py_CLEAR(it->it_seq);\n"
+                    "    return NULL;\n"
+                    "}\n"
+                )
+            }
+        )
+        self.assertEqual([f for f in result["findings"] if f["ft_class"] == "T3"], [])
+
+    def test_t3_screaming_case_lock_macro_still_suppresses(self):
+        result = self._findings(
+            {
+                "Objects/myiter.c": (
+                    "static PyObject *\n"
+                    "myiter_iternext(PyObject *self)\n"
+                    "{\n"
+                    "    MyIter *it = (MyIter *)self;\n"
+                    "    LOCK_WEAKREFS(self);\n"
+                    "    Py_CLEAR(it->it_seq);\n"
+                    "    UNLOCK_WEAKREFS(self);\n"
+                    "    return NULL;\n"
+                    "}\n"
+                )
+            }
+        )
+        self.assertEqual([f for f in result["findings"] if f["ft_class"] == "T3"], [])
+
     def test_t3_non_iternext_is_not_flagged(self):
         result = self._findings(
             {

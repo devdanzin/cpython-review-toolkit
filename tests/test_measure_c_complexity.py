@@ -396,3 +396,87 @@ class TestHotspotSelection(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class TestFunctionPointerParameterCount(unittest.TestCase):
+    """D-19: commas inside a function-pointer parameter were counted.
+
+    `do_lookup` (Objects/dictobject.c) takes 5 parameters and was reported as
+    having 10 — the 4 scalars plus the 6 types inside its `compare` callback's
+    own argument list. That pushed it past the `param_count > 6` scoring
+    threshold and put it in dictobject.c's hotspot list purely as an artifact;
+    corrected, it scores 1.0 and drops off. 2 of the 8 hotspots reported for
+    that file were noise.
+    """
+
+    def test_commas_inside_a_function_pointer_are_not_parameters(self):
+        self.assertEqual(
+            mod._count_top_level_params(
+                "PyDictObject *mp, PyDictKeysObject *dk, PyObject *key, "
+                "Py_hash_t hash, "
+                "int (*compare)(PyDictObject *, PyDictKeysObject *, void *, "
+                "Py_ssize_t, PyObject *, Py_hash_t)"
+            ),
+            5,
+        )
+
+    def test_plain_parameters_are_unaffected(self):
+        self.assertEqual(mod._count_top_level_params("int a, char *b, long c"), 3)
+        self.assertEqual(mod._count_top_level_params("int a"), 1)
+
+    def test_array_parameter_brackets_do_not_confuse_the_count(self):
+        self.assertEqual(
+            mod._count_top_level_params("int argc, char *argv[], void *ctx"), 3
+        )
+
+    def test_measure_function_uses_the_top_level_count(self):
+        func = {
+            "name": "do_lookup",
+            "body": "{\n    return 0;\n}\n",
+            "params": (
+                "PyDictObject *mp, PyDictKeysObject *dk, PyObject *key, "
+                "Py_hash_t hash, "
+                "int (*compare)(PyDictObject *, PyDictKeysObject *, void *, "
+                "Py_ssize_t, PyObject *, Py_hash_t)"
+            ),
+            "start_line": 1,
+            "end_line": 3,
+        }
+        self.assertEqual(mod.measure_function(func)["parameter_count"], 5)
+
+
+class TestMergedRunTruncationIsReported(unittest.TestCase):
+    """D-20: a smaller file squeezed out of a merged run said nothing at all.
+
+    The percentile is computed over the merged corpus, so running over
+    Objects/dictobject.c + setobject.c together gave setobject.c zero hotspots
+    — which reads as "clean here" when it means "outranked elsewhere". Silent
+    truncation is the same failure mode as a zero denominator.
+    """
+
+    def test_a_file_with_functions_but_no_hotspots_is_named(self):
+        big = "".join(
+            "static int\n"
+            f"big_{i}(int a, int b, int c, int d, int e, int f, int g, int h)\n"
+            "{\n"
+            + "".join(
+                f"    if (a == {j}) {{ if (b == {j}) {{ if (c == {j}) return {j}; }} }}\n"
+                for j in range(12)
+            )
+            + "    return 0;\n"
+            "}\n"
+            for i in range(10)
+        )
+        small = "static int\nsmall(int x)\n{\n    return x;\n}\n"
+        with TempProject({"Objects/big.c": big, "Objects/small.c": small}) as root:
+            result = mod.analyze(str(root))
+        starved = result["summary"]["files_without_hotspots"]
+        self.assertIn("Objects/small.c", starved)
+        self.assertTrue(result["summary"]["files_without_hotspots_note"])
+
+    def test_no_note_when_every_file_contributes(self):
+        src = "static int\nf(int x)\n{\n    return x;\n}\n"
+        with TempProject({"Objects/only.c": src}) as root:
+            result = mod.analyze(str(root))
+        self.assertEqual(result["summary"]["files_without_hotspots"], [])
+        self.assertEqual(result["summary"]["files_without_hotspots_note"], "")

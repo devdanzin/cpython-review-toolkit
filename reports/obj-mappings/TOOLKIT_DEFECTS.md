@@ -1,5 +1,25 @@
 # Toolkit defects — obj-mappings slice
 
+## FIXED IN THIS SESSION (each measured before/after; 853 tests green, was 832)
+
+| defect | fix | measurement |
+|---|---|---|
+| **`scan_ft_races.py:373`** suppressed `iternext_double_decref` whenever `_has_lock(body)` was true *anywhere* in the function | per-drop span test via the file's existing `_critical_section_spans`; whole-function suppression kept only for locks whose region cannot be delimited (`PyMutex_Lock`, `_PyCriticalSection`, SCREAMING_CASE `*LOCK*(`) | **220 → 222** tree-wide. Both new findings are known-live: `setobject.c:1130 setiter_iternext` (TSAN-0054) and `dictobject.c:6158 dictiter_iternext_threadsafe`. **0 FP, 0 losses.** +3 tests |
+| **D-27** `recursion_prone_slot_functions` incremented on `slot is not None` | counts `_RECURSION_PRONE_CALLER_SLOTS` membership; publishes a `slot_classification` breakdown (`classified_total` / `from_slot_map` / `from_name_suffix` / `recursion_prone`) | `Objects/` **158 → 33**, `Modules/` 124 → 27, `Python/` 31 → 8. **Detection unchanged** (61/17/15 findings). +3 tests |
+| **D-21** `check_pep7` `missing-braces` had no `else` alternative and matched `raw_line` | added `else` / `else if`; anchor moved to the comment-stripped `clean` | slice **185 → 195**; all 10 new verified true positives by reading, incl. `dictobject.c:4717` (the trailing-comment case). Recall 94.4% → ~99.5%. +5 tests |
+| **D-19** `measure_c_complexity` counted commas inside function-pointer parameters | `_count_top_level_params` counts at paren depth 0 | `do_lookup` **10 → 5** params, leaves the hotspot list; `set_do_lookup`'s genuine 7 unaffected. +4 tests |
+| **D-20** a smaller file silently contributed 0 hotspots in a merged run | `summary.files_without_hotspots` + a note; only populated when something *did* make the cut | merged dict+set run now names `Objects/setobject.c`. +2 tests |
+| **`PyErr_FormatUnraisable` missing from `PYTHON_REACHING_APIS`** (`scan_refcounts`) | added, with `_PyErr_WriteUnraisableMsg` | **+1** tree-wide: `typeobject.c:1201 _PyType_Modified_Unlocked` — CPY-0096's own site. 0 FP |
+| **`lock_macros.json`** lacked `FT_MUTEX_LOCK_FLAGS` / `FT_MUTEX_UNLOCK` | added to the `PyMutex` pair | made the two `DONT_DETACH` acquires at `dictobject.c:8252`/`:8272` visible — the reason the slice's population read as 7 when it is 9 |
+| **`scan_lock_discipline` `_norm_args`** compared the *whole* argument text, so a flags-taking acquire never matched its release | lock identity is the **first** argument (`_first_top_level_arg`) | **found only because the `lock_macros.json` fix exposed it**: 4 false positives appeared in `PyDict_AddWatcher`/`ClearWatcher`, all `goto done` ladders that DO unlock. Back to **0/0/0**, genuine leaks still caught. Pre-existing and broader — it applies to `PyMutex_LockFlags`, hence to `LOCK_KEYS`. +4 tests |
+
+**Two process notes worth keeping.** The `lock_macros.json` addition is correct in isolation but would have *worsened* the scanner if shipped alone — the campaign's rule (measure the delta, don't just make the change) is what caught it. And my own `files_without_hotspots` fix was wrong on first attempt: with no hotspots anywhere it claimed a file had been squeezed out. Its own test caught that.
+
+Still open from the list below: D-18's clinic `_impl` lock association (measured 0 → 3, precision 3/3, but it does **not** recover CPY-0096 or CPY-0107), D-22's `function_watchlist`, D-25's `tp_base` model, D-28's positional slot-table parsing, and the two new rules the campaign wants — `lock_held_across_python` (keyed on lock flavour) and `stale_bound_across_python_call`.
+
+---
+
+
 Running ledger. Numbering continues from the obj-typeobject pass-2 ledger (D-1..D-17),
 so this slice starts at **D-18**.
 
