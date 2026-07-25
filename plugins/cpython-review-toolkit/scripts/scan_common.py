@@ -194,7 +194,18 @@ def build_report(
     summary: dict,
     **extra: object,
 ) -> dict:
-    """Assemble the standard JSON report envelope shared across scanners."""
+    """Assemble the standard JSON report envelope shared across scanners.
+
+    When a scanner passes ``vocabulary_counts`` and every count is zero, the
+    envelope gains ``rule_not_applicable: true``. That distinction is the one
+    this toolkit keeps getting wrong: an empty ``findings`` list means either
+    "the constructs are present and clean" or "the scanner recognised nothing
+    here", and those are opposite conclusions. Four v0.8 rules produced
+    structural zeros that were recorded as clean bills, and the obj-typeobject
+    review found scan_gil_usage resolving 0 constructs in a file with 11
+    stop-the-world regions and 3 critical-section families. A reader should not
+    have to sum a dict to notice.
+    """
     report: dict = {
         "project_root": str(project_root),
         "scan_root": str(scan_root),
@@ -204,6 +215,19 @@ def build_report(
         "summary": summary,
     }
     report.update(extra)
+
+    counts = report.get("vocabulary_counts")
+    if isinstance(counts, dict) and counts:
+        resolved = sum(v for v in counts.values() if isinstance(v, (int, float)))
+        report["rule_not_applicable"] = resolved == 0
+        if resolved == 0:
+            report["rule_not_applicable_note"] = (
+                "This scanner recognised NONE of its vocabulary in this scope, so "
+                "the empty findings list is silence, not safety. Either the "
+                "constructs genuinely are absent, or they are spelled in a way "
+                "the vocabulary does not cover (a file-local macro wrapper is the "
+                "usual cause). Establish which before reporting a clean result."
+            )
     return report
 
 
