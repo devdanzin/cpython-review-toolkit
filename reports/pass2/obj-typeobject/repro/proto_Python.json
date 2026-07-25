@@ -1,0 +1,1063 @@
+{
+  "target": "/home/danzin/projects/cpython/Python",
+  "before": {
+    "stw_function_count": 35,
+    "finding_count": 68,
+    "by_type": {
+      "stw_unknown_call": 63,
+      "stw_unsafe_call": 5
+    },
+    "stw_functions": [
+      {
+        "file": "Python/brc.c",
+        "function": "_Py_brc_queue_object",
+        "line": 53,
+        "classification": "unsafe"
+      },
+      {
+        "file": "Python/ceval.c",
+        "function": "Py_SetRecursionLimit",
+        "line": 13,
+        "classification": "unknown"
+      },
+      {
+        "file": "Python/ceval_gil.c",
+        "function": "_PyEval_EnableGILTransient",
+        "line": 1080,
+        "classification": "unknown"
+      },
+      {
+        "file": "Python/gc_free_threading.c",
+        "function": "gc_collect_internal",
+        "line": 2064,
+        "classification": "unsafe"
+      },
+      {
+        "file": "Python/gc_free_threading.c",
+        "function": "_PyGC_GetReferrers",
+        "line": 2391,
+        "classification": "unknown"
+      },
+      {
+        "file": "Python/gc_free_threading.c",
+        "function": "_PyGC_GetObjects",
+        "line": 2436,
+        "classification": "unknown"
+      },
+      {
+        "file": "Python/gc_free_threading.c",
+        "function": "_PyGC_Freeze",
+        "line": 2466,
+        "classification": "unknown"
+      },
+      {
+        "file": "Python/gc_free_threading.c",
+        "function": "_PyGC_Unfreeze",
+        "line": 2488,
+        "classification": "unknown"
+      },
+      {
+        "file": "Python/gc_free_threading.c",
+        "function": "_PyGC_GetFreezeCount",
+        "line": 2516,
+        "classification": "unknown"
+      },
+      {
+        "file": "Python/gc_free_threading.c",
+        "function": "PyUnstable_GC_VisitObjects",
+        "line": 2883,
+        "classification": "unknown"
+      },
+      {
+        "file": "Python/instrumentation.c",
+        "function": "call_instrumentation_vector",
+        "line": 1165,
+        "classification": "unsafe"
+      },
+      {
+        "file": "Python/instrumentation.c",
+        "function": "_Py_call_instrumentation_line",
+        "line": 1326,
+        "classification": "unknown"
+      },
+      {
+        "file": "Python/instrumentation.c",
+        "function": "_Py_call_instrumentation_instruction",
+        "line": 1429,
+        "classification": "unknown"
+      },
+      {
+        "file": "Python/instrumentation.c",
+        "function": "_PyMonitoring_ClearToolId",
+        "line": 2110,
+        "classification": "unsafe"
+      },
+      {
+        "file": "Python/instrumentation.c",
+        "function": "monitoring_set_events_impl",
+        "line": 2347,
+        "classification": "unsafe"
+      },
+      {
+        "file": "Python/instrumentation.c",
+        "function": "monitoring_set_local_events_impl",
+        "line": 2423,
+        "classification": "unsafe"
+      },
+      {
+        "file": "Python/instrumentation.c",
+        "function": "monitoring_restart_events_impl",
+        "line": 2467,
+        "classification": "unsafe"
+      },
+      {
+        "file": "Python/instrumentation.c",
+        "function": "branch_handler_vectorcall",
+        "line": 2980,
+        "classification": "unsafe"
+      },
+      {
+        "file": "Python/instrumentation.c",
+        "function": "_PyMonitoring_RegisterCallback",
+        "line": 3054,
+        "classification": "unknown"
+      },
+      {
+        "file": "Python/legacy_tracing.c",
+        "function": "_PyEval_SetOpcodeTrace",
+        "line": 151,
+        "classification": "unknown"
+      },
+      {
+        "file": "Python/legacy_tracing.c",
+        "function": "_PyEval_SetProfile",
+        "line": 524,
+        "classification": "unknown"
+      },
+      {
+        "file": "Python/legacy_tracing.c",
+        "function": "_PyEval_SetProfileAllThreads",
+        "line": 552,
+        "classification": "unknown"
+      },
+      {
+        "file": "Python/legacy_tracing.c",
+        "function": "_PyEval_SetTrace",
+        "line": 689,
+        "classification": "unknown"
+      },
+      {
+        "file": "Python/legacy_tracing.c",
+        "function": "_PyEval_SetTraceAllThreads",
+        "line": 725,
+        "classification": "unknown"
+      },
+      {
+        "file": "Python/pylifecycle.c",
+        "function": "make_pre_finalization_calls",
+        "line": 2279,
+        "classification": "unsafe"
+      },
+      {
+        "file": "Python/pylifecycle.c",
+        "function": "handle_thread_shutdown_exception",
+        "line": 3824,
+        "classification": "unknown"
+      },
+      {
+        "file": "Python/pystate.c",
+        "function": "_PyThread_CurrentFrames",
+        "line": 2723,
+        "classification": "unsafe"
+      },
+      {
+        "file": "Python/pystate.c",
+        "function": "_PyThread_CurrentExceptions",
+        "line": 2785,
+        "classification": "unsafe"
+      },
+      {
+        "file": "Python/pystate.c",
+        "function": "_PyInterpreterState_SetEvalFrameFunc",
+        "line": 3059,
+        "classification": "unsafe"
+      },
+      {
+        "file": "Python/pystate.c",
+        "function": "_PyInterpreterState_SetEvalFrameAllowSpecialization",
+        "line": 3082,
+        "classification": "unsafe"
+      },
+      {
+        "file": "Python/pystats.c",
+        "function": "stats_toggle_on_off",
+        "line": 566,
+        "classification": "unknown"
+      },
+      {
+        "file": "Python/pystats.c",
+        "function": "stats_zero_all",
+        "line": 610,
+        "classification": "unknown"
+      },
+      {
+        "file": "Python/pystats.c",
+        "function": "stats_merge_all",
+        "line": 634,
+        "classification": "unknown"
+      },
+      {
+        "file": "Python/qsbr.c",
+        "function": "_Py_qsbr_reserve",
+        "line": 191,
+        "classification": "unsafe"
+      },
+      {
+        "file": "Python/tracemalloc.c",
+        "function": "_PyTraceMalloc_Stop",
+        "line": 867,
+        "classification": "unknown"
+      }
+    ]
+  },
+  "after": {
+    "stw_function_count": 35,
+    "finding_count": 68,
+    "by_type": {
+      "stw_unknown_call": 63,
+      "stw_unsafe_call": 5
+    },
+    "wrappers_found": [],
+    "stw_functions": [
+      {
+        "file": "Python/brc.c",
+        "function": "_Py_brc_queue_object",
+        "line": 53,
+        "classification": "unsafe"
+      },
+      {
+        "file": "Python/ceval.c",
+        "function": "Py_SetRecursionLimit",
+        "line": 13,
+        "classification": "unknown"
+      },
+      {
+        "file": "Python/ceval_gil.c",
+        "function": "_PyEval_EnableGILTransient",
+        "line": 1080,
+        "classification": "unknown"
+      },
+      {
+        "file": "Python/gc_free_threading.c",
+        "function": "gc_collect_internal",
+        "line": 2064,
+        "classification": "unsafe"
+      },
+      {
+        "file": "Python/gc_free_threading.c",
+        "function": "_PyGC_GetReferrers",
+        "line": 2391,
+        "classification": "unknown"
+      },
+      {
+        "file": "Python/gc_free_threading.c",
+        "function": "_PyGC_GetObjects",
+        "line": 2436,
+        "classification": "unknown"
+      },
+      {
+        "file": "Python/gc_free_threading.c",
+        "function": "_PyGC_Freeze",
+        "line": 2466,
+        "classification": "unknown"
+      },
+      {
+        "file": "Python/gc_free_threading.c",
+        "function": "_PyGC_Unfreeze",
+        "line": 2488,
+        "classification": "unknown"
+      },
+      {
+        "file": "Python/gc_free_threading.c",
+        "function": "_PyGC_GetFreezeCount",
+        "line": 2516,
+        "classification": "unknown"
+      },
+      {
+        "file": "Python/gc_free_threading.c",
+        "function": "PyUnstable_GC_VisitObjects",
+        "line": 2883,
+        "classification": "unknown"
+      },
+      {
+        "file": "Python/instrumentation.c",
+        "function": "call_instrumentation_vector",
+        "line": 1165,
+        "classification": "unsafe"
+      },
+      {
+        "file": "Python/instrumentation.c",
+        "function": "_Py_call_instrumentation_line",
+        "line": 1326,
+        "classification": "unknown"
+      },
+      {
+        "file": "Python/instrumentation.c",
+        "function": "_Py_call_instrumentation_instruction",
+        "line": 1429,
+        "classification": "unknown"
+      },
+      {
+        "file": "Python/instrumentation.c",
+        "function": "_PyMonitoring_ClearToolId",
+        "line": 2110,
+        "classification": "unsafe"
+      },
+      {
+        "file": "Python/instrumentation.c",
+        "function": "monitoring_set_events_impl",
+        "line": 2347,
+        "classification": "unsafe"
+      },
+      {
+        "file": "Python/instrumentation.c",
+        "function": "monitoring_set_local_events_impl",
+        "line": 2423,
+        "classification": "unsafe"
+      },
+      {
+        "file": "Python/instrumentation.c",
+        "function": "monitoring_restart_events_impl",
+        "line": 2467,
+        "classification": "unsafe"
+      },
+      {
+        "file": "Python/instrumentation.c",
+        "function": "branch_handler_vectorcall",
+        "line": 2980,
+        "classification": "unsafe"
+      },
+      {
+        "file": "Python/instrumentation.c",
+        "function": "_PyMonitoring_RegisterCallback",
+        "line": 3054,
+        "classification": "unknown"
+      },
+      {
+        "file": "Python/legacy_tracing.c",
+        "function": "_PyEval_SetOpcodeTrace",
+        "line": 151,
+        "classification": "unknown"
+      },
+      {
+        "file": "Python/legacy_tracing.c",
+        "function": "_PyEval_SetProfile",
+        "line": 524,
+        "classification": "unknown"
+      },
+      {
+        "file": "Python/legacy_tracing.c",
+        "function": "_PyEval_SetProfileAllThreads",
+        "line": 552,
+        "classification": "unknown"
+      },
+      {
+        "file": "Python/legacy_tracing.c",
+        "function": "_PyEval_SetTrace",
+        "line": 689,
+        "classification": "unknown"
+      },
+      {
+        "file": "Python/legacy_tracing.c",
+        "function": "_PyEval_SetTraceAllThreads",
+        "line": 725,
+        "classification": "unknown"
+      },
+      {
+        "file": "Python/pylifecycle.c",
+        "function": "make_pre_finalization_calls",
+        "line": 2279,
+        "classification": "unsafe"
+      },
+      {
+        "file": "Python/pylifecycle.c",
+        "function": "handle_thread_shutdown_exception",
+        "line": 3824,
+        "classification": "unknown"
+      },
+      {
+        "file": "Python/pystate.c",
+        "function": "_PyThread_CurrentFrames",
+        "line": 2723,
+        "classification": "unsafe"
+      },
+      {
+        "file": "Python/pystate.c",
+        "function": "_PyThread_CurrentExceptions",
+        "line": 2785,
+        "classification": "unsafe"
+      },
+      {
+        "file": "Python/pystate.c",
+        "function": "_PyInterpreterState_SetEvalFrameFunc",
+        "line": 3059,
+        "classification": "unsafe"
+      },
+      {
+        "file": "Python/pystate.c",
+        "function": "_PyInterpreterState_SetEvalFrameAllowSpecialization",
+        "line": 3082,
+        "classification": "unsafe"
+      },
+      {
+        "file": "Python/pystats.c",
+        "function": "stats_toggle_on_off",
+        "line": 566,
+        "classification": "unknown"
+      },
+      {
+        "file": "Python/pystats.c",
+        "function": "stats_zero_all",
+        "line": 610,
+        "classification": "unknown"
+      },
+      {
+        "file": "Python/pystats.c",
+        "function": "stats_merge_all",
+        "line": 634,
+        "classification": "unknown"
+      },
+      {
+        "file": "Python/qsbr.c",
+        "function": "_Py_qsbr_reserve",
+        "line": 191,
+        "classification": "unsafe"
+      },
+      {
+        "file": "Python/tracemalloc.c",
+        "function": "_PyTraceMalloc_Stop",
+        "line": 867,
+        "classification": "unknown"
+      }
+    ],
+    "findings": [
+      {
+        "type": "stw_unknown_call",
+        "function": "_Py_brc_queue_object",
+        "line": 87,
+        "confidence": "medium",
+        "detail": "Unclassified call _Py_ExplicitMergeRefcount() inside a _PyEval_StopTheWorld region in '_Py_brc_queue_object'. Cannot statically determine whether it may invoke Python code \u2014 it is not in the STW API vocabulary and (if local) its body reaches an unclassified callee. Manual review needed. Intra-file analysis only.",
+        "api_call": "_Py_ExplicitMergeRefcount",
+        "file": "Python/brc.c"
+      },
+      {
+        "type": "stw_unknown_call",
+        "function": "Py_SetRecursionLimit",
+        "line": 19,
+        "confidence": "medium",
+        "detail": "Unclassified call _Py_FOR_EACH_TSTATE_BEGIN() inside a _PyEval_StopTheWorld region in 'Py_SetRecursionLimit'. Cannot statically determine whether it may invoke Python code \u2014 it is not in the STW API vocabulary and (if local) its body reaches an unclassified callee. Manual review needed. Intra-file analysis only.",
+        "api_call": "_Py_FOR_EACH_TSTATE_BEGIN",
+        "file": "Python/ceval.c"
+      },
+      {
+        "type": "stw_unknown_call",
+        "function": "Py_SetRecursionLimit",
+        "line": 24,
+        "confidence": "medium",
+        "detail": "Unclassified call _Py_FOR_EACH_TSTATE_END() inside a _PyEval_StopTheWorld region in 'Py_SetRecursionLimit'. Cannot statically determine whether it may invoke Python code \u2014 it is not in the STW API vocabulary and (if local) its body reaches an unclassified callee. Manual review needed. Intra-file analysis only.",
+        "api_call": "_Py_FOR_EACH_TSTATE_END",
+        "file": "Python/ceval.c"
+      },
+      {
+        "type": "stw_unknown_call",
+        "function": "gc_collect_internal",
+        "line": 2083,
+        "confidence": "medium",
+        "detail": "Unclassified call gc_visit_heaps() inside a _PyEval_StopTheWorld region in 'gc_collect_internal'. Cannot statically determine whether it may invoke Python code \u2014 it is not in the STW API vocabulary and (if local) its body reaches an unclassified callee. Manual review needed. Intra-file analysis only.",
+        "api_call": "gc_visit_heaps",
+        "file": "Python/gc_free_threading.c"
+      },
+      {
+        "type": "stw_unknown_call",
+        "function": "gc_collect_internal",
+        "line": 2086,
+        "confidence": "medium",
+        "detail": "Unclassified call _Py_FOR_EACH_TSTATE_BEGIN() inside a _PyEval_StopTheWorld region in 'gc_collect_internal'. Cannot statically determine whether it may invoke Python code \u2014 it is not in the STW API vocabulary and (if local) its body reaches an unclassified callee. Manual review needed. Intra-file analysis only.",
+        "api_call": "_Py_FOR_EACH_TSTATE_BEGIN",
+        "file": "Python/gc_free_threading.c"
+      },
+      {
+        "type": "stw_unknown_call",
+        "function": "gc_collect_internal",
+        "line": 2090,
+        "confidence": "medium",
+        "detail": "Unclassified call _PyObject_MergePerThreadRefcounts() inside a _PyEval_StopTheWorld region in 'gc_collect_internal'. Cannot statically determine whether it may invoke Python code \u2014 it is not in the STW API vocabulary and (if local) its body reaches an unclassified callee. Manual review needed. Intra-file analysis only.",
+        "api_call": "_PyObject_MergePerThreadRefcounts",
+        "file": "Python/gc_free_threading.c"
+      },
+      {
+        "type": "stw_unknown_call",
+        "function": "gc_collect_internal",
+        "line": 2093,
+        "confidence": "medium",
+        "detail": "Unclassified call merge_queued_objects() inside a _PyEval_StopTheWorld region in 'gc_collect_internal'. Cannot statically determine whether it may invoke Python code \u2014 it is not in the STW API vocabulary and (if local) its body reaches an unclassified callee. Manual review needed. Intra-file analysis only.",
+        "api_call": "merge_queued_objects",
+        "file": "Python/gc_free_threading.c"
+      },
+      {
+        "type": "stw_unknown_call",
+        "function": "gc_collect_internal",
+        "line": 2095,
+        "confidence": "medium",
+        "detail": "Unclassified call _Py_FOR_EACH_TSTATE_END() inside a _PyEval_StopTheWorld region in 'gc_collect_internal'. Cannot statically determine whether it may invoke Python code \u2014 it is not in the STW API vocabulary and (if local) its body reaches an unclassified callee. Manual review needed. Intra-file analysis only.",
+        "api_call": "_Py_FOR_EACH_TSTATE_END",
+        "file": "Python/gc_free_threading.c"
+      },
+      {
+        "type": "stw_unknown_call",
+        "function": "gc_collect_internal",
+        "line": 2097,
+        "confidence": "medium",
+        "detail": "Unclassified call process_delayed_frees() inside a _PyEval_StopTheWorld region in 'gc_collect_internal'. Cannot statically determine whether it may invoke Python code \u2014 it is not in the STW API vocabulary and (if local) its body reaches an unclassified callee. Manual review needed. Intra-file analysis only.",
+        "api_call": "process_delayed_frees",
+        "file": "Python/gc_free_threading.c"
+      },
+      {
+        "type": "stw_unknown_call",
+        "function": "gc_collect_internal",
+        "line": 2109,
+        "confidence": "medium",
+        "detail": "Unclassified call gc_mark_alive_from_roots() inside a _PyEval_StopTheWorld region in 'gc_collect_internal'. Cannot statically determine whether it may invoke Python code \u2014 it is not in the STW API vocabulary and (if local) its body reaches an unclassified callee. Manual review needed. Intra-file analysis only.",
+        "api_call": "gc_mark_alive_from_roots",
+        "file": "Python/gc_free_threading.c"
+      },
+      {
+        "type": "stw_unknown_call",
+        "function": "gc_collect_internal",
+        "line": 2153,
+        "confidence": "medium",
+        "detail": "Unclassified call handle_resurrected_objects() inside a _PyEval_StopTheWorld region in 'gc_collect_internal'. Cannot statically determine whether it may invoke Python code \u2014 it is not in the STW API vocabulary and (if local) its body reaches an unclassified callee. Manual review needed. Intra-file analysis only.",
+        "api_call": "handle_resurrected_objects",
+        "file": "Python/gc_free_threading.c"
+      },
+      {
+        "type": "stw_unknown_call",
+        "function": "gc_collect_internal",
+        "line": 2155,
+        "confidence": "medium",
+        "detail": "Unclassified call _PyGC_ClearAllFreeLists() inside a _PyEval_StopTheWorld region in 'gc_collect_internal'. Cannot statically determine whether it may invoke Python code \u2014 it is not in the STW API vocabulary and (if local) its body reaches an unclassified callee. Manual review needed. Intra-file analysis only.",
+        "api_call": "_PyGC_ClearAllFreeLists",
+        "file": "Python/gc_free_threading.c"
+      },
+      {
+        "type": "stw_unknown_call",
+        "function": "gc_collect_internal",
+        "line": 2157,
+        "confidence": "medium",
+        "detail": "Unclassified call clear_weakrefs() inside a _PyEval_StopTheWorld region in 'gc_collect_internal'. Cannot statically determine whether it may invoke Python code \u2014 it is not in the STW API vocabulary and (if local) its body reaches an unclassified callee. Manual review needed. Intra-file analysis only.",
+        "api_call": "clear_weakrefs",
+        "file": "Python/gc_free_threading.c"
+      },
+      {
+        "type": "stw_unknown_call",
+        "function": "_PyGC_GetReferrers",
+        "line": 2399,
+        "confidence": "medium",
+        "detail": "Unclassified call gc_visit_heaps() inside a _PyEval_StopTheWorld region in '_PyGC_GetReferrers'. Cannot statically determine whether it may invoke Python code \u2014 it is not in the STW API vocabulary and (if local) its body reaches an unclassified callee. Manual review needed. Intra-file analysis only.",
+        "api_call": "gc_visit_heaps",
+        "file": "Python/gc_free_threading.c"
+      },
+      {
+        "type": "stw_unknown_call",
+        "function": "_PyGC_GetObjects",
+        "line": 2444,
+        "confidence": "medium",
+        "detail": "Unclassified call gc_visit_heaps() inside a _PyEval_StopTheWorld region in '_PyGC_GetObjects'. Cannot statically determine whether it may invoke Python code \u2014 it is not in the STW API vocabulary and (if local) its body reaches an unclassified callee. Manual review needed. Intra-file analysis only.",
+        "api_call": "gc_visit_heaps",
+        "file": "Python/gc_free_threading.c"
+      },
+      {
+        "type": "stw_unknown_call",
+        "function": "_PyGC_Freeze",
+        "line": 2471,
+        "confidence": "medium",
+        "detail": "Unclassified call get_gc_state() inside a _PyEval_StopTheWorld region in '_PyGC_Freeze'. Cannot statically determine whether it may invoke Python code \u2014 it is not in the STW API vocabulary and (if local) its body reaches an unclassified callee. Manual review needed. Intra-file analysis only.",
+        "api_call": "get_gc_state",
+        "file": "Python/gc_free_threading.c"
+      },
+      {
+        "type": "stw_unknown_call",
+        "function": "_PyGC_Freeze",
+        "line": 2473,
+        "confidence": "medium",
+        "detail": "Unclassified call gc_visit_heaps() inside a _PyEval_StopTheWorld region in '_PyGC_Freeze'. Cannot statically determine whether it may invoke Python code \u2014 it is not in the STW API vocabulary and (if local) its body reaches an unclassified callee. Manual review needed. Intra-file analysis only.",
+        "api_call": "gc_visit_heaps",
+        "file": "Python/gc_free_threading.c"
+      },
+      {
+        "type": "stw_unknown_call",
+        "function": "_PyGC_Unfreeze",
+        "line": 2493,
+        "confidence": "medium",
+        "detail": "Unclassified call get_gc_state() inside a _PyEval_StopTheWorld region in '_PyGC_Unfreeze'. Cannot statically determine whether it may invoke Python code \u2014 it is not in the STW API vocabulary and (if local) its body reaches an unclassified callee. Manual review needed. Intra-file analysis only.",
+        "api_call": "get_gc_state",
+        "file": "Python/gc_free_threading.c"
+      },
+      {
+        "type": "stw_unknown_call",
+        "function": "_PyGC_Unfreeze",
+        "line": 2495,
+        "confidence": "medium",
+        "detail": "Unclassified call gc_visit_heaps() inside a _PyEval_StopTheWorld region in '_PyGC_Unfreeze'. Cannot statically determine whether it may invoke Python code \u2014 it is not in the STW API vocabulary and (if local) its body reaches an unclassified callee. Manual review needed. Intra-file analysis only.",
+        "api_call": "gc_visit_heaps",
+        "file": "Python/gc_free_threading.c"
+      },
+      {
+        "type": "stw_unknown_call",
+        "function": "_PyGC_GetFreezeCount",
+        "line": 2521,
+        "confidence": "medium",
+        "detail": "Unclassified call gc_visit_heaps() inside a _PyEval_StopTheWorld region in '_PyGC_GetFreezeCount'. Cannot statically determine whether it may invoke Python code \u2014 it is not in the STW API vocabulary and (if local) its body reaches an unclassified callee. Manual review needed. Intra-file analysis only.",
+        "api_call": "gc_visit_heaps",
+        "file": "Python/gc_free_threading.c"
+      },
+      {
+        "type": "stw_unknown_call",
+        "function": "PyUnstable_GC_VisitObjects",
+        "line": 2888,
+        "confidence": "medium",
+        "detail": "Unclassified call _PyGC_VisitObjectsWorldStopped() inside a _PyEval_StopTheWorld region in 'PyUnstable_GC_VisitObjects'. Cannot statically determine whether it may invoke Python code \u2014 it is not in the STW API vocabulary and (if local) its body reaches an unclassified callee. Manual review needed. Intra-file analysis only.",
+        "api_call": "_PyGC_VisitObjectsWorldStopped",
+        "file": "Python/gc_free_threading.c"
+      },
+      {
+        "type": "stw_unknown_call",
+        "function": "call_instrumentation_vector",
+        "line": 1211,
+        "confidence": "medium",
+        "detail": "Unclassified call remove_tools() inside a _PyEval_StopTheWorld region in 'call_instrumentation_vector'. Cannot statically determine whether it may invoke Python code \u2014 it is not in the STW API vocabulary and (if local) its body reaches an unclassified callee. Manual review needed. Intra-file analysis only.",
+        "api_call": "remove_tools",
+        "file": "Python/instrumentation.c"
+      },
+      {
+        "type": "stw_unknown_call",
+        "function": "call_instrumentation_vector",
+        "line": 1217,
+        "confidence": "medium",
+        "detail": "Unclassified call remove_local_tool() inside a _PyEval_StopTheWorld region in 'call_instrumentation_vector'. Cannot statically determine whether it may invoke Python code \u2014 it is not in the STW API vocabulary and (if local) its body reaches an unclassified callee. Manual review needed. Intra-file analysis only.",
+        "api_call": "remove_local_tool",
+        "file": "Python/instrumentation.c"
+      },
+      {
+        "type": "stw_unknown_call",
+        "function": "_Py_call_instrumentation_line",
+        "line": 1415,
+        "confidence": "medium",
+        "detail": "Unclassified call remove_line_tools() inside a _PyEval_StopTheWorld region in '_Py_call_instrumentation_line'. Cannot statically determine whether it may invoke Python code \u2014 it is not in the STW API vocabulary and (if local) its body reaches an unclassified callee. Manual review needed. Intra-file analysis only.",
+        "api_call": "remove_line_tools",
+        "file": "Python/instrumentation.c"
+      },
+      {
+        "type": "stw_unknown_call",
+        "function": "_Py_call_instrumentation_instruction",
+        "line": 1473,
+        "confidence": "medium",
+        "detail": "Unclassified call remove_per_instruction_tools() inside a _PyEval_StopTheWorld region in '_Py_call_instrumentation_instruction'. Cannot statically determine whether it may invoke Python code \u2014 it is not in the STW API vocabulary and (if local) its body reaches an unclassified callee. Manual review needed. Intra-file analysis only.",
+        "api_call": "remove_per_instruction_tools",
+        "file": "Python/instrumentation.c"
+      },
+      {
+        "type": "stw_unsafe_call",
+        "function": "_PyMonitoring_ClearToolId",
+        "line": 2123,
+        "confidence": "high",
+        "detail": "Unsafe call _PyMonitoring_SetEvents() inside a _PyEval_StopTheWorld region in '_PyMonitoring_ClearToolId'. During STW every other thread is suspended; this call may invoke Python code, set an exception via the format machinery, or take a lock a stopped thread holds \u2014 which can deadlock the world or corrupt interpreter state on the free-threaded build. Category: transitively_invokes_python. Call _PyEval_StartTheWorld before it (cf. Python/gc_free_threading.c:2223). Intra-file analysis: transitive callees in other files are not followed.",
+        "api_call": "_PyMonitoring_SetEvents",
+        "unsafe_reason": "transitively_invokes_python",
+        "file": "Python/instrumentation.c"
+      },
+      {
+        "type": "stw_unsafe_call",
+        "function": "monitoring_set_events_impl",
+        "line": 2369,
+        "confidence": "high",
+        "detail": "Unsafe call _PyMonitoring_SetEvents() inside a _PyEval_StopTheWorld region in 'monitoring_set_events_impl'. During STW every other thread is suspended; this call may invoke Python code, set an exception via the format machinery, or take a lock a stopped thread holds \u2014 which can deadlock the world or corrupt interpreter state on the free-threaded build. Category: transitively_invokes_python. Call _PyEval_StartTheWorld before it (cf. Python/gc_free_threading.c:2223). Intra-file analysis: transitive callees in other files are not followed.",
+        "api_call": "_PyMonitoring_SetEvents",
+        "unsafe_reason": "transitively_invokes_python",
+        "file": "Python/instrumentation.c"
+      },
+      {
+        "type": "stw_unsafe_call",
+        "function": "monitoring_set_local_events_impl",
+        "line": 2454,
+        "confidence": "high",
+        "detail": "Unsafe call _PyMonitoring_SetLocalEvents() inside a _PyEval_StopTheWorld region in 'monitoring_set_local_events_impl'. During STW every other thread is suspended; this call may invoke Python code, set an exception via the format machinery, or take a lock a stopped thread holds \u2014 which can deadlock the world or corrupt interpreter state on the free-threaded build. Category: transitively_invokes_python. Call _PyEval_StartTheWorld before it (cf. Python/gc_free_threading.c:2223). Intra-file analysis: transitive callees in other files are not followed.",
+        "api_call": "_PyMonitoring_SetLocalEvents",
+        "unsafe_reason": "transitively_invokes_python",
+        "file": "Python/instrumentation.c"
+      },
+      {
+        "type": "stw_unknown_call",
+        "function": "monitoring_restart_events_impl",
+        "line": 2479,
+        "confidence": "medium",
+        "detail": "Unclassified call global_version() inside a _PyEval_StopTheWorld region in 'monitoring_restart_events_impl'. Cannot statically determine whether it may invoke Python code \u2014 it is not in the STW API vocabulary and (if local) its body reaches an unclassified callee. Manual review needed. Intra-file analysis only.",
+        "api_call": "global_version",
+        "file": "Python/instrumentation.c"
+      },
+      {
+        "type": "stw_unknown_call",
+        "function": "branch_handler_vectorcall",
+        "line": 3034,
+        "confidence": "medium",
+        "detail": "Unclassified call remove_tools() inside a _PyEval_StopTheWorld region in 'branch_handler_vectorcall'. Cannot statically determine whether it may invoke Python code \u2014 it is not in the STW API vocabulary and (if local) its body reaches an unclassified callee. Manual review needed. Intra-file analysis only.",
+        "api_call": "remove_tools",
+        "file": "Python/instrumentation.c"
+      },
+      {
+        "type": "stw_unknown_call",
+        "function": "_PyEval_SetOpcodeTrace",
+        "line": 172,
+        "confidence": "medium",
+        "detail": "Unclassified call set_opcode_trace_world_stopped() inside a _PyEval_StopTheWorld region in '_PyEval_SetOpcodeTrace'. Cannot statically determine whether it may invoke Python code \u2014 it is not in the STW API vocabulary and (if local) its body reaches an unclassified callee. Manual review needed. Intra-file analysis only.",
+        "api_call": "set_opcode_trace_world_stopped",
+        "file": "Python/legacy_tracing.c"
+      },
+      {
+        "type": "stw_unknown_call",
+        "function": "_PyEval_SetProfile",
+        "line": 546,
+        "confidence": "medium",
+        "detail": "Unclassified call set_monitoring_profile_events() inside a _PyEval_StopTheWorld region in '_PyEval_SetProfile'. Cannot statically determine whether it may invoke Python code \u2014 it is not in the STW API vocabulary and (if local) its body reaches an unclassified callee. Manual review needed. Intra-file analysis only.",
+        "api_call": "set_monitoring_profile_events",
+        "file": "Python/legacy_tracing.c"
+      },
+      {
+        "type": "stw_unknown_call",
+        "function": "_PyEval_SetProfileAllThreads",
+        "line": 570,
+        "confidence": "medium",
+        "detail": "Unclassified call HEAD_LOCK() inside a _PyEval_StopTheWorld region in '_PyEval_SetProfileAllThreads'. Cannot statically determine whether it may invoke Python code \u2014 it is not in the STW API vocabulary and (if local) its body reaches an unclassified callee. Manual review needed. Intra-file analysis only.",
+        "api_call": "HEAD_LOCK",
+        "file": "Python/legacy_tracing.c"
+      },
+      {
+        "type": "stw_unknown_call",
+        "function": "_PyEval_SetProfileAllThreads",
+        "line": 572,
+        "confidence": "medium",
+        "detail": "Unclassified call _Py_FOR_EACH_TSTATE_UNLOCKED() inside a _PyEval_StopTheWorld region in '_PyEval_SetProfileAllThreads'. Cannot statically determine whether it may invoke Python code \u2014 it is not in the STW API vocabulary and (if local) its body reaches an unclassified callee. Manual review needed. Intra-file analysis only.",
+        "api_call": "_Py_FOR_EACH_TSTATE_UNLOCKED",
+        "file": "Python/legacy_tracing.c"
+      },
+      {
+        "type": "stw_unknown_call",
+        "function": "_PyEval_SetProfileAllThreads",
+        "line": 577,
+        "confidence": "medium",
+        "detail": "Unclassified call HEAD_UNLOCK() inside a _PyEval_StopTheWorld region in '_PyEval_SetProfileAllThreads'. Cannot statically determine whether it may invoke Python code \u2014 it is not in the STW API vocabulary and (if local) its body reaches an unclassified callee. Manual review needed. Intra-file analysis only.",
+        "api_call": "HEAD_UNLOCK",
+        "file": "Python/legacy_tracing.c"
+      },
+      {
+        "type": "stw_unknown_call",
+        "function": "_PyEval_SetTrace",
+        "line": 712,
+        "confidence": "medium",
+        "detail": "Unclassified call set_monitoring_trace_events() inside a _PyEval_StopTheWorld region in '_PyEval_SetTrace'. Cannot statically determine whether it may invoke Python code \u2014 it is not in the STW API vocabulary and (if local) its body reaches an unclassified callee. Manual review needed. Intra-file analysis only.",
+        "api_call": "set_monitoring_trace_events",
+        "file": "Python/legacy_tracing.c"
+      },
+      {
+        "type": "stw_unknown_call",
+        "function": "_PyEval_SetTrace",
+        "line": 717,
+        "confidence": "medium",
+        "detail": "Unclassified call maybe_set_opcode_trace() inside a _PyEval_StopTheWorld region in '_PyEval_SetTrace'. Cannot statically determine whether it may invoke Python code \u2014 it is not in the STW API vocabulary and (if local) its body reaches an unclassified callee. Manual review needed. Intra-file analysis only.",
+        "api_call": "maybe_set_opcode_trace",
+        "file": "Python/legacy_tracing.c"
+      },
+      {
+        "type": "stw_unknown_call",
+        "function": "_PyEval_SetTraceAllThreads",
+        "line": 743,
+        "confidence": "medium",
+        "detail": "Unclassified call HEAD_LOCK() inside a _PyEval_StopTheWorld region in '_PyEval_SetTraceAllThreads'. Cannot statically determine whether it may invoke Python code \u2014 it is not in the STW API vocabulary and (if local) its body reaches an unclassified callee. Manual review needed. Intra-file analysis only.",
+        "api_call": "HEAD_LOCK",
+        "file": "Python/legacy_tracing.c"
+      },
+      {
+        "type": "stw_unknown_call",
+        "function": "_PyEval_SetTraceAllThreads",
+        "line": 745,
+        "confidence": "medium",
+        "detail": "Unclassified call _Py_FOR_EACH_TSTATE_UNLOCKED() inside a _PyEval_StopTheWorld region in '_PyEval_SetTraceAllThreads'. Cannot statically determine whether it may invoke Python code \u2014 it is not in the STW API vocabulary and (if local) its body reaches an unclassified callee. Manual review needed. Intra-file analysis only.",
+        "api_call": "_Py_FOR_EACH_TSTATE_UNLOCKED",
+        "file": "Python/legacy_tracing.c"
+      },
+      {
+        "type": "stw_unknown_call",
+        "function": "_PyEval_SetTraceAllThreads",
+        "line": 750,
+        "confidence": "medium",
+        "detail": "Unclassified call HEAD_UNLOCK() inside a _PyEval_StopTheWorld region in '_PyEval_SetTraceAllThreads'. Cannot statically determine whether it may invoke Python code \u2014 it is not in the STW API vocabulary and (if local) its body reaches an unclassified callee. Manual review needed. Intra-file analysis only.",
+        "api_call": "HEAD_UNLOCK",
+        "file": "Python/legacy_tracing.c"
+      },
+      {
+        "type": "stw_unknown_call",
+        "function": "make_pre_finalization_calls",
+        "line": 2357,
+        "confidence": "medium",
+        "detail": "Unclassified call HEAD_LOCK() inside a _PyEval_StopTheWorld region in 'make_pre_finalization_calls'. Cannot statically determine whether it may invoke Python code \u2014 it is not in the STW API vocabulary and (if local) its body reaches an unclassified callee. Manual review needed. Intra-file analysis only.",
+        "api_call": "HEAD_LOCK",
+        "file": "Python/pylifecycle.c"
+      },
+      {
+        "type": "stw_unknown_call",
+        "function": "make_pre_finalization_calls",
+        "line": 2362,
+        "confidence": "medium",
+        "detail": "Unclassified call interp_has_threads() inside a _PyEval_StopTheWorld region in 'make_pre_finalization_calls'. Cannot statically determine whether it may invoke Python code \u2014 it is not in the STW API vocabulary and (if local) its body reaches an unclassified callee. Manual review needed. Intra-file analysis only.",
+        "api_call": "interp_has_threads",
+        "file": "Python/pylifecycle.c"
+      },
+      {
+        "type": "stw_unknown_call",
+        "function": "make_pre_finalization_calls",
+        "line": 2363,
+        "confidence": "medium",
+        "detail": "Unclassified call interp_has_atexit_callbacks() inside a _PyEval_StopTheWorld region in 'make_pre_finalization_calls'. Cannot statically determine whether it may invoke Python code \u2014 it is not in the STW API vocabulary and (if local) its body reaches an unclassified callee. Manual review needed. Intra-file analysis only.",
+        "api_call": "interp_has_atexit_callbacks",
+        "file": "Python/pylifecycle.c"
+      },
+      {
+        "type": "stw_unknown_call",
+        "function": "make_pre_finalization_calls",
+        "line": 2364,
+        "confidence": "medium",
+        "detail": "Unclassified call interp_has_pending_calls() inside a _PyEval_StopTheWorld region in 'make_pre_finalization_calls'. Cannot statically determine whether it may invoke Python code \u2014 it is not in the STW API vocabulary and (if local) its body reaches an unclassified callee. Manual review needed. Intra-file analysis only.",
+        "api_call": "interp_has_pending_calls",
+        "file": "Python/pylifecycle.c"
+      },
+      {
+        "type": "stw_unknown_call",
+        "function": "make_pre_finalization_calls",
+        "line": 2370,
+        "confidence": "medium",
+        "detail": "Unclassified call _Py_atomic_compare_exchange_uintptr() inside a _PyEval_StopTheWorld region in 'make_pre_finalization_calls'. Cannot statically determine whether it may invoke Python code \u2014 it is not in the STW API vocabulary and (if local) its body reaches an unclassified callee. Manual review needed. Intra-file analysis only.",
+        "api_call": "_Py_atomic_compare_exchange_uintptr",
+        "file": "Python/pylifecycle.c"
+      },
+      {
+        "type": "stw_unknown_call",
+        "function": "make_pre_finalization_calls",
+        "line": 2373,
+        "confidence": "medium",
+        "detail": "Unclassified call HEAD_UNLOCK() inside a _PyEval_StopTheWorld region in 'make_pre_finalization_calls'. Cannot statically determine whether it may invoke Python code \u2014 it is not in the STW API vocabulary and (if local) its body reaches an unclassified callee. Manual review needed. Intra-file analysis only.",
+        "api_call": "HEAD_UNLOCK",
+        "file": "Python/pylifecycle.c"
+      },
+      {
+        "type": "stw_unknown_call",
+        "function": "make_pre_finalization_calls",
+        "line": 2377,
+        "confidence": "medium",
+        "detail": "Unclassified call HEAD_UNLOCK() inside a _PyEval_StopTheWorld region in 'make_pre_finalization_calls'. Cannot statically determine whether it may invoke Python code \u2014 it is not in the STW API vocabulary and (if local) its body reaches an unclassified callee. Manual review needed. Intra-file analysis only.",
+        "api_call": "HEAD_UNLOCK",
+        "file": "Python/pylifecycle.c"
+      },
+      {
+        "type": "stw_unknown_call",
+        "function": "handle_thread_shutdown_exception",
+        "line": 3835,
+        "confidence": "medium",
+        "detail": "Unclassified call _Py_FOR_EACH_TSTATE_UNLOCKED() inside a _PyEval_StopTheWorld region in 'handle_thread_shutdown_exception'. Cannot statically determine whether it may invoke Python code \u2014 it is not in the STW API vocabulary and (if local) its body reaches an unclassified callee. Manual review needed. Intra-file analysis only.",
+        "api_call": "_Py_FOR_EACH_TSTATE_UNLOCKED",
+        "file": "Python/pylifecycle.c"
+      },
+      {
+        "type": "stw_unknown_call",
+        "function": "_PyThread_CurrentFrames",
+        "line": 2744,
+        "confidence": "medium",
+        "detail": "Unclassified call HEAD_LOCK() inside a _PyEval_StopTheWorld region in '_PyThread_CurrentFrames'. Cannot statically determine whether it may invoke Python code \u2014 it is not in the STW API vocabulary and (if local) its body reaches an unclassified callee. Manual review needed. Intra-file analysis only.",
+        "api_call": "HEAD_LOCK",
+        "file": "Python/pystate.c"
+      },
+      {
+        "type": "stw_unknown_call",
+        "function": "_PyThread_CurrentFrames",
+        "line": 2747,
+        "confidence": "medium",
+        "detail": "Unclassified call _Py_FOR_EACH_TSTATE_UNLOCKED() inside a _PyEval_StopTheWorld region in '_PyThread_CurrentFrames'. Cannot statically determine whether it may invoke Python code \u2014 it is not in the STW API vocabulary and (if local) its body reaches an unclassified callee. Manual review needed. Intra-file analysis only.",
+        "api_call": "_Py_FOR_EACH_TSTATE_UNLOCKED",
+        "file": "Python/pystate.c"
+      },
+      {
+        "type": "stw_unknown_call",
+        "function": "_PyThread_CurrentFrames",
+        "line": 2749,
+        "confidence": "medium",
+        "detail": "Unclassified call _PyFrame_GetFirstComplete() inside a _PyEval_StopTheWorld region in '_PyThread_CurrentFrames'. Cannot statically determine whether it may invoke Python code \u2014 it is not in the STW API vocabulary and (if local) its body reaches an unclassified callee. Manual review needed. Intra-file analysis only.",
+        "api_call": "_PyFrame_GetFirstComplete",
+        "file": "Python/pystate.c"
+      },
+      {
+        "type": "stw_unknown_call",
+        "function": "_PyThread_CurrentFrames",
+        "line": 2753,
+        "confidence": "medium",
+        "detail": "Unclassified call PyLong_FromUnsignedLong() inside a _PyEval_StopTheWorld region in '_PyThread_CurrentFrames'. Cannot statically determine whether it may invoke Python code \u2014 it is not in the STW API vocabulary and (if local) its body reaches an unclassified callee. Manual review needed. Intra-file analysis only.",
+        "api_call": "PyLong_FromUnsignedLong",
+        "file": "Python/pystate.c"
+      },
+      {
+        "type": "stw_unknown_call",
+        "function": "_PyThread_CurrentFrames",
+        "line": 2757,
+        "confidence": "medium",
+        "detail": "Unclassified call _PyFrame_GetFrameObject() inside a _PyEval_StopTheWorld region in '_PyThread_CurrentFrames'. Cannot statically determine whether it may invoke Python code \u2014 it is not in the STW API vocabulary and (if local) its body reaches an unclassified callee. Manual review needed. Intra-file analysis only.",
+        "api_call": "_PyFrame_GetFrameObject",
+        "file": "Python/pystate.c"
+      },
+      {
+        "type": "stw_unsafe_call",
+        "function": "_PyThread_CurrentFrames",
+        "line": 2762,
+        "confidence": "high",
+        "detail": "Unsafe call PyDict_SetItem() inside a _PyEval_StopTheWorld region in '_PyThread_CurrentFrames'. During STW every other thread is suspended; this call may invoke Python code, set an exception via the format machinery, or take a lock a stopped thread holds \u2014 which can deadlock the world or corrupt interpreter state on the free-threaded build. Category: container_mutation. Call _PyEval_StartTheWorld before it (cf. Python/gc_free_threading.c:2223). Intra-file analysis: transitive callees in other files are not followed.",
+        "api_call": "PyDict_SetItem",
+        "unsafe_reason": "container_mutation",
+        "file": "Python/pystate.c"
+      },
+      {
+        "type": "stw_unknown_call",
+        "function": "_PyThread_CurrentFrames",
+        "line": 2772,
+        "confidence": "medium",
+        "detail": "Unclassified call Py_CLEAR() inside a _PyEval_StopTheWorld region in '_PyThread_CurrentFrames'. Cannot statically determine whether it may invoke Python code \u2014 it is not in the STW API vocabulary and (if local) its body reaches an unclassified callee. Manual review needed. Intra-file analysis only.",
+        "api_call": "Py_CLEAR",
+        "file": "Python/pystate.c"
+      },
+      {
+        "type": "stw_unknown_call",
+        "function": "_PyThread_CurrentFrames",
+        "line": 2775,
+        "confidence": "medium",
+        "detail": "Unclassified call HEAD_UNLOCK() inside a _PyEval_StopTheWorld region in '_PyThread_CurrentFrames'. Cannot statically determine whether it may invoke Python code \u2014 it is not in the STW API vocabulary and (if local) its body reaches an unclassified callee. Manual review needed. Intra-file analysis only.",
+        "api_call": "HEAD_UNLOCK",
+        "file": "Python/pystate.c"
+      },
+      {
+        "type": "stw_unknown_call",
+        "function": "_PyThread_CurrentExceptions",
+        "line": 2809,
+        "confidence": "medium",
+        "detail": "Unclassified call HEAD_LOCK() inside a _PyEval_StopTheWorld region in '_PyThread_CurrentExceptions'. Cannot statically determine whether it may invoke Python code \u2014 it is not in the STW API vocabulary and (if local) its body reaches an unclassified callee. Manual review needed. Intra-file analysis only.",
+        "api_call": "HEAD_LOCK",
+        "file": "Python/pystate.c"
+      },
+      {
+        "type": "stw_unknown_call",
+        "function": "_PyThread_CurrentExceptions",
+        "line": 2812,
+        "confidence": "medium",
+        "detail": "Unclassified call _Py_FOR_EACH_TSTATE_UNLOCKED() inside a _PyEval_StopTheWorld region in '_PyThread_CurrentExceptions'. Cannot statically determine whether it may invoke Python code \u2014 it is not in the STW API vocabulary and (if local) its body reaches an unclassified callee. Manual review needed. Intra-file analysis only.",
+        "api_call": "_Py_FOR_EACH_TSTATE_UNLOCKED",
+        "file": "Python/pystate.c"
+      },
+      {
+        "type": "stw_unknown_call",
+        "function": "_PyThread_CurrentExceptions",
+        "line": 2813,
+        "confidence": "medium",
+        "detail": "Unclassified call _PyErr_GetTopmostException() inside a _PyEval_StopTheWorld region in '_PyThread_CurrentExceptions'. Cannot statically determine whether it may invoke Python code \u2014 it is not in the STW API vocabulary and (if local) its body reaches an unclassified callee. Manual review needed. Intra-file analysis only.",
+        "api_call": "_PyErr_GetTopmostException",
+        "file": "Python/pystate.c"
+      },
+      {
+        "type": "stw_unknown_call",
+        "function": "_PyThread_CurrentExceptions",
+        "line": 2817,
+        "confidence": "medium",
+        "detail": "Unclassified call PyLong_FromUnsignedLong() inside a _PyEval_StopTheWorld region in '_PyThread_CurrentExceptions'. Cannot statically determine whether it may invoke Python code \u2014 it is not in the STW API vocabulary and (if local) its body reaches an unclassified callee. Manual review needed. Intra-file analysis only.",
+        "api_call": "PyLong_FromUnsignedLong",
+        "file": "Python/pystate.c"
+      },
+      {
+        "type": "stw_unknown_call",
+        "function": "_PyThread_CurrentExceptions",
+        "line": 2824,
+        "confidence": "medium",
+        "detail": "Unclassified call PyExceptionInstance_Check() inside a _PyEval_StopTheWorld region in '_PyThread_CurrentExceptions'. Cannot statically determine whether it may invoke Python code \u2014 it is not in the STW API vocabulary and (if local) its body reaches an unclassified callee. Manual review needed. Intra-file analysis only.",
+        "api_call": "PyExceptionInstance_Check",
+        "file": "Python/pystate.c"
+      },
+      {
+        "type": "stw_unsafe_call",
+        "function": "_PyThread_CurrentExceptions",
+        "line": 2826,
+        "confidence": "high",
+        "detail": "Unsafe call PyDict_SetItem() inside a _PyEval_StopTheWorld region in '_PyThread_CurrentExceptions'. During STW every other thread is suspended; this call may invoke Python code, set an exception via the format machinery, or take a lock a stopped thread holds \u2014 which can deadlock the world or corrupt interpreter state on the free-threaded build. Category: container_mutation. Call _PyEval_StartTheWorld before it (cf. Python/gc_free_threading.c:2223). Intra-file analysis: transitive callees in other files are not followed.",
+        "api_call": "PyDict_SetItem",
+        "unsafe_reason": "container_mutation",
+        "file": "Python/pystate.c"
+      },
+      {
+        "type": "stw_unknown_call",
+        "function": "_PyThread_CurrentExceptions",
+        "line": 2836,
+        "confidence": "medium",
+        "detail": "Unclassified call Py_CLEAR() inside a _PyEval_StopTheWorld region in '_PyThread_CurrentExceptions'. Cannot statically determine whether it may invoke Python code \u2014 it is not in the STW API vocabulary and (if local) its body reaches an unclassified callee. Manual review needed. Intra-file analysis only.",
+        "api_call": "Py_CLEAR",
+        "file": "Python/pystate.c"
+      },
+      {
+        "type": "stw_unknown_call",
+        "function": "_PyThread_CurrentExceptions",
+        "line": 2839,
+        "confidence": "medium",
+        "detail": "Unclassified call HEAD_UNLOCK() inside a _PyEval_StopTheWorld region in '_PyThread_CurrentExceptions'. Cannot statically determine whether it may invoke Python code \u2014 it is not in the STW API vocabulary and (if local) its body reaches an unclassified callee. Manual review needed. Intra-file analysis only.",
+        "api_call": "HEAD_UNLOCK",
+        "file": "Python/pystate.c"
+      },
+      {
+        "type": "stw_unknown_call",
+        "function": "stats_toggle_on_off",
+        "line": 589,
+        "confidence": "medium",
+        "detail": "Unclassified call _Py_FOR_EACH_TSTATE_UNLOCKED() inside a _PyEval_StopTheWorld region in 'stats_toggle_on_off'. Cannot statically determine whether it may invoke Python code \u2014 it is not in the STW API vocabulary and (if local) its body reaches an unclassified callee. Manual review needed. Intra-file analysis only.",
+        "api_call": "_Py_FOR_EACH_TSTATE_UNLOCKED",
+        "file": "Python/pystats.c"
+      },
+      {
+        "type": "stw_unknown_call",
+        "function": "stats_zero_all",
+        "line": 623,
+        "confidence": "medium",
+        "detail": "Unclassified call _Py_FOR_EACH_TSTATE_UNLOCKED() inside a _PyEval_StopTheWorld region in 'stats_zero_all'. Cannot statically determine whether it may invoke Python code \u2014 it is not in the STW API vocabulary and (if local) its body reaches an unclassified callee. Manual review needed. Intra-file analysis only.",
+        "api_call": "_Py_FOR_EACH_TSTATE_UNLOCKED",
+        "file": "Python/pystats.c"
+      },
+      {
+        "type": "stw_unknown_call",
+        "function": "stats_merge_all",
+        "line": 647,
+        "confidence": "medium",
+        "detail": "Unclassified call _Py_FOR_EACH_TSTATE_UNLOCKED() inside a _PyEval_StopTheWorld region in 'stats_merge_all'. Cannot statically determine whether it may invoke Python code \u2014 it is not in the STW API vocabulary and (if local) its body reaches an unclassified callee. Manual review needed. Intra-file analysis only.",
+        "api_call": "_Py_FOR_EACH_TSTATE_UNLOCKED",
+        "file": "Python/pystats.c"
+      },
+      {
+        "type": "stw_unknown_call",
+        "function": "_Py_qsbr_reserve",
+        "line": 204,
+        "confidence": "medium",
+        "detail": "Unclassified call grow_thread_array() inside a _PyEval_StopTheWorld region in '_Py_qsbr_reserve'. Cannot statically determine whether it may invoke Python code \u2014 it is not in the STW API vocabulary and (if local) its body reaches an unclassified callee. Manual review needed. Intra-file analysis only.",
+        "api_call": "grow_thread_array",
+        "file": "Python/qsbr.c"
+      }
+    ]
+  }
+}

@@ -1,0 +1,639 @@
+{
+  "project_root": "/home/danzin/projects/cpython",
+  "scan_root": "/home/danzin/projects/cpython/Modules",
+  "files_analyzed": 484,
+  "functions_analyzed": 10457,
+  "findings": [
+    {
+      "type": "api_without_gil",
+      "api_call": "PyBytesWriter_GetData",
+      "detail": "Python C API call PyBytesWriter_GetData() within Py_BEGIN_ALLOW_THREADS region of 'pbkdf2_hmac_impl' (GIL not held)",
+      "confidence": "high",
+      "file": "Modules/_hashopenssl.c",
+      "function": "pbkdf2_hmac_impl",
+      "line": 1700
+    },
+    {
+      "type": "api_without_gil",
+      "api_call": "PyBytesWriter_GetData",
+      "detail": "Python C API call PyBytesWriter_GetData() within Py_BEGIN_ALLOW_THREADS region of '_hashlib_scrypt_impl' (GIL not held)",
+      "confidence": "high",
+      "file": "Modules/_hashopenssl.c",
+      "function": "_hashlib_scrypt_impl",
+      "line": 1808
+    },
+    {
+      "type": "blocking_with_gil",
+      "api_call": "select",
+      "detail": "Blocking call select() in 'sem_timedwait_save' without releasing the GIL (no Py_BEGIN_ALLOW_THREADS)",
+      "confidence": "medium",
+      "file": "Modules/_multiprocessing/semaphore.c",
+      "function": "sem_timedwait_save",
+      "line": 288
+    },
+    {
+      "type": "blocking_with_gil",
+      "api_call": "fcntl",
+      "detail": "Blocking call fcntl() in 'safe_get_max_fd' without releasing the GIL (no Py_BEGIN_ALLOW_THREADS)",
+      "confidence": "medium",
+      "file": "Modules/_posixsubprocess.c",
+      "function": "safe_get_max_fd",
+      "line": 335
+    },
+    {
+      "type": "blocking_with_gil",
+      "api_call": "fread",
+      "detail": "Blocking call fread() in 'binary_reader_open' without releasing the GIL (no Py_BEGIN_ALLOW_THREADS)",
+      "confidence": "medium",
+      "file": "Modules/_remote_debugging/binary_io_reader.c",
+      "function": "binary_reader_open",
+      "line": 515
+    },
+    {
+      "type": "blocking_with_gil",
+      "api_call": "read",
+      "detail": "Blocking call read() in 'get_ppid_linux' without releasing the GIL (no Py_BEGIN_ALLOW_THREADS)",
+      "confidence": "medium",
+      "file": "Modules/_remote_debugging/subprocess.c",
+      "function": "get_ppid_linux",
+      "line": 166
+    },
+    {
+      "type": "blocking_with_gil",
+      "api_call": "read",
+      "detail": "Blocking call read() in 'get_thread_status' without releasing the GIL (no Py_BEGIN_ALLOW_THREADS)",
+      "confidence": "medium",
+      "file": "Modules/_remote_debugging/threads.c",
+      "function": "get_thread_status",
+      "line": 202
+    },
+    {
+      "type": "blocking_with_gil",
+      "api_call": "waitpid",
+      "detail": "Blocking call waitpid() in 'seize_thread' without releasing the GIL (no Py_BEGIN_ALLOW_THREADS)",
+      "confidence": "medium",
+      "file": "Modules/_remote_debugging/threads.c",
+      "function": "seize_thread",
+      "line": 753
+    },
+    {
+      "type": "blocking_with_gil",
+      "api_call": "waitpid",
+      "detail": "Blocking call waitpid() in '_Py_RemoteDebug_StopAllThreads' without releasing the GIL (no Py_BEGIN_ALLOW_THREADS)",
+      "confidence": "medium",
+      "file": "Modules/_remote_debugging/threads.c",
+      "function": "_Py_RemoteDebug_StopAllThreads",
+      "line": 802
+    },
+    {
+      "type": "api_without_gil",
+      "api_call": "PyBytes_AS_STRING",
+      "detail": "Python C API call PyBytes_AS_STRING() within Py_BEGIN_ALLOW_THREADS region of 'pysqlite_connection_init_impl' (GIL not held)",
+      "confidence": "high",
+      "file": "Modules/_sqlite/connection.c",
+      "function": "pysqlite_connection_init_impl",
+      "line": 260
+    },
+    {
+      "type": "blocking_with_gil",
+      "api_call": "fread",
+      "detail": "Blocking call fread() in '_testcapi_py_fopen_impl' without releasing the GIL (no Py_BEGIN_ALLOW_THREADS)",
+      "confidence": "medium",
+      "file": "Modules/_testcapi/file.c",
+      "function": "_testcapi_py_fopen_impl",
+      "line": 53
+    },
+    {
+      "type": "api_without_gil",
+      "api_call": "PyObject_Malloc",
+      "detail": "Python C API call PyObject_Malloc() within Py_BEGIN_ALLOW_THREADS region of 'pyobject_malloc_without_gil' (GIL not held)",
+      "confidence": "high",
+      "file": "Modules/_testcapi/mem.c",
+      "function": "pyobject_malloc_without_gil",
+      "line": 532
+    },
+    {
+      "type": "api_without_gil",
+      "api_call": "PyMem_Malloc",
+      "detail": "Python C API call PyMem_Malloc() within Py_BEGIN_ALLOW_THREADS region of 'pymem_malloc_without_gil' (GIL not held)",
+      "confidence": "high",
+      "file": "Modules/_testcapi/mem.c",
+      "function": "pymem_malloc_without_gil",
+      "line": 579
+    },
+    {
+      "type": "api_without_gil",
+      "api_call": "PyTraceMalloc_Track",
+      "detail": "Python C API call PyTraceMalloc_Track() within Py_BEGIN_ALLOW_THREADS region of 'tracemalloc_track' (GIL not held)",
+      "confidence": "high",
+      "file": "Modules/_testcapi/mem.c",
+      "function": "tracemalloc_track",
+      "line": 610
+    },
+    {
+      "type": "api_without_gil",
+      "api_call": "PyTraceMalloc_Untrack",
+      "detail": "Python C API call PyTraceMalloc_Untrack() within Py_BEGIN_ALLOW_THREADS region of 'tracemalloc_untrack' (GIL not held)",
+      "confidence": "high",
+      "file": "Modules/_testcapi/mem.c",
+      "function": "tracemalloc_untrack",
+      "line": 642
+    },
+    {
+      "type": "api_without_gil",
+      "api_call": "PyObject_Dump",
+      "detail": "Python C API call PyObject_Dump() within Py_BEGIN_ALLOW_THREADS region of 'pyobject_dump' (GIL not held)",
+      "confidence": "high",
+      "file": "Modules/_testcapi/object.c",
+      "function": "pyobject_dump",
+      "line": 548
+    },
+    {
+      "type": "api_without_gil",
+      "api_call": "PyTime_MonotonicRaw",
+      "detail": "Python C API call PyTime_MonotonicRaw() within Py_BEGIN_ALLOW_THREADS region of 'test_pytime_monotonic_raw' (GIL not held)",
+      "confidence": "high",
+      "file": "Modules/_testcapi/time.c",
+      "function": "test_pytime_monotonic_raw",
+      "line": 67
+    },
+    {
+      "type": "api_without_gil",
+      "api_call": "PyTime_PerfCounterRaw",
+      "detail": "Python C API call PyTime_PerfCounterRaw() within Py_BEGIN_ALLOW_THREADS region of 'test_pytime_perf_counter_raw' (GIL not held)",
+      "confidence": "high",
+      "file": "Modules/_testcapi/time.c",
+      "function": "test_pytime_perf_counter_raw",
+      "line": 99
+    },
+    {
+      "type": "api_without_gil",
+      "api_call": "PyTime_TimeRaw",
+      "detail": "Python C API call PyTime_TimeRaw() within Py_BEGIN_ALLOW_THREADS region of 'test_pytime_time_raw' (GIL not held)",
+      "confidence": "high",
+      "file": "Modules/_testcapi/time.c",
+      "function": "test_pytime_time_raw",
+      "line": 131
+    },
+    {
+      "type": "api_without_gil",
+      "api_call": "PyThread_start_new_thread",
+      "detail": "Python C API call PyThread_start_new_thread() within Py_BEGIN_ALLOW_THREADS region of 'test_thread_state' (GIL not held)",
+      "confidence": "high",
+      "file": "Modules/_testcapimodule.c",
+      "function": "test_thread_state",
+      "line": 557
+    },
+    {
+      "type": "api_without_gil",
+      "api_call": "PyThreadState_Get",
+      "detail": "Python C API call PyThreadState_Get() within Py_BEGIN_ALLOW_THREADS region of 'crash_no_current_thread' (GIL not held)",
+      "confidence": "high",
+      "file": "Modules/_testcapimodule.c",
+      "function": "crash_no_current_thread",
+      "line": 1170
+    },
+    {
+      "type": "api_without_gil",
+      "api_call": "PyThreadState_EnsureFromView",
+      "detail": "Python C API call PyThreadState_EnsureFromView() within Py_BEGIN_ALLOW_THREADS region of 'test_thread_state_ensure_view' (GIL not held)",
+      "confidence": "high",
+      "file": "Modules/_testcapimodule.c",
+      "function": "test_thread_state_ensure_view",
+      "line": 2795
+    },
+    {
+      "type": "api_without_gil",
+      "api_call": "PyThreadState_Get",
+      "detail": "Python C API call PyThreadState_Get() within Py_BEGIN_ALLOW_THREADS region of 'test_thread_state_ensure_view' (GIL not held)",
+      "confidence": "high",
+      "file": "Modules/_testcapimodule.c",
+      "function": "test_thread_state_ensure_view",
+      "line": 2797
+    },
+    {
+      "type": "api_without_gil",
+      "api_call": "PyThreadState_EnsureFromView",
+      "detail": "Python C API call PyThreadState_EnsureFromView() within Py_BEGIN_ALLOW_THREADS region of 'test_thread_state_ensure_view' (GIL not held)",
+      "confidence": "high",
+      "file": "Modules/_testcapimodule.c",
+      "function": "test_thread_state_ensure_view",
+      "line": 2800
+    },
+    {
+      "type": "api_without_gil",
+      "api_call": "PyThreadState_Get",
+      "detail": "Python C API call PyThreadState_Get() within Py_BEGIN_ALLOW_THREADS region of 'test_thread_state_ensure_view' (GIL not held)",
+      "confidence": "high",
+      "file": "Modules/_testcapimodule.c",
+      "function": "test_thread_state_ensure_view",
+      "line": 2801
+    },
+    {
+      "type": "api_without_gil",
+      "api_call": "PyThreadState_EnsureFromView",
+      "detail": "Python C API call PyThreadState_EnsureFromView() within Py_BEGIN_ALLOW_THREADS region of 'test_thread_state_ensure_view' (GIL not held)",
+      "confidence": "high",
+      "file": "Modules/_testcapimodule.c",
+      "function": "test_thread_state_ensure_view",
+      "line": 2805
+    },
+    {
+      "type": "api_without_gil",
+      "api_call": "PyInterpreterState_Get",
+      "detail": "Python C API call PyInterpreterState_Get() within Py_BEGIN_ALLOW_THREADS region of 'test_thread_state_ensure_view' (GIL not held)",
+      "confidence": "high",
+      "file": "Modules/_testcapimodule.c",
+      "function": "test_thread_state_ensure_view",
+      "line": 2807
+    },
+    {
+      "type": "api_without_gil",
+      "api_call": "PyInterpreterState_Main",
+      "detail": "Python C API call PyInterpreterState_Main() within Py_BEGIN_ALLOW_THREADS region of 'test_thread_state_ensure_view' (GIL not held)",
+      "confidence": "high",
+      "file": "Modules/_testcapimodule.c",
+      "function": "test_thread_state_ensure_view",
+      "line": 2807
+    },
+    {
+      "type": "api_without_gil",
+      "api_call": "PyThreadState_EnsureFromView",
+      "detail": "Python C API call PyThreadState_EnsureFromView() within Py_BEGIN_ALLOW_THREADS region of 'test_thread_state_ensure_view' (GIL not held)",
+      "confidence": "high",
+      "file": "Modules/_testcapimodule.c",
+      "function": "test_thread_state_ensure_view",
+      "line": 2810
+    },
+    {
+      "type": "api_without_gil",
+      "api_call": "PyInterpreterState_Get",
+      "detail": "Python C API call PyInterpreterState_Get() within Py_BEGIN_ALLOW_THREADS region of 'test_thread_state_ensure_view' (GIL not held)",
+      "confidence": "high",
+      "file": "Modules/_testcapimodule.c",
+      "function": "test_thread_state_ensure_view",
+      "line": 2811
+    },
+    {
+      "type": "api_without_gil",
+      "api_call": "PyThreadState_GetInterpreter",
+      "detail": "Python C API call PyThreadState_GetInterpreter() within Py_BEGIN_ALLOW_THREADS region of 'test_thread_state_ensure_view' (GIL not held)",
+      "confidence": "high",
+      "file": "Modules/_testcapimodule.c",
+      "function": "test_thread_state_ensure_view",
+      "line": 2811
+    },
+    {
+      "type": "api_without_gil",
+      "api_call": "PyThreadState_Get",
+      "detail": "Python C API call PyThreadState_Get() within Py_BEGIN_ALLOW_THREADS region of 'test_thread_state_ensure_view' (GIL not held)",
+      "confidence": "high",
+      "file": "Modules/_testcapimodule.c",
+      "function": "test_thread_state_ensure_view",
+      "line": 2812
+    },
+    {
+      "type": "api_without_gil",
+      "api_call": "PyThreadState_Release",
+      "detail": "Python C API call PyThreadState_Release() within Py_BEGIN_ALLOW_THREADS region of 'test_thread_state_ensure_view' (GIL not held)",
+      "confidence": "high",
+      "file": "Modules/_testcapimodule.c",
+      "function": "test_thread_state_ensure_view",
+      "line": 2813
+    },
+    {
+      "type": "api_without_gil",
+      "api_call": "PyThreadState_Release",
+      "detail": "Python C API call PyThreadState_Release() within Py_BEGIN_ALLOW_THREADS region of 'test_thread_state_ensure_view' (GIL not held)",
+      "confidence": "high",
+      "file": "Modules/_testcapimodule.c",
+      "function": "test_thread_state_ensure_view",
+      "line": 2814
+    },
+    {
+      "type": "api_without_gil",
+      "api_call": "PyThreadState_Get",
+      "detail": "Python C API call PyThreadState_Get() within Py_BEGIN_ALLOW_THREADS region of 'test_thread_state_ensure_view' (GIL not held)",
+      "confidence": "high",
+      "file": "Modules/_testcapimodule.c",
+      "function": "test_thread_state_ensure_view",
+      "line": 2818
+    },
+    {
+      "type": "api_without_gil",
+      "api_call": "PyThreadState_EnsureFromView",
+      "detail": "Python C API call PyThreadState_EnsureFromView() within Py_BEGIN_ALLOW_THREADS region of 'test_thread_state_ensure_view' (GIL not held)",
+      "confidence": "high",
+      "file": "Modules/_testcapimodule.c",
+      "function": "test_thread_state_ensure_view",
+      "line": 2819
+    },
+    {
+      "type": "api_without_gil",
+      "api_call": "PyThreadState_Get",
+      "detail": "Python C API call PyThreadState_Get() within Py_BEGIN_ALLOW_THREADS region of 'test_thread_state_ensure_view' (GIL not held)",
+      "confidence": "high",
+      "file": "Modules/_testcapimodule.c",
+      "function": "test_thread_state_ensure_view",
+      "line": 2820
+    },
+    {
+      "type": "api_without_gil",
+      "api_call": "PyThreadState_Release",
+      "detail": "Python C API call PyThreadState_Release() within Py_BEGIN_ALLOW_THREADS region of 'test_thread_state_ensure_view' (GIL not held)",
+      "confidence": "high",
+      "file": "Modules/_testcapimodule.c",
+      "function": "test_thread_state_ensure_view",
+      "line": 2821
+    },
+    {
+      "type": "api_without_gil",
+      "api_call": "PyThreadState_Release",
+      "detail": "Python C API call PyThreadState_Release() within Py_BEGIN_ALLOW_THREADS region of 'test_thread_state_ensure_view' (GIL not held)",
+      "confidence": "high",
+      "file": "Modules/_testcapimodule.c",
+      "function": "test_thread_state_ensure_view",
+      "line": 2822
+    },
+    {
+      "type": "api_without_gil",
+      "api_call": "PyThreadState_Release",
+      "detail": "Python C API call PyThreadState_Release() within Py_BEGIN_ALLOW_THREADS region of 'test_thread_state_ensure_view' (GIL not held)",
+      "confidence": "high",
+      "file": "Modules/_testcapimodule.c",
+      "function": "test_thread_state_ensure_view",
+      "line": 2823
+    },
+    {
+      "type": "api_without_gil",
+      "api_call": "PyThreadState_GetUnchecked",
+      "detail": "Python C API call PyThreadState_GetUnchecked() within Py_BEGIN_ALLOW_THREADS region of 'test_thread_state_ensure_view' (GIL not held)",
+      "confidence": "high",
+      "file": "Modules/_testcapimodule.c",
+      "function": "test_thread_state_ensure_view",
+      "line": 2824
+    },
+    {
+      "type": "api_without_gil",
+      "api_call": "PyThreadState_GetUnchecked",
+      "detail": "Python C API call PyThreadState_GetUnchecked() within Py_BEGIN_ALLOW_THREADS region of 'test_thread_state_ensure_detached_gilstate' (GIL not held)",
+      "confidence": "high",
+      "file": "Modules/_testcapimodule.c",
+      "function": "test_thread_state_ensure_detached_gilstate",
+      "line": 2869
+    },
+    {
+      "type": "api_without_gil",
+      "api_call": "PyThreadState_Ensure",
+      "detail": "Python C API call PyThreadState_Ensure() within Py_BEGIN_ALLOW_THREADS region of 'test_thread_state_ensure_detached_gilstate' (GIL not held)",
+      "confidence": "high",
+      "file": "Modules/_testcapimodule.c",
+      "function": "test_thread_state_ensure_detached_gilstate",
+      "line": 2870
+    },
+    {
+      "type": "api_without_gil",
+      "api_call": "PyThreadState_Get",
+      "detail": "Python C API call PyThreadState_Get() within Py_BEGIN_ALLOW_THREADS region of 'test_thread_state_ensure_detached_gilstate' (GIL not held)",
+      "confidence": "high",
+      "file": "Modules/_testcapimodule.c",
+      "function": "test_thread_state_ensure_detached_gilstate",
+      "line": 2871
+    },
+    {
+      "type": "api_without_gil",
+      "api_call": "PyThreadState_Release",
+      "detail": "Python C API call PyThreadState_Release() within Py_BEGIN_ALLOW_THREADS region of 'test_thread_state_ensure_detached_gilstate' (GIL not held)",
+      "confidence": "high",
+      "file": "Modules/_testcapimodule.c",
+      "function": "test_thread_state_ensure_detached_gilstate",
+      "line": 2872
+    },
+    {
+      "type": "api_without_gil",
+      "api_call": "PyThreadState_GetUnchecked",
+      "detail": "Python C API call PyThreadState_GetUnchecked() within Py_BEGIN_ALLOW_THREADS region of 'test_thread_state_ensure_detached_gilstate' (GIL not held)",
+      "confidence": "high",
+      "file": "Modules/_testcapimodule.c",
+      "function": "test_thread_state_ensure_detached_gilstate",
+      "line": 2873
+    },
+    {
+      "type": "api_without_gil",
+      "api_call": "PyMutex_IsLocked",
+      "detail": "Python C API call PyMutex_IsLocked() within Py_BEGIN_ALLOW_THREADS region of 'test_critical_sections_suspend' (GIL not held)",
+      "confidence": "high",
+      "file": "Modules/_testinternalcapi/test_critical_sections.c",
+      "function": "test_critical_sections_suspend",
+      "line": 127
+    },
+    {
+      "type": "blocking_with_gil",
+      "api_call": "usleep",
+      "detail": "Blocking call usleep() in 'pysleep' without releasing the GIL (no Py_BEGIN_ALLOW_THREADS)",
+      "confidence": "medium",
+      "file": "Modules/_testinternalcapi/test_critical_sections.c",
+      "function": "pysleep",
+      "line": 210
+    },
+    {
+      "type": "blocking_with_gil",
+      "api_call": "usleep",
+      "detail": "Blocking call usleep() in 'pysleep' without releasing the GIL (no Py_BEGIN_ALLOW_THREADS)",
+      "confidence": "medium",
+      "file": "Modules/_testinternalcapi/test_lock.c",
+      "function": "pysleep",
+      "line": 28
+    },
+    {
+      "type": "api_without_gil",
+      "api_call": "_PyEval_AddPendingCall",
+      "detail": "Python C API call _PyEval_AddPendingCall() within Py_BEGIN_ALLOW_THREADS region of 'pending_identify' (GIL not held)",
+      "confidence": "high",
+      "file": "Modules/_testinternalcapi.c",
+      "function": "pending_identify",
+      "line": 1941
+    },
+    {
+      "type": "api_without_gil",
+      "api_call": "PyThread_join_thread",
+      "detail": "Python C API call PyThread_join_thread() within Py_BEGIN_ALLOW_THREADS region of 'join_thread' (GIL not held)",
+      "confidence": "high",
+      "file": "Modules/_threadmodule.c",
+      "function": "join_thread",
+      "line": 511
+    },
+    {
+      "type": "blocking_with_gil",
+      "api_call": "select",
+      "detail": "Blocking call select() in 'Sleep' without releasing the GIL (no Py_BEGIN_ALLOW_THREADS)",
+      "confidence": "medium",
+      "file": "Modules/_tkinter.c",
+      "function": "Sleep",
+      "line": 430
+    },
+    {
+      "type": "api_without_gil",
+      "api_call": "PyBytes_AS_STRING",
+      "detail": "Python C API call PyBytes_AS_STRING() within Py_BEGIN_ALLOW_THREADS region of '_winapi_ReadFile_impl' (GIL not held)",
+      "confidence": "high",
+      "file": "Modules/_winapi.c",
+      "function": "_winapi_ReadFile_impl",
+      "line": 2070
+    },
+    {
+      "type": "api_without_gil",
+      "api_call": "PyObject_CallFunction",
+      "detail": "Python C API call PyObject_CallFunction() within Py_BEGIN_ALLOW_THREADS region of '_winapi__mimetypes_read_windows_registry_impl' (GIL not held)",
+      "confidence": "high",
+      "file": "Modules/_winapi.c",
+      "function": "_winapi__mimetypes_read_windows_registry_impl",
+      "line": 2875
+    },
+    {
+      "type": "api_without_gil",
+      "api_call": "Py_DECREF",
+      "detail": "Python C API call Py_DECREF() within Py_BEGIN_ALLOW_THREADS region of '_winapi__mimetypes_read_windows_registry_impl' (GIL not held)",
+      "confidence": "high",
+      "file": "Modules/_winapi.c",
+      "function": "_winapi__mimetypes_read_windows_registry_impl",
+      "line": 2883
+    },
+    {
+      "type": "api_without_gil",
+      "api_call": "PyBytes_AS_STRING",
+      "detail": "Python C API call PyBytes_AS_STRING() within Py_BEGIN_ALLOW_THREADS region of '_zstd_finalize_dict_impl' (GIL not held)",
+      "confidence": "high",
+      "file": "Modules/_zstd/_zstdmodule.c",
+      "function": "_zstd_finalize_dict_impl",
+      "line": 396
+    },
+    {
+      "type": "api_without_gil",
+      "api_call": "PyBytes_AS_STRING",
+      "detail": "Python C API call PyBytes_AS_STRING() within Py_BEGIN_ALLOW_THREADS region of '_zstd_finalize_dict_impl' (GIL not held)",
+      "confidence": "high",
+      "file": "Modules/_zstd/_zstdmodule.c",
+      "function": "_zstd_finalize_dict_impl",
+      "line": 397
+    },
+    {
+      "type": "api_without_gil",
+      "api_call": "PyBytes_AS_STRING",
+      "detail": "Python C API call PyBytes_AS_STRING() within Py_BEGIN_ALLOW_THREADS region of '_zstd_finalize_dict_impl' (GIL not held)",
+      "confidence": "high",
+      "file": "Modules/_zstd/_zstdmodule.c",
+      "function": "_zstd_finalize_dict_impl",
+      "line": 399
+    },
+    {
+      "type": "blocking_with_gil",
+      "api_call": "gethostbyname",
+      "detail": "Blocking call gethostbyname() in 'get_addr' without releasing the GIL (no Py_BEGIN_ALLOW_THREADS)",
+      "confidence": "medium",
+      "file": "Modules/getaddrinfo.c",
+      "function": "get_addr",
+      "line": 557
+    },
+    {
+      "type": "blocking_with_gil",
+      "api_call": "bind",
+      "detail": "Blocking call bind() in '_overlapped_BindLocal_impl' without releasing the GIL (no Py_BEGIN_ALLOW_THREADS)",
+      "confidence": "medium",
+      "file": "Modules/overlapped.c",
+      "function": "_overlapped_BindLocal_impl",
+      "line": 552
+    },
+    {
+      "type": "blocking_with_gil",
+      "api_call": "bind",
+      "detail": "Blocking call bind() in '_overlapped_BindLocal_impl' without releasing the GIL (no Py_BEGIN_ALLOW_THREADS)",
+      "confidence": "medium",
+      "file": "Modules/overlapped.c",
+      "function": "_overlapped_BindLocal_impl",
+      "line": 560
+    },
+    {
+      "type": "api_without_gil",
+      "api_call": "PyBytes_AS_STRING",
+      "detail": "Python C API call PyBytes_AS_STRING() within Py_BEGIN_ALLOW_THREADS region of '_overlapped_Overlapped_AcceptEx_impl' (GIL not held)",
+      "confidence": "high",
+      "file": "Modules/overlapped.c",
+      "function": "_overlapped_Overlapped_AcceptEx_impl",
+      "line": 1356
+    },
+    {
+      "type": "blocking_with_gil",
+      "api_call": "waitpid",
+      "detail": "Blocking call waitpid() in '_rtp_spawn' without releasing the GIL (no Py_BEGIN_ALLOW_THREADS)",
+      "confidence": "medium",
+      "file": "Modules/posixmodule.c",
+      "function": "_rtp_spawn",
+      "line": 8156
+    },
+    {
+      "type": "blocking_with_gil",
+      "api_call": "fread",
+      "detail": "Blocking call fread() in 'get_number_of_os_threads' without releasing the GIL (no Py_BEGIN_ALLOW_THREADS)",
+      "confidence": "medium",
+      "file": "Modules/posixmodule.c",
+      "function": "get_number_of_os_threads",
+      "line": 8576
+    },
+    {
+      "type": "api_without_gil",
+      "api_call": "PyBytesWriter_GetData",
+      "detail": "Python C API call PyBytesWriter_GetData() within Py_BEGIN_ALLOW_THREADS region of 'os_pread_impl' (GIL not held)",
+      "confidence": "high",
+      "file": "Modules/posixmodule.c",
+      "function": "os_pread_impl",
+      "line": 12240
+    },
+    {
+      "type": "api_without_gil",
+      "api_call": "PyOS_InputHook",
+      "detail": "Python C API call PyOS_InputHook() within Py_BEGIN_ALLOW_THREADS region of 'os__inputhook_impl' (GIL not held)",
+      "confidence": "high",
+      "file": "Modules/posixmodule.c",
+      "function": "os__inputhook_impl",
+      "line": 17541
+    },
+    {
+      "type": "blocking_with_gil",
+      "api_call": "poll",
+      "detail": "Blocking call poll() in 'select_have_broken_poll' without releasing the GIL (no Py_BEGIN_ALLOW_THREADS)",
+      "confidence": "medium",
+      "file": "Modules/selectmodule.c",
+      "function": "select_have_broken_poll",
+      "line": 1291
+    },
+    {
+      "type": "blocking_with_gil",
+      "api_call": "send",
+      "detail": "Blocking call send() in 'trip_signal' without releasing the GIL (no Py_BEGIN_ALLOW_THREADS)",
+      "confidence": "medium",
+      "file": "Modules/signalmodule.c",
+      "function": "trip_signal",
+      "line": 299
+    }
+  ],
+  "summary": {
+    "mismatched_pairs": 0,
+    "api_without_gil": 50,
+    "blocking_with_gil": 18,
+    "total_findings": 68,
+    "by_type": {
+      "api_without_gil": 50,
+      "blocking_with_gil": 18,
+      "mismatched_allow_threads": 0,
+      "mismatched_gilstate": 0
+    }
+  },
+  "vocabulary_counts": {
+    "Py_BEGIN_ALLOW_THREADS": 440,
+    "Py_END_ALLOW_THREADS": 441,
+    "PyGILState_Ensure": 30,
+    "PyGILState_Release": 40
+  },
+  "skipped_files": []
+}

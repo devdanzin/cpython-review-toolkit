@@ -1,0 +1,153 @@
+{
+  "target": "/home/danzin/projects/cpython/Modules",
+  "before": {
+    "stw_function_count": 7,
+    "finding_count": 5,
+    "by_type": {
+      "stw_unknown_call": 5
+    },
+    "stw_functions": [
+      {
+        "file": "Modules/_asynciomodule.c",
+        "function": "unregister_task",
+        "line": 2200,
+        "classification": "unknown"
+      },
+      {
+        "file": "Modules/_asynciomodule.c",
+        "function": "_asyncio_current_task_impl",
+        "line": 3874,
+        "classification": "unknown"
+      },
+      {
+        "file": "Modules/_asynciomodule.c",
+        "function": "_asyncio_all_tasks_impl",
+        "line": 4023,
+        "classification": "unsafe"
+      },
+      {
+        "file": "Modules/_testinternalcapi/test_critical_sections.c",
+        "function": "test_critical_sections_stw",
+        "line": 416,
+        "classification": "unknown"
+      },
+      {
+        "file": "Modules/gcmodule.c",
+        "function": "gc_set_threshold_impl",
+        "line": 154,
+        "classification": "unknown"
+      },
+      {
+        "file": "Modules/gcmodule.c",
+        "function": "gc_get_referents_impl",
+        "line": 298,
+        "classification": "unknown"
+      },
+      {
+        "file": "Modules/posixmodule.c",
+        "function": "PyOS_BeforeFork",
+        "line": 690,
+        "classification": "unsafe"
+      }
+    ]
+  },
+  "after": {
+    "stw_function_count": 7,
+    "finding_count": 5,
+    "by_type": {
+      "stw_unknown_call": 5
+    },
+    "wrappers_found": [],
+    "stw_functions": [
+      {
+        "file": "Modules/_asynciomodule.c",
+        "function": "unregister_task",
+        "line": 2200,
+        "classification": "unknown"
+      },
+      {
+        "file": "Modules/_asynciomodule.c",
+        "function": "_asyncio_current_task_impl",
+        "line": 3874,
+        "classification": "unknown"
+      },
+      {
+        "file": "Modules/_asynciomodule.c",
+        "function": "_asyncio_all_tasks_impl",
+        "line": 4023,
+        "classification": "unsafe"
+      },
+      {
+        "file": "Modules/_testinternalcapi/test_critical_sections.c",
+        "function": "test_critical_sections_stw",
+        "line": 416,
+        "classification": "unknown"
+      },
+      {
+        "file": "Modules/gcmodule.c",
+        "function": "gc_set_threshold_impl",
+        "line": 154,
+        "classification": "unknown"
+      },
+      {
+        "file": "Modules/gcmodule.c",
+        "function": "gc_get_referents_impl",
+        "line": 298,
+        "classification": "unknown"
+      },
+      {
+        "file": "Modules/posixmodule.c",
+        "function": "PyOS_BeforeFork",
+        "line": 690,
+        "classification": "unsafe"
+      }
+    ],
+    "findings": [
+      {
+        "type": "stw_unknown_call",
+        "function": "unregister_task",
+        "line": 2214,
+        "confidence": "medium",
+        "detail": "Unclassified call unregister_task_safe() inside a _PyEval_StopTheWorld region in 'unregister_task'. Cannot statically determine whether it may invoke Python code \u2014 it is not in the STW API vocabulary and (if local) its body reaches an unclassified callee. Manual review needed. Intra-file analysis only.",
+        "api_call": "unregister_task_safe",
+        "file": "Modules/_asynciomodule.c"
+      },
+      {
+        "type": "stw_unknown_call",
+        "function": "_asyncio_current_task_impl",
+        "line": 3904,
+        "confidence": "medium",
+        "detail": "Unclassified call _Py_FOR_EACH_TSTATE_BEGIN() inside a _PyEval_StopTheWorld region in '_asyncio_current_task_impl'. Cannot statically determine whether it may invoke Python code \u2014 it is not in the STW API vocabulary and (if local) its body reaches an unclassified callee. Manual review needed. Intra-file analysis only.",
+        "api_call": "_Py_FOR_EACH_TSTATE_BEGIN",
+        "file": "Modules/_asynciomodule.c"
+      },
+      {
+        "type": "stw_unknown_call",
+        "function": "_asyncio_current_task_impl",
+        "line": 3914,
+        "confidence": "medium",
+        "detail": "Unclassified call _Py_FOR_EACH_TSTATE_END() inside a _PyEval_StopTheWorld region in '_asyncio_current_task_impl'. Cannot statically determine whether it may invoke Python code \u2014 it is not in the STW API vocabulary and (if local) its body reaches an unclassified callee. Manual review needed. Intra-file analysis only.",
+        "api_call": "_Py_FOR_EACH_TSTATE_END",
+        "file": "Modules/_asynciomodule.c"
+      },
+      {
+        "type": "stw_unknown_call",
+        "function": "_asyncio_all_tasks_impl",
+        "line": 4086,
+        "confidence": "medium",
+        "detail": "Unclassified call add_tasks_interp() inside a _PyEval_StopTheWorld region in '_asyncio_all_tasks_impl'. Cannot statically determine whether it may invoke Python code \u2014 it is not in the STW API vocabulary and (if local) its body reaches an unclassified callee. Manual review needed. Intra-file analysis only.",
+        "api_call": "add_tasks_interp",
+        "file": "Modules/_asynciomodule.c"
+      },
+      {
+        "type": "stw_unknown_call",
+        "function": "gc_get_referents_impl",
+        "line": 314,
+        "confidence": "medium",
+        "detail": "Unclassified call append_referrents() inside a _PyEval_StopTheWorld region in 'gc_get_referents_impl'. Cannot statically determine whether it may invoke Python code \u2014 it is not in the STW API vocabulary and (if local) its body reaches an unclassified callee. Manual review needed. Intra-file analysis only.",
+        "api_call": "append_referrents",
+        "file": "Modules/gcmodule.c"
+      }
+    ]
+  }
+}

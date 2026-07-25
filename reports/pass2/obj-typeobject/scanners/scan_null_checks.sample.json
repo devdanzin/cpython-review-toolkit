@@ -1,0 +1,52 @@
+{
+  "project_root": "/home/danzin/projects/cpython",
+  "scan_root": "/home/danzin/projects/cpython",
+  "files_analyzed": 1,
+  "functions_analyzed": 423,
+  "outparam_wrappers": [],
+  "denominators": {
+    "files_analyzed": 1,
+    "functions_analyzed": 423,
+    "findings": 0,
+    "assignment_sites": 1432,
+    "fallible_sources_resolved": 164,
+    "local_nullable_helpers": 119,
+    "outparam_wrappers": 0
+  },
+  "assignment_sites": 1432,
+  "fallible_sources_resolved": 164,
+  "local_nullable_helpers": 119,
+  "findings": [],
+  "summary": {
+    "unchecked_allocations": 0,
+    "deref_before_check": 0,
+    "decref_of_nulled_outparam": 0,
+    "decref_of_nulled_outparam_call_sites": 4,
+    "assert_only_derefs": 0,
+    "total_findings": 0,
+    "high_confidence": 0
+  },
+  "_sample": {
+    "files_requested": [
+      "Objects/typeobject.c"
+    ],
+    "files_scanned": [
+      "Objects/typeobject.c"
+    ],
+    "files_missing": [],
+    "method": "the scanner was RE-RUN over exactly these files; every count in this report is sample-scoped. This is not a post-hoc filter of a corpus-wide scan -- a filtered report keeps corpus-wide denominators next to sample-scoped findings, which makes an unearned zero look earned.",
+    "merge_policy": {
+      "project_root": "carried (constant, not a count)",
+      "scan_root": "carried (constant, not a count)",
+      "files_analyzed": "summed",
+      "functions_analyzed": "summed",
+      "outparam_wrappers": "concatenated",
+      "denominators": "merged key-wise",
+      "assignment_sites": "summed",
+      "fallible_sources_resolved": "summed",
+      "local_nullable_helpers": "summed",
+      "findings": "concatenated",
+      "summary": "merged key-wise"
+    }
+  }
+}

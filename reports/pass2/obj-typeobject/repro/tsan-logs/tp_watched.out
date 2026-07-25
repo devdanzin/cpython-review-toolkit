@@ -1,0 +1,7 @@
+TSan stress test for CPython tp_watched (P2-F18 / P2-C2)
+  Python: 3.16.0a0 free-threading build (heads/main:a1d580430c8, Jul 18 2026, 20:30:06) [Clang 21.1.8 (6ubuntu1)]
+  TSan build: True
+  Threads: 4, Iterations: 400
+
+  Running: tp_watched  locked |= (:1112) vs bare &=~ (:1129), one shared type... TIMEOUT (120s)
+  Running: tp_watched bare write (:1129) vs watcher-loop reads (:1212/:1214)... 

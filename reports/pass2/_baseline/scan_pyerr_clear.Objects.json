@@ -1,0 +1,115 @@
+{
+  "project_root": "/home/danzin/projects/cpython",
+  "scan_root": "/home/danzin/projects/cpython/Objects",
+  "files_analyzed": 113,
+  "functions_analyzed": 4819,
+  "findings": [
+    {
+      "type": "pyerr_clear_unfiltered_after_python_call",
+      "function": "PyObject_CheckReadBuffer",
+      "line": 350,
+      "confidence": "medium",
+      "failing_call": "bf_getbuffer",
+      "detail": "PyErr_Clear() in 'PyObject_CheckReadBuffer' clears the exception raised by 'bf_getbuffer' with no PyErr_ExceptionMatches narrowing. That call dispatches into arbitrary Python (__hash__ / __buffer__ / __index__ / import hooks), so its failure return only means *something* was raised \u2014 a MemoryError, KeyboardInterrupt or RecursionError is discarded along with the expected TypeError. Narrow first, e.g. if (!PyErr_ExceptionMatches(PyExc_TypeError)) return NULL; before clearing (see Objects/genericaliasobject.c set_orig_class).",
+      "file": "Objects/abstract.c"
+    },
+    {
+      "type": "pyerr_clear_unfiltered_after_python_call",
+      "function": "bytearray_richcompare",
+      "line": 1171,
+      "confidence": "medium",
+      "failing_call": "PyObject_GetBuffer",
+      "detail": "PyErr_Clear() in 'bytearray_richcompare' clears the exception raised by 'PyObject_GetBuffer' with no PyErr_ExceptionMatches narrowing. That call dispatches into arbitrary Python (__hash__ / __buffer__ / __index__ / import hooks), so its failure return only means *something* was raised \u2014 a MemoryError, KeyboardInterrupt or RecursionError is discarded along with the expected TypeError. Narrow first, e.g. if (!PyErr_ExceptionMatches(PyExc_TypeError)) return NULL; before clearing (see Objects/genericaliasobject.c set_orig_class).",
+      "file": "Objects/bytearrayobject.c"
+    },
+    {
+      "type": "pyerr_clear_unfiltered_after_python_call",
+      "function": "bytearray_richcompare",
+      "line": 1177,
+      "confidence": "medium",
+      "failing_call": "PyObject_GetBuffer",
+      "detail": "PyErr_Clear() in 'bytearray_richcompare' clears the exception raised by 'PyObject_GetBuffer' with no PyErr_ExceptionMatches narrowing. That call dispatches into arbitrary Python (__hash__ / __buffer__ / __index__ / import hooks), so its failure return only means *something* was raised \u2014 a MemoryError, KeyboardInterrupt or RecursionError is discarded along with the expected TypeError. Narrow first, e.g. if (!PyErr_ExceptionMatches(PyExc_TypeError)) return NULL; before clearing (see Objects/genericaliasobject.c set_orig_class).",
+      "file": "Objects/bytearrayobject.c"
+    },
+    {
+      "type": "pyerr_clear_unfiltered_after_python_call",
+      "function": "_Py_bytes_contains",
+      "line": 608,
+      "confidence": "medium",
+      "failing_call": "PyNumber_AsSsize_t",
+      "detail": "PyErr_Clear() in '_Py_bytes_contains' clears the exception raised by 'PyNumber_AsSsize_t' with no PyErr_ExceptionMatches narrowing. That call dispatches into arbitrary Python (__hash__ / __buffer__ / __index__ / import hooks), so its failure return only means *something* was raised \u2014 a MemoryError, KeyboardInterrupt or RecursionError is discarded along with the expected TypeError. Narrow first, e.g. if (!PyErr_ExceptionMatches(PyExc_TypeError)) return NULL; before clearing (see Objects/genericaliasobject.c set_orig_class).",
+      "file": "Objects/bytes_methods.c"
+    },
+    {
+      "type": "pyerr_clear_unfiltered_after_python_call",
+      "function": "hash_const",
+      "line": 3217,
+      "confidence": "medium",
+      "failing_call": "PyObject_Hash",
+      "detail": "PyErr_Clear() in 'hash_const' clears the exception raised by 'PyObject_Hash' with no PyErr_ExceptionMatches narrowing. That call dispatches into arbitrary Python (__hash__ / __buffer__ / __index__ / import hooks), so its failure return only means *something* was raised \u2014 a MemoryError, KeyboardInterrupt or RecursionError is discarded along with the expected TypeError. Narrow first, e.g. if (!PyErr_ExceptionMatches(PyExc_TypeError)) return NULL; before clearing (see Objects/genericaliasobject.c set_orig_class).",
+      "file": "Objects/codeobject.c"
+    },
+    {
+      "type": "pyerr_clear_unfiltered_after_python_call",
+      "function": "memory_richcompare",
+      "line": 3255,
+      "confidence": "medium",
+      "failing_call": "PyObject_GetBuffer",
+      "detail": "PyErr_Clear() in 'memory_richcompare' clears the exception raised by 'PyObject_GetBuffer' with no PyErr_ExceptionMatches narrowing. That call dispatches into arbitrary Python (__hash__ / __buffer__ / __index__ / import hooks), so its failure return only means *something* was raised \u2014 a MemoryError, KeyboardInterrupt or RecursionError is discarded along with the expected TypeError. Narrow first, e.g. if (!PyErr_ExceptionMatches(PyExc_TypeError)) return NULL; before clearing (see Objects/genericaliasobject.c set_orig_class).",
+      "file": "Objects/memoryobject.c"
+    },
+    {
+      "type": "pyerr_clear_on_success_path",
+      "function": "memory_richcompare",
+      "line": 3262,
+      "confidence": "medium",
+      "enclosing_conditions": [
+        "(!equiv_shape(vv, ww))"
+      ],
+      "detail": "PyErr_Clear() in 'memory_richcompare' is not dominated by any error test \u2014 no enclosing condition inspects PyErr_Occurred / PyErr_ExceptionMatches or the failure of a fallible call, so nothing this function did can be pending here. The only exception it can discard is the caller's (gh-146102). Fix: delete the clear and add assert(!PyErr_Occurred()), as in Objects/odictobject.c mutablemapping_add_pairs.",
+      "file": "Objects/memoryobject.c"
+    },
+    {
+      "type": "pyerr_clear_unfiltered_after_python_call",
+      "function": "try_load_lazy_submodule",
+      "line": 1319,
+      "confidence": "medium",
+      "failing_call": "_PyImport_TryLoadLazySubmodule",
+      "detail": "PyErr_Clear() in 'try_load_lazy_submodule' clears the exception raised by '_PyImport_TryLoadLazySubmodule' with no PyErr_ExceptionMatches narrowing. That call dispatches into arbitrary Python (__hash__ / __buffer__ / __index__ / import hooks), so its failure return only means *something* was raised \u2014 a MemoryError, KeyboardInterrupt or RecursionError is discarded along with the expected TypeError. Narrow first, e.g. if (!PyErr_ExceptionMatches(PyExc_TypeError)) return NULL; before clearing (see Objects/genericaliasobject.c set_orig_class).",
+      "file": "Objects/moduleobject.c"
+    },
+    {
+      "type": "pyerr_clear_unfiltered_after_python_call",
+      "function": "find_name_in_mro",
+      "line": 6158,
+      "confidence": "medium",
+      "failing_call": "PyType_Ready",
+      "detail": "PyErr_Clear() in 'find_name_in_mro' clears the exception raised by 'PyType_Ready' with no PyErr_ExceptionMatches narrowing. That call dispatches into arbitrary Python (__hash__ / __buffer__ / __index__ / import hooks), so its failure return only means *something* was raised \u2014 a MemoryError, KeyboardInterrupt or RecursionError is discarded along with the expected TypeError. Narrow first, e.g. if (!PyErr_ExceptionMatches(PyExc_TypeError)) return NULL; before clearing (see Objects/genericaliasobject.c set_orig_class).",
+      "file": "Objects/typeobject.c"
+    },
+    {
+      "type": "pyerr_clear_unfiltered_after_python_call",
+      "function": "unionbuilder_add_single_unchecked",
+      "line": 172,
+      "confidence": "medium",
+      "failing_call": "PyObject_Hash",
+      "detail": "PyErr_Clear() in 'unionbuilder_add_single_unchecked' clears the exception raised by 'PyObject_Hash' with no PyErr_ExceptionMatches narrowing. That call dispatches into arbitrary Python (__hash__ / __buffer__ / __index__ / import hooks), so its failure return only means *something* was raised \u2014 a MemoryError, KeyboardInterrupt or RecursionError is discarded along with the expected TypeError. Narrow first, e.g. if (!PyErr_ExceptionMatches(PyExc_TypeError)) return NULL; before clearing (see Objects/genericaliasobject.c set_orig_class).",
+      "file": "Objects/unionobject.c"
+    }
+  ],
+  "summary": {
+    "total_findings": 10,
+    "by_confidence": {
+      "medium": 10
+    },
+    "by_slot": {},
+    "by_type": {
+      "pyerr_clear_unfiltered_after_python_call": 9,
+      "pyerr_clear_on_success_path": 1
+    }
+  },
+  "destructor_functions": 232,
+  "total_pyerr_clear_calls": 86,
+  "total_pyerr_clear_calls_in_destructors": 0,
+  "skipped_files": []
+}

@@ -1,0 +1,208 @@
+{
+  "mro-c3": {
+    "region": "3217-3702",
+    "counts": {
+      "memory_error": 62,
+      "completed": 145,
+      "abort": 13
+    },
+    "crash_indices": [
+      52,
+      53,
+      54,
+      55,
+      56,
+      64,
+      65,
+      66,
+      70,
+      71,
+      79,
+      80,
+      81
+    ],
+    "crashes": [
+      {
+        "n": 52,
+        "outcome": "abort",
+        "stderr_head": "d\n\nCurrent thread 0x000072d444da6780 [python] (most recent call first):\n  File \"<oom-payload>\", line 17 in <module>\n  File \"<string>\", line 44 in <module>\n\nCurrent thread's C stack trace (most recent call first):\n  Binary file \"/home/danzin/projects/python_build_matrix/builds/debug-gil-nojit/python\", at _Py_DumpStack+0x32 [0x645f3d0232e2]\n  Binary file \"/home/danzin/projects/python_build_matrix/builds/debug-gil-nojit/python\", at +0x42ff54 [0x645f3d047f54]\n  Binary file \"/usr/lib/x86_64-linux-gnu/libc.so.6\", at +0x45cb0 [0x72d444a45cb0]\n  Binary file \"/usr/lib/x86_64-linux-gnu/libc.so.6\", at pthread_kill+0x11c [0x72d444aa648c]\n  Binary file \"/usr/lib/x86_64-linux-gnu/libc.so.6\", at gsignal+0x1e [0x72d444a45b7e]\n  Binary file \"/usr/lib/x86_64-linux-gnu/libc.so.6\", at abort+0x27 [0x72d444a288ec]\n  Binary file \"/usr/lib/x86_64-linux-gnu/libc.so.6\", at +0x29979 [0x72d444a29979]\n  Binary file \"/usr/lib/x86_64-linux-gnu/libc.so.6\", at __assert_fail+0xb5 [0x72d444a3bf75]\n  Binary file \"/home/danzin/projects/python_build_matrix/builds/debug-gil-nojit/python\", at +0x220284 [0x645f3ce38284]\n  Binary file \"/home/danzin/projects/python_build_matrix/builds/debug-gil-nojit/python\", at +0x21f60d ["
+      },
+      {
+        "n": 53,
+        "outcome": "abort",
+        "stderr_head": "d\n\nCurrent thread 0x00007c3d8eb89780 [python] (most recent call first):\n  File \"<oom-payload>\", line 17 in <module>\n  File \"<string>\", line 44 in <module>\n\nCurrent thread's C stack trace (most recent call first):\n  Binary file \"/home/danzin/projects/python_build_matrix/builds/debug-gil-nojit/python\", at _Py_DumpStack+0x32 [0x57e357adf2e2]\n  Binary file \"/home/danzin/projects/python_build_matrix/builds/debug-gil-nojit/python\", at +0x42ff54 [0x57e357b03f54]\n  Binary file \"/usr/lib/x86_64-linux-gnu/libc.so.6\", at +0x45cb0 [0x7c3d8e845cb0]\n  Binary file \"/usr/lib/x86_64-linux-gnu/libc.so.6\", at pthread_kill+0x11c [0x7c3d8e8a648c]\n  Binary file \"/usr/lib/x86_64-linux-gnu/libc.so.6\", at gsignal+0x1e [0x7c3d8e845b7e]\n  Binary file \"/usr/lib/x86_64-linux-gnu/libc.so.6\", at abort+0x27 [0x7c3d8e8288ec]\n  Binary file \"/usr/lib/x86_64-linux-gnu/libc.so.6\", at +0x29979 [0x7c3d8e829979]\n  Binary file \"/usr/lib/x86_64-linux-gnu/libc.so.6\", at __assert_fail+0xb5 [0x7c3d8e83bf75]\n  Binary file \"/home/danzin/projects/python_build_matrix/builds/debug-gil-nojit/python\", at +0x220284 [0x57e3578f4284]\n  Binary file \"/home/danzin/projects/python_build_matrix/builds/debug-gil-nojit/python\", at +0x21f60d ["
+      },
+      {
+        "n": 54,
+        "outcome": "abort",
+        "stderr_head": "d\n\nCurrent thread 0x00007b336784d780 [python] (most recent call first):\n  File \"<oom-payload>\", line 17 in <module>\n  File \"<string>\", line 44 in <module>\n\nCurrent thread's C stack trace (most recent call first):\n  Binary file \"/home/danzin/projects/python_build_matrix/builds/debug-gil-nojit/python\", at _Py_DumpStack+0x32 [0x5784c592d2e2]\n  Binary file \"/home/danzin/projects/python_build_matrix/builds/debug-gil-nojit/python\", at +0x42ff54 [0x5784c5951f54]\n  Binary file \"/usr/lib/x86_64-linux-gnu/libc.so.6\", at +0x45cb0 [0x7b3367645cb0]\n  Binary file \"/usr/lib/x86_64-linux-gnu/libc.so.6\", at pthread_kill+0x11c [0x7b33676a648c]\n  Binary file \"/usr/lib/x86_64-linux-gnu/libc.so.6\", at gsignal+0x1e [0x7b3367645b7e]\n  Binary file \"/usr/lib/x86_64-linux-gnu/libc.so.6\", at abort+0x27 [0x7b33676288ec]\n  Binary file \"/usr/lib/x86_64-linux-gnu/libc.so.6\", at +0x29979 [0x7b3367629979]\n  Binary file \"/usr/lib/x86_64-linux-gnu/libc.so.6\", at __assert_fail+0xb5 [0x7b336763bf75]\n  Binary file \"/home/danzin/projects/python_build_matrix/builds/debug-gil-nojit/python\", at +0x220284 [0x5784c5742284]\n  Binary file \"/home/danzin/projects/python_build_matrix/builds/debug-gil-nojit/python\", at +0x21f60d ["
+      },
+      {
+        "n": 55,
+        "outcome": "abort",
+        "stderr_head": "d\n\nCurrent thread 0x00007e05a0c7d780 [python] (most recent call first):\n  File \"<oom-payload>\", line 17 in <module>\n  File \"<string>\", line 44 in <module>\n\nCurrent thread's C stack trace (most recent call first):\n  Binary file \"/home/danzin/projects/python_build_matrix/builds/debug-gil-nojit/python\", at _Py_DumpStack+0x32 [0x62b68ceaf2e2]\n  Binary file \"/home/danzin/projects/python_build_matrix/builds/debug-gil-nojit/python\", at +0x42ff54 [0x62b68ced3f54]\n  Binary file \"/usr/lib/x86_64-linux-gnu/libc.so.6\", at +0x45cb0 [0x7e05a0a45cb0]\n  Binary file \"/usr/lib/x86_64-linux-gnu/libc.so.6\", at pthread_kill+0x11c [0x7e05a0aa648c]\n  Binary file \"/usr/lib/x86_64-linux-gnu/libc.so.6\", at gsignal+0x1e [0x7e05a0a45b7e]\n  Binary file \"/usr/lib/x86_64-linux-gnu/libc.so.6\", at abort+0x27 [0x7e05a0a288ec]\n  Binary file \"/usr/lib/x86_64-linux-gnu/libc.so.6\", at +0x29979 [0x7e05a0a29979]\n  Binary file \"/usr/lib/x86_64-linux-gnu/libc.so.6\", at __assert_fail+0xb5 [0x7e05a0a3bf75]\n  Binary file \"/home/danzin/projects/python_build_matrix/builds/debug-gil-nojit/python\", at +0x220284 [0x62b68ccc4284]\n  Binary file \"/home/danzin/projects/python_build_matrix/builds/debug-gil-nojit/python\", at +0x21f60d ["
+      },
+      {
+        "n": 56,
+        "outcome": "abort",
+        "stderr_head": "d\n\nCurrent thread 0x000079f6f82ab780 [python] (most recent call first):\n  File \"<oom-payload>\", line 17 in <module>\n  File \"<string>\", line 44 in <module>\n\nCurrent thread's C stack trace (most recent call first):\n  Binary file \"/home/danzin/projects/python_build_matrix/builds/debug-gil-nojit/python\", at _Py_DumpStack+0x32 [0x556d863792e2]\n  Binary file \"/home/danzin/projects/python_build_matrix/builds/debug-gil-nojit/python\", at +0x42ff54 [0x556d8639df54]\n  Binary file \"/usr/lib/x86_64-linux-gnu/libc.so.6\", at +0x45cb0 [0x79f6f8045cb0]\n  Binary file \"/usr/lib/x86_64-linux-gnu/libc.so.6\", at pthread_kill+0x11c [0x79f6f80a648c]\n  Binary file \"/usr/lib/x86_64-linux-gnu/libc.so.6\", at gsignal+0x1e [0x79f6f8045b7e]\n  Binary file \"/usr/lib/x86_64-linux-gnu/libc.so.6\", at abort+0x27 [0x79f6f80288ec]\n  Binary file \"/usr/lib/x86_64-linux-gnu/libc.so.6\", at +0x29979 [0x79f6f8029979]\n  Binary file \"/usr/lib/x86_64-linux-gnu/libc.so.6\", at __assert_fail+0xb5 [0x79f6f803bf75]\n  Binary file \"/home/danzin/projects/python_build_matrix/builds/debug-gil-nojit/python\", at +0x220284 [0x556d8618e284]\n  Binary file \"/home/danzin/projects/python_build_matrix/builds/debug-gil-nojit/python\", at +0x21f60d ["
+      },
+      {
+        "n": 64,
+        "outcome": "abort",
+        "stderr_head": "d\n\nCurrent thread 0x00007c28a2049780 [python] (most recent call first):\n  File \"<oom-payload>\", line 18 in <module>\n  File \"<string>\", line 44 in <module>\n\nCurrent thread's C stack trace (most recent call first):\n  Binary file \"/home/danzin/projects/python_build_matrix/builds/debug-gil-nojit/python\", at _Py_DumpStack+0x32 [0x590eafd552e2]\n  Binary file \"/home/danzin/projects/python_build_matrix/builds/debug-gil-nojit/python\", at +0x42ff54 [0x590eafd79f54]\n  Binary file \"/usr/lib/x86_64-linux-gnu/libc.so.6\", at +0x45cb0 [0x7c28a1e45cb0]\n  Binary file \"/usr/lib/x86_64-linux-gnu/libc.so.6\", at pthread_kill+0x11c [0x7c28a1ea648c]\n  Binary file \"/usr/lib/x86_64-linux-gnu/libc.so.6\", at gsignal+0x1e [0x7c28a1e45b7e]\n  Binary file \"/usr/lib/x86_64-linux-gnu/libc.so.6\", at abort+0x27 [0x7c28a1e288ec]\n  Binary file \"/usr/lib/x86_64-linux-gnu/libc.so.6\", at +0x29979 [0x7c28a1e29979]\n  Binary file \"/usr/lib/x86_64-linux-gnu/libc.so.6\", at __assert_fail+0xb5 [0x7c28a1e3bf75]\n  Binary file \"/home/danzin/projects/python_build_matrix/builds/debug-gil-nojit/python\", at +0x220284 [0x590eafb6a284]\n  Binary file \"/home/danzin/projects/python_build_matrix/builds/debug-gil-nojit/python\", at +0x21f60d ["
+      },
+      {
+        "n": 65,
+        "outcome": "abort",
+        "stderr_head": "d\n\nCurrent thread 0x0000782def608780 [python] (most recent call first):\n  File \"<oom-payload>\", line 18 in <module>\n  File \"<string>\", line 44 in <module>\n\nCurrent thread's C stack trace (most recent call first):\n  Binary file \"/home/danzin/projects/python_build_matrix/builds/debug-gil-nojit/python\", at _Py_DumpStack+0x32 [0x583dc13b02e2]\n  Binary file \"/home/danzin/projects/python_build_matrix/builds/debug-gil-nojit/python\", at +0x42ff54 [0x583dc13d4f54]\n  Binary file \"/usr/lib/x86_64-linux-gnu/libc.so.6\", at +0x45cb0 [0x782def245cb0]\n  Binary file \"/usr/lib/x86_64-linux-gnu/libc.so.6\", at pthread_kill+0x11c [0x782def2a648c]\n  Binary file \"/usr/lib/x86_64-linux-gnu/libc.so.6\", at gsignal+0x1e [0x782def245b7e]\n  Binary file \"/usr/lib/x86_64-linux-gnu/libc.so.6\", at abort+0x27 [0x782def2288ec]\n  Binary file \"/usr/lib/x86_64-linux-gnu/libc.so.6\", at +0x29979 [0x782def229979]\n  Binary file \"/usr/lib/x86_64-linux-gnu/libc.so.6\", at __assert_fail+0xb5 [0x782def23bf75]\n  Binary file \"/home/danzin/projects/python_build_matrix/builds/debug-gil-nojit/python\", at +0x220284 [0x583dc11c5284]\n  Binary file \"/home/danzin/projects/python_build_matrix/builds/debug-gil-nojit/python\", at +0x21f60d ["
+      },
+      {
+        "n": 66,
+        "outcome": "abort",
+        "stderr_head": "d\n\nCurrent thread 0x00007c6ccbdc1780 [python] (most recent call first):\n  File \"<oom-payload>\", line 18 in <module>\n  File \"<string>\", line 44 in <module>\n\nCurrent thread's C stack trace (most recent call first):\n  Binary file \"/home/danzin/projects/python_build_matrix/builds/debug-gil-nojit/python\", at _Py_DumpStack+0x32 [0x5b79c20542e2]\n  Binary file \"/home/danzin/projects/python_build_matrix/builds/debug-gil-nojit/python\", at +0x42ff54 [0x5b79c2078f54]\n  Binary file \"/usr/lib/x86_64-linux-gnu/libc.so.6\", at +0x45cb0 [0x7c6ccba45cb0]\n  Binary file \"/usr/lib/x86_64-linux-gnu/libc.so.6\", at pthread_kill+0x11c [0x7c6ccbaa648c]\n  Binary file \"/usr/lib/x86_64-linux-gnu/libc.so.6\", at gsignal+0x1e [0x7c6ccba45b7e]\n  Binary file \"/usr/lib/x86_64-linux-gnu/libc.so.6\", at abort+0x27 [0x7c6ccba288ec]\n  Binary file \"/usr/lib/x86_64-linux-gnu/libc.so.6\", at +0x29979 [0x7c6ccba29979]\n  Binary file \"/usr/lib/x86_64-linux-gnu/libc.so.6\", at __assert_fail+0xb5 [0x7c6ccba3bf75]\n  Binary file \"/home/danzin/projects/python_build_matrix/builds/debug-gil-nojit/python\", at +0x220284 [0x5b79c1e69284]\n  Binary file \"/home/danzin/projects/python_build_matrix/builds/debug-gil-nojit/python\", at +0x21f60d ["
+      },
+      {
+        "n": 70,
+        "outcome": "abort",
+        "stderr_head": "d\n\nCurrent thread 0x00007ac52732f780 [python] (most recent call first):\n  File \"<oom-payload>\", line 19 in <module>\n  File \"<string>\", line 44 in <module>\n\nCurrent thread's C stack trace (most recent call first):\n  Binary file \"/home/danzin/projects/python_build_matrix/builds/debug-gil-nojit/python\", at _Py_DumpStack+0x32 [0x5e3db97802e2]\n  Binary file \"/home/danzin/projects/python_build_matrix/builds/debug-gil-nojit/python\", at +0x42ff54 [0x5e3db97a4f54]\n  Binary file \"/usr/lib/x86_64-linux-gnu/libc.so.6\", at +0x45cb0 [0x7ac527045cb0]\n  Binary file \"/usr/lib/x86_64-linux-gnu/libc.so.6\", at pthread_kill+0x11c [0x7ac5270a648c]\n  Binary file \"/usr/lib/x86_64-linux-gnu/libc.so.6\", at gsignal+0x1e [0x7ac527045b7e]\n  Binary file \"/usr/lib/x86_64-linux-gnu/libc.so.6\", at abort+0x27 [0x7ac5270288ec]\n  Binary file \"/usr/lib/x86_64-linux-gnu/libc.so.6\", at +0x29979 [0x7ac527029979]\n  Binary file \"/usr/lib/x86_64-linux-gnu/libc.so.6\", at __assert_fail+0xb5 [0x7ac52703bf75]\n  Binary file \"/home/danzin/projects/python_build_matrix/builds/debug-gil-nojit/python\", at +0x220284 [0x5e3db9595284]\n  Binary file \"/home/danzin/projects/python_build_matrix/builds/debug-gil-nojit/python\", at +0x21f60d ["
+      },
+      {
+        "n": 71,
+        "outcome": "abort",
+        "stderr_head": "d\n\nCurrent thread 0x00007b51c31bb780 [python] (most recent call first):\n  File \"<oom-payload>\", line 19 in <module>\n  File \"<string>\", line 44 in <module>\n\nCurrent thread's C stack trace (most recent call first):\n  Binary file \"/home/danzin/projects/python_build_matrix/builds/debug-gil-nojit/python\", at _Py_DumpStack+0x32 [0x59cffc05c2e2]\n  Binary file \"/home/danzin/projects/python_build_matrix/builds/debug-gil-nojit/python\", at +0x42ff54 [0x59cffc080f54]\n  Binary file \"/usr/lib/x86_64-linux-gnu/libc.so.6\", at +0x45cb0 [0x7b51c2e45cb0]\n  Binary file \"/usr/lib/x86_64-linux-gnu/libc.so.6\", at pthread_kill+0x11c [0x7b51c2ea648c]\n  Binary file \"/usr/lib/x86_64-linux-gnu/libc.so.6\", at gsignal+0x1e [0x7b51c2e45b7e]\n  Binary file \"/usr/lib/x86_64-linux-gnu/libc.so.6\", at abort+0x27 [0x7b51c2e288ec]\n  Binary file \"/usr/lib/x86_64-linux-gnu/libc.so.6\", at +0x29979 [0x7b51c2e29979]\n  Binary file \"/usr/lib/x86_64-linux-gnu/libc.so.6\", at __assert_fail+0xb5 [0x7b51c2e3bf75]\n  Binary file \"/home/danzin/projects/python_build_matrix/builds/debug-gil-nojit/python\", at +0x220284 [0x59cffbe71284]\n  Binary file \"/home/danzin/projects/python_build_matrix/builds/debug-gil-nojit/python\", at +0x21f60d ["
+      },
+      {
+        "n": 79,
+        "outcome": "abort",
+        "stderr_head": "d\n\nCurrent thread 0x00007b8e2c175780 [python] (most recent call first):\n  File \"<oom-payload>\", line 20 in <module>\n  File \"<string>\", line 44 in <module>\n\nCurrent thread's C stack trace (most recent call first):\n  Binary file \"/home/danzin/projects/python_build_matrix/builds/debug-gil-nojit/python\", at _Py_DumpStack+0x32 [0x64ed646332e2]\n  Binary file \"/home/danzin/projects/python_build_matrix/builds/debug-gil-nojit/python\", at +0x42ff54 [0x64ed64657f54]\n  Binary file \"/usr/lib/x86_64-linux-gnu/libc.so.6\", at +0x45cb0 [0x7b8e2be45cb0]\n  Binary file \"/usr/lib/x86_64-linux-gnu/libc.so.6\", at pthread_kill+0x11c [0x7b8e2bea648c]\n  Binary file \"/usr/lib/x86_64-linux-gnu/libc.so.6\", at gsignal+0x1e [0x7b8e2be45b7e]\n  Binary file \"/usr/lib/x86_64-linux-gnu/libc.so.6\", at abort+0x27 [0x7b8e2be288ec]\n  Binary file \"/usr/lib/x86_64-linux-gnu/libc.so.6\", at +0x29979 [0x7b8e2be29979]\n  Binary file \"/usr/lib/x86_64-linux-gnu/libc.so.6\", at __assert_fail+0xb5 [0x7b8e2be3bf75]\n  Binary file \"/home/danzin/projects/python_build_matrix/builds/debug-gil-nojit/python\", at +0x220284 [0x64ed64448284]\n  Binary file \"/home/danzin/projects/python_build_matrix/builds/debug-gil-nojit/python\", at +0x21f60d ["
+      },
+      {
+        "n": 80,
+        "outcome": "abort",
+        "stderr_head": "d\n\nCurrent thread 0x000070866e09a780 [python] (most recent call first):\n  File \"<oom-payload>\", line 20 in <module>\n  File \"<string>\", line 44 in <module>\n\nCurrent thread's C stack trace (most recent call first):\n  Binary file \"/home/danzin/projects/python_build_matrix/builds/debug-gil-nojit/python\", at _Py_DumpStack+0x32 [0x5df029d8e2e2]\n  Binary file \"/home/danzin/projects/python_build_matrix/builds/debug-gil-nojit/python\", at +0x42ff54 [0x5df029db2f54]\n  Binary file \"/usr/lib/x86_64-linux-gnu/libc.so.6\", at +0x45cb0 [0x70866de45cb0]\n  Binary file \"/usr/lib/x86_64-linux-gnu/libc.so.6\", at pthread_kill+0x11c [0x70866dea648c]\n  Binary file \"/usr/lib/x86_64-linux-gnu/libc.so.6\", at gsignal+0x1e [0x70866de45b7e]\n  Binary file \"/usr/lib/x86_64-linux-gnu/libc.so.6\", at abort+0x27 [0x70866de288ec]\n  Binary file \"/usr/lib/x86_64-linux-gnu/libc.so.6\", at +0x29979 [0x70866de29979]\n  Binary file \"/usr/lib/x86_64-linux-gnu/libc.so.6\", at __assert_fail+0xb5 [0x70866de3bf75]\n  Binary file \"/home/danzin/projects/python_build_matrix/builds/debug-gil-nojit/python\", at +0x220284 [0x5df029ba3284]\n  Binary file \"/home/danzin/projects/python_build_matrix/builds/debug-gil-nojit/python\", at +0x21f60d ["
+      },
+      {
+        "n": 81,
+        "outcome": "abort",
+        "stderr_head": "d\n\nCurrent thread 0x000071a5b5b81780 [python] (most recent call first):\n  File \"<oom-payload>\", line 20 in <module>\n  File \"<string>\", line 44 in <module>\n\nCurrent thread's C stack trace (most recent call first):\n  Binary file \"/home/danzin/projects/python_build_matrix/builds/debug-gil-nojit/python\", at _Py_DumpStack+0x32 [0x5903281072e2]\n  Binary file \"/home/danzin/projects/python_build_matrix/builds/debug-gil-nojit/python\", at +0x42ff54 [0x59032812bf54]\n  Binary file \"/usr/lib/x86_64-linux-gnu/libc.so.6\", at +0x45cb0 [0x71a5b5845cb0]\n  Binary file \"/usr/lib/x86_64-linux-gnu/libc.so.6\", at pthread_kill+0x11c [0x71a5b58a648c]\n  Binary file \"/usr/lib/x86_64-linux-gnu/libc.so.6\", at gsignal+0x1e [0x71a5b5845b7e]\n  Binary file \"/usr/lib/x86_64-linux-gnu/libc.so.6\", at abort+0x27 [0x71a5b58288ec]\n  Binary file \"/usr/lib/x86_64-linux-gnu/libc.so.6\", at +0x29979 [0x71a5b5829979]\n  Binary file \"/usr/lib/x86_64-linux-gnu/libc.so.6\", at __assert_fail+0xb5 [0x71a5b583bf75]\n  Binary file \"/home/danzin/projects/python_build_matrix/builds/debug-gil-nojit/python\", at +0x220284 [0x590327f1c284]\n  Binary file \"/home/danzin/projects/python_build_matrix/builds/debug-gil-nojit/python\", at +0x21f60d ["
+      }
+    ]
+  },
+  "setclass": {
+    "region": "7482-7846",
+    "counts": {
+      "memory_error": 4,
+      "completed": 216
+    },
+    "crash_indices": [],
+    "crashes": []
+  },
+  "pickle": {
+    "region": "7848-8406",
+    "counts": {
+      "memory_error": 12,
+      "completed": 208
+    },
+    "crash_indices": [],
+    "crashes": []
+  },
+  "lookup-getattro": {
+    "region": "6140-6848",
+    "counts": {
+      "memory_error": 5,
+      "completed": 215
+    },
+    "crash_indices": [],
+    "crashes": []
+  },
+  "watchers": {
+    "region": "971-1481",
+    "counts": {
+      "memory_error": 95,
+      "other_exception": 1,
+      "completed": 121,
+      "abort": 3
+    },
+    "crash_indices": [
+      18,
+      19,
+      20
+    ],
+    "crashes": [
+      {
+        "n": 18,
+        "outcome": "abort",
+        "stderr_head": "d\n\nCurrent thread 0x00007b6bda774780 [python] (most recent call first):\n  File \"<oom-payload>\", line 12 in <module>\n  File \"<string>\", line 44 in <module>\n\nCurrent thread's C stack trace (most recent call first):\n  Binary file \"/home/danzin/projects/python_build_matrix/builds/debug-gil-nojit/python\", at _Py_DumpStack+0x32 [0x59539efe92e2]\n  Binary file \"/home/danzin/projects/python_build_matrix/builds/debug-gil-nojit/python\", at +0x42ff54 [0x59539f00df54]\n  Binary file \"/usr/lib/x86_64-linux-gnu/libc.so.6\", at +0x45cb0 [0x7b6bda445cb0]\n  Binary file \"/usr/lib/x86_64-linux-gnu/libc.so.6\", at pthread_kill+0x11c [0x7b6bda4a648c]\n  Binary file \"/usr/lib/x86_64-linux-gnu/libc.so.6\", at gsignal+0x1e [0x7b6bda445b7e]\n  Binary file \"/usr/lib/x86_64-linux-gnu/libc.so.6\", at abort+0x27 [0x7b6bda4288ec]\n  Binary file \"/usr/lib/x86_64-linux-gnu/libc.so.6\", at +0x29979 [0x7b6bda429979]\n  Binary file \"/usr/lib/x86_64-linux-gnu/libc.so.6\", at __assert_fail+0xb5 [0x7b6bda43bf75]\n  Binary file \"/home/danzin/projects/python_build_matrix/builds/debug-gil-nojit/python\", at +0x220284 [0x59539edfe284]\n  Binary file \"/home/danzin/projects/python_build_matrix/builds/debug-gil-nojit/python\", at +0x21f60d ["
+      },
+      {
+        "n": 19,
+        "outcome": "abort",
+        "stderr_head": "d\n\nCurrent thread 0x00007f3bb5096780 [python] (most recent call first):\n  File \"<oom-payload>\", line 12 in <module>\n  File \"<string>\", line 44 in <module>\n\nCurrent thread's C stack trace (most recent call first):\n  Binary file \"/home/danzin/projects/python_build_matrix/builds/debug-gil-nojit/python\", at _Py_DumpStack+0x32 [0x5b0682f502e2]\n  Binary file \"/home/danzin/projects/python_build_matrix/builds/debug-gil-nojit/python\", at +0x42ff54 [0x5b0682f74f54]\n  Binary file \"/usr/lib/x86_64-linux-gnu/libc.so.6\", at +0x45cb0 [0x7f3bb4e45cb0]\n  Binary file \"/usr/lib/x86_64-linux-gnu/libc.so.6\", at pthread_kill+0x11c [0x7f3bb4ea648c]\n  Binary file \"/usr/lib/x86_64-linux-gnu/libc.so.6\", at gsignal+0x1e [0x7f3bb4e45b7e]\n  Binary file \"/usr/lib/x86_64-linux-gnu/libc.so.6\", at abort+0x27 [0x7f3bb4e288ec]\n  Binary file \"/usr/lib/x86_64-linux-gnu/libc.so.6\", at +0x29979 [0x7f3bb4e29979]\n  Binary file \"/usr/lib/x86_64-linux-gnu/libc.so.6\", at __assert_fail+0xb5 [0x7f3bb4e3bf75]\n  Binary file \"/home/danzin/projects/python_build_matrix/builds/debug-gil-nojit/python\", at +0x220284 [0x5b0682d65284]\n  Binary file \"/home/danzin/projects/python_build_matrix/builds/debug-gil-nojit/python\", at +0x21f60d ["
+      },
+      {
+        "n": 20,
+        "outcome": "abort",
+        "stderr_head": "d\n\nCurrent thread 0x000074d36f487780 [python] (most recent call first):\n  File \"<oom-payload>\", line 12 in <module>\n  File \"<string>\", line 44 in <module>\n\nCurrent thread's C stack trace (most recent call first):\n  Binary file \"/home/danzin/projects/python_build_matrix/builds/debug-gil-nojit/python\", at _Py_DumpStack+0x32 [0x60e6cfe442e2]\n  Binary file \"/home/danzin/projects/python_build_matrix/builds/debug-gil-nojit/python\", at +0x42ff54 [0x60e6cfe68f54]\n  Binary file \"/usr/lib/x86_64-linux-gnu/libc.so.6\", at +0x45cb0 [0x74d36f245cb0]\n  Binary file \"/usr/lib/x86_64-linux-gnu/libc.so.6\", at pthread_kill+0x11c [0x74d36f2a648c]\n  Binary file \"/usr/lib/x86_64-linux-gnu/libc.so.6\", at gsignal+0x1e [0x74d36f245b7e]\n  Binary file \"/usr/lib/x86_64-linux-gnu/libc.so.6\", at abort+0x27 [0x74d36f2288ec]\n  Binary file \"/usr/lib/x86_64-linux-gnu/libc.so.6\", at +0x29979 [0x74d36f229979]\n  Binary file \"/usr/lib/x86_64-linux-gnu/libc.so.6\", at __assert_fail+0xb5 [0x74d36f23bf75]\n  Binary file \"/home/danzin/projects/python_build_matrix/builds/debug-gil-nojit/python\", at +0x220284 [0x60e6cfc59284]\n  Binary file \"/home/danzin/projects/python_build_matrix/builds/debug-gil-nojit/python\", at +0x21f60d ["
+      }
+    ]
+  },
+  "static-types": {
+    "region": "228-522",
+    "counts": {
+      "memory_error": 57,
+      "completed": 163
+    },
+    "crash_indices": [],
+    "crashes": []
+  },
+  "wide": {
+    "region": "all",
+    "counts": {
+      "memory_error": 157,
+      "completed": 56,
+      "abort": 6,
+      "other_exception": 1
+    },
+    "crash_indices": [
+      151,
+      152,
+      153,
+      161,
+      162,
+      163
+    ],
+    "crashes": [
+      {
+        "n": 151,
+        "outcome": "abort",
+        "stderr_head": "d\n\nCurrent thread 0x00007e541fbc7780 [python] (most recent call first):\n  File \"<oom-payload>\", line 38 in <module>\n  File \"<string>\", line 44 in <module>\n\nCurrent thread's C stack trace (most recent call first):\n  Binary file \"/home/danzin/projects/python_build_matrix/builds/debug-gil-nojit/python\", at _Py_DumpStack+0x32 [0x5db33c84d2e2]\n  Binary file \"/home/danzin/projects/python_build_matrix/builds/debug-gil-nojit/python\", at +0x42ff54 [0x5db33c871f54]\n  Binary file \"/usr/lib/x86_64-linux-gnu/libc.so.6\", at +0x45cb0 [0x7e541f845cb0]\n  Binary file \"/usr/lib/x86_64-linux-gnu/libc.so.6\", at pthread_kill+0x11c [0x7e541f8a648c]\n  Binary file \"/usr/lib/x86_64-linux-gnu/libc.so.6\", at gsignal+0x1e [0x7e541f845b7e]\n  Binary file \"/usr/lib/x86_64-linux-gnu/libc.so.6\", at abort+0x27 [0x7e541f8288ec]\n  Binary file \"/usr/lib/x86_64-linux-gnu/libc.so.6\", at +0x29979 [0x7e541f829979]\n  Binary file \"/usr/lib/x86_64-linux-gnu/libc.so.6\", at __assert_fail+0xb5 [0x7e541f83bf75]\n  Binary file \"/home/danzin/projects/python_build_matrix/builds/debug-gil-nojit/python\", at +0x220284 [0x5db33c662284]\n  Binary file \"/home/danzin/projects/python_build_matrix/builds/debug-gil-nojit/python\", at +0x21f60d ["
+      },
+      {
+        "n": 152,
+        "outcome": "abort",
+        "stderr_head": "d\n\nCurrent thread 0x00007952839d1780 [python] (most recent call first):\n  File \"<oom-payload>\", line 38 in <module>\n  File \"<string>\", line 44 in <module>\n\nCurrent thread's C stack trace (most recent call first):\n  Binary file \"/home/danzin/projects/python_build_matrix/builds/debug-gil-nojit/python\", at _Py_DumpStack+0x32 [0x62c7461c72e2]\n  Binary file \"/home/danzin/projects/python_build_matrix/builds/debug-gil-nojit/python\", at +0x42ff54 [0x62c7461ebf54]\n  Binary file \"/usr/lib/x86_64-linux-gnu/libc.so.6\", at +0x45cb0 [0x795283645cb0]\n  Binary file \"/usr/lib/x86_64-linux-gnu/libc.so.6\", at pthread_kill+0x11c [0x7952836a648c]\n  Binary file \"/usr/lib/x86_64-linux-gnu/libc.so.6\", at gsignal+0x1e [0x795283645b7e]\n  Binary file \"/usr/lib/x86_64-linux-gnu/libc.so.6\", at abort+0x27 [0x7952836288ec]\n  Binary file \"/usr/lib/x86_64-linux-gnu/libc.so.6\", at +0x29979 [0x795283629979]\n  Binary file \"/usr/lib/x86_64-linux-gnu/libc.so.6\", at __assert_fail+0xb5 [0x79528363bf75]\n  Binary file \"/home/danzin/projects/python_build_matrix/builds/debug-gil-nojit/python\", at +0x220284 [0x62c745fdc284]\n  Binary file \"/home/danzin/projects/python_build_matrix/builds/debug-gil-nojit/python\", at +0x21f60d ["
+      },
+      {
+        "n": 153,
+        "outcome": "abort",
+        "stderr_head": "d\n\nCurrent thread 0x00007989ca918780 [python] (most recent call first):\n  File \"<oom-payload>\", line 38 in <module>\n  File \"<string>\", line 44 in <module>\n\nCurrent thread's C stack trace (most recent call first):\n  Binary file \"/home/danzin/projects/python_build_matrix/builds/debug-gil-nojit/python\", at _Py_DumpStack+0x32 [0x5ae5f80aa2e2]\n  Binary file \"/home/danzin/projects/python_build_matrix/builds/debug-gil-nojit/python\", at +0x42ff54 [0x5ae5f80cef54]\n  Binary file \"/usr/lib/x86_64-linux-gnu/libc.so.6\", at +0x45cb0 [0x7989ca645cb0]\n  Binary file \"/usr/lib/x86_64-linux-gnu/libc.so.6\", at pthread_kill+0x11c [0x7989ca6a648c]\n  Binary file \"/usr/lib/x86_64-linux-gnu/libc.so.6\", at gsignal+0x1e [0x7989ca645b7e]\n  Binary file \"/usr/lib/x86_64-linux-gnu/libc.so.6\", at abort+0x27 [0x7989ca6288ec]\n  Binary file \"/usr/lib/x86_64-linux-gnu/libc.so.6\", at +0x29979 [0x7989ca629979]\n  Binary file \"/usr/lib/x86_64-linux-gnu/libc.so.6\", at __assert_fail+0xb5 [0x7989ca63bf75]\n  Binary file \"/home/danzin/projects/python_build_matrix/builds/debug-gil-nojit/python\", at +0x220284 [0x5ae5f7ebf284]\n  Binary file \"/home/danzin/projects/python_build_matrix/builds/debug-gil-nojit/python\", at +0x21f60d ["
+      },
+      {
+        "n": 161,
+        "outcome": "abort",
+        "stderr_head": "d\n\nCurrent thread 0x0000790d0f433780 [python] (most recent call first):\n  File \"<oom-payload>\", line 39 in <module>\n  File \"<string>\", line 44 in <module>\n\nCurrent thread's C stack trace (most recent call first):\n  Binary file \"/home/danzin/projects/python_build_matrix/builds/debug-gil-nojit/python\", at _Py_DumpStack+0x32 [0x5ffbd00252e2]\n  Binary file \"/home/danzin/projects/python_build_matrix/builds/debug-gil-nojit/python\", at +0x42ff54 [0x5ffbd0049f54]\n  Binary file \"/usr/lib/x86_64-linux-gnu/libc.so.6\", at +0x45cb0 [0x790d0f245cb0]\n  Binary file \"/usr/lib/x86_64-linux-gnu/libc.so.6\", at pthread_kill+0x11c [0x790d0f2a648c]\n  Binary file \"/usr/lib/x86_64-linux-gnu/libc.so.6\", at gsignal+0x1e [0x790d0f245b7e]\n  Binary file \"/usr/lib/x86_64-linux-gnu/libc.so.6\", at abort+0x27 [0x790d0f2288ec]\n  Binary file \"/usr/lib/x86_64-linux-gnu/libc.so.6\", at +0x29979 [0x790d0f229979]\n  Binary file \"/usr/lib/x86_64-linux-gnu/libc.so.6\", at __assert_fail+0xb5 [0x790d0f23bf75]\n  Binary file \"/home/danzin/projects/python_build_matrix/builds/debug-gil-nojit/python\", at +0x220284 [0x5ffbcfe3a284]\n  Binary file \"/home/danzin/projects/python_build_matrix/builds/debug-gil-nojit/python\", at +0x21f60d ["
+      },
+      {
+        "n": 162,
+        "outcome": "abort",
+        "stderr_head": "d\n\nCurrent thread 0x000071059c9c3780 [python] (most recent call first):\n  File \"<oom-payload>\", line 39 in <module>\n  File \"<string>\", line 44 in <module>\n\nCurrent thread's C stack trace (most recent call first):\n  Binary file \"/home/danzin/projects/python_build_matrix/builds/debug-gil-nojit/python\", at _Py_DumpStack+0x32 [0x5cca02f4b2e2]\n  Binary file \"/home/danzin/projects/python_build_matrix/builds/debug-gil-nojit/python\", at +0x42ff54 [0x5cca02f6ff54]\n  Binary file \"/usr/lib/x86_64-linux-gnu/libc.so.6\", at +0x45cb0 [0x71059c645cb0]\n  Binary file \"/usr/lib/x86_64-linux-gnu/libc.so.6\", at pthread_kill+0x11c [0x71059c6a648c]\n  Binary file \"/usr/lib/x86_64-linux-gnu/libc.so.6\", at gsignal+0x1e [0x71059c645b7e]\n  Binary file \"/usr/lib/x86_64-linux-gnu/libc.so.6\", at abort+0x27 [0x71059c6288ec]\n  Binary file \"/usr/lib/x86_64-linux-gnu/libc.so.6\", at +0x29979 [0x71059c629979]\n  Binary file \"/usr/lib/x86_64-linux-gnu/libc.so.6\", at __assert_fail+0xb5 [0x71059c63bf75]\n  Binary file \"/home/danzin/projects/python_build_matrix/builds/debug-gil-nojit/python\", at +0x220284 [0x5cca02d60284]\n  Binary file \"/home/danzin/projects/python_build_matrix/builds/debug-gil-nojit/python\", at +0x21f60d ["
+      },
+      {
+        "n": 163,
+        "outcome": "abort",
+        "stderr_head": "d\n\nCurrent thread 0x00007e5dad5dc780 [python] (most recent call first):\n  File \"<oom-payload>\", line 39 in <module>\n  File \"<string>\", line 44 in <module>\n\nCurrent thread's C stack trace (most recent call first):\n  Binary file \"/home/danzin/projects/python_build_matrix/builds/debug-gil-nojit/python\", at _Py_DumpStack+0x32 [0x579eab2a22e2]\n  Binary file \"/home/danzin/projects/python_build_matrix/builds/debug-gil-nojit/python\", at +0x42ff54 [0x579eab2c6f54]\n  Binary file \"/usr/lib/x86_64-linux-gnu/libc.so.6\", at +0x45cb0 [0x7e5dad245cb0]\n  Binary file \"/usr/lib/x86_64-linux-gnu/libc.so.6\", at pthread_kill+0x11c [0x7e5dad2a648c]\n  Binary file \"/usr/lib/x86_64-linux-gnu/libc.so.6\", at gsignal+0x1e [0x7e5dad245b7e]\n  Binary file \"/usr/lib/x86_64-linux-gnu/libc.so.6\", at abort+0x27 [0x7e5dad2288ec]\n  Binary file \"/usr/lib/x86_64-linux-gnu/libc.so.6\", at +0x29979 [0x7e5dad229979]\n  Binary file \"/usr/lib/x86_64-linux-gnu/libc.so.6\", at __assert_fail+0xb5 [0x7e5dad23bf75]\n  Binary file \"/home/danzin/projects/python_build_matrix/builds/debug-gil-nojit/python\", at +0x220284 [0x579eab0b7284]\n  Binary file \"/home/danzin/projects/python_build_matrix/builds/debug-gil-nojit/python\", at +0x21f60d ["
+      }
+    ]
+  }
+}

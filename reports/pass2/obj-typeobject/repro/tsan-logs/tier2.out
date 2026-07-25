@@ -1,0 +1,9 @@
+tier-2 tp_watched stress (P2-F18 consequence)
+  Python: 3.16.0a0 free-threading build (heads/main:a1d580430c8, Jul 25 2026, 13:42:50) [Clang 21.1.8 (6ubuntu1)]
+  TSan build: True
+  tier2: available=True enabled=True
+  Threads: 4, hot=6000
+  warming up traces (quiet, no mutation)...
+  warm.
+
+Done. Check stderr for TSan warnings mentioning tp_watched / PyType_Watch / PyType_Unwatch / optimizer_analysis.c

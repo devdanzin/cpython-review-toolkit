@@ -1,0 +1,8 @@
+TSan stress test for CPython type_cache / type_cache_clear
+  Python: 3.16.0a0 free-threading build (heads/main:a1d580430c8, Jul 18 2026, 20:30:06) [Clang 21.1.8 (6ubuntu1)]
+  TSan build: True
+  Threads: 4, Iterations: 300, shared types: 24
+
+  Running: clear vs update_cache_gil_disabled (:6240) vs readers -- same entries... OK
+
+Done. Check stderr for TSan warnings.
