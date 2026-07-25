@@ -1148,7 +1148,13 @@ def _enclosing_loop_end(text: str, pos: int) -> int | None:
         brace = text.find("{", m.end())
         if brace == -1 or brace > pos:
             continue
-        end = _block_end(text, brace)
+        # ``brace + 1``: _block_end reports where the block *enclosing* its
+        # start index closes, so handing it the ``{`` itself starts one level
+        # too deep and it returns the end of the block *outside* the loop.
+        # In hackcheck_unlocked that made the first loop's window run to the
+        # end of the second one, importing a PyErr_Format from a branch the
+        # first loop cannot reach.
+        end = _block_end(text, brace + 1)
         if end > pos and (best is None or end < best):
             best = end
     return best
@@ -1602,6 +1608,88 @@ class FileRefContext:
         self.clean = strip_comments_and_strings(source)
         self.functions = functions
         self._pin_cache: dict[tuple, bool] = {}
+        self._reaching: set[str] | None = None
+        self._twin_cache: dict[str, int | None] = {}
+        self._accessors: dict[str, str] | None = None
+
+    # -- same-file transitive reach ------------------------------------------
+    #
+    # ``type_ready_inherit`` reaches a user ``__eq__`` through
+    # ``inherit_slots`` -> ``overrides_hash`` -> ``PyDict_Contains``.  A rule
+    # that only knows the API table sees an ordinary-looking local call and
+    # concludes the window is quiet, which is how a reproduced
+    # use-after-free reads as clean code.
+    #
+    # Only functions *defined in this file* propagate.  An unresolved external
+    # call stays unknown rather than being assumed dangerous: assuming would
+    # make every window reaching and the gate would stop gating.
+
+    def transitively_reaching(self) -> set[str]:
+        """Same-file functions that can reach arbitrary Python, transitively."""
+        if self._reaching is not None:
+            return self._reaching
+        callees: dict[str, set[str]] = {}
+        reaching: set[str] = set()
+        for func in self.functions:
+            body = strip_comments_and_strings(func["body"])
+            if reaching_calls_with_slots(body, 0, len(body)):
+                reaching.add(func["name"])
+            callees[func["name"]] = {c for c, _a, _s, _e in _iter_calls(body)}
+        changed = True
+        while changed:
+            changed = False
+            for name, called in callees.items():
+                if name not in reaching and called & reaching:
+                    reaching.add(name)
+                    changed = True
+        self._reaching = reaching
+        return reaching
+
+    def reaching_in(self, clean_body: str, start: int, end: int) -> list[str]:
+        """``reaching_calls_with_slots`` plus same-file helpers that reach."""
+        names = reaching_calls_with_slots(clean_body, start, end)
+        if start >= end:
+            return names
+        transitive = self.transitively_reaching()
+        for callee, _args, _pos, call_end in _iter_calls(clean_body, start, end):
+            if call_end <= end and callee in transitive:
+                names.append(f"{callee}() [same-file helper, reaches Python]")
+        return names
+
+    # -- borrowing field accessors ------------------------------------------
+
+    def field_accessors(self, source: str) -> dict[str, str]:
+        if self._accessors is None:
+            self._accessors = discover_field_accessors(source, self.functions)
+        return self._accessors
+
+    def field_accessor_twin(self, accessor: str) -> int | None:
+        """Line of a site in this file that takes a strong ref on the result.
+
+        Both spellings: ``Py_XNewRef(lookup_tp_mro(type))`` wrapped around the
+        call, and the two-step ``res = lookup_tp_bases(self); Py_INCREF(res);``
+        that ``_PyType_GetBases`` uses.
+        """
+        if accessor in self._twin_cache:
+            return self._twin_cache[accessor]
+        wrapped = re.compile(
+            r"\bPy_X?(?:NewRef|INCREF)\s*\(\s*" + re.escape(accessor) + r"\s*\("
+        )
+        twin: int | None = None
+        for func in self.functions:
+            body = strip_comments_and_strings(func["body"])
+            m = wrapped.search(body)
+            if m:
+                twin = _line_at(func, body, m.start())
+                break
+            for load_end, local, _acc in _field_accessor_loads(body, (accessor,)):
+                if _strong_ref_re(local).search(body[load_end:]):
+                    twin = _line_at(func, body, load_end)
+                    break
+            if twin is not None:
+                break
+        self._twin_cache[accessor] = twin
+        return twin
 
     def _function_at_line(self, line: int) -> dict | None:
         for func in self.functions:
@@ -1959,6 +2047,288 @@ def check_stale_slot_use(
                         f"strong reference for the duration"
                     ),
                     "confidence": "high",
+                }
+            )
+            break
+    return findings
+
+
+# ---------------------------------------------------------------------------
+# Rule: borrowed_field_deref_across_call  (the read-only hazard)
+# ---------------------------------------------------------------------------
+#
+# Every rule above anchors on a *release*: a ``Py_DECREF``, a slot clear, an
+# ownership transfer out of the function.  ``Objects/typeobject.c`` contains
+# two reproduced use-after-frees in which the borrowed local is only ever
+# **read** -- nothing in the enclosing function releases anything, and the free
+# happens frames away inside re-entrant Python.  The release-anchored rules
+# reported 0 findings over 403 functions on that file.
+#
+# The load is not spelled ``local = owner->field`` either.  It goes through a
+# tiny ``static inline`` accessor:
+#
+#     static inline PyObject *
+#     lookup_tp_mro(PyTypeObject *self)
+#     {
+#         return self->tp_mro;          /* borrowed */
+#     }
+#
+# so the accessor set is *discovered* from the file rather than tabulated --
+# which is what makes the rule portable to the next file that wraps its slots.
+#
+# Four gates carry the precision, all measured on the 28 borrowed accessor
+# loads in ``Objects/typeobject.c``:
+#
+# (i)   no strong reference taken on the local;
+# (ii)  a Python-reaching call between the load and the use -- including one
+#       reached through a same-file ``static`` helper, because ``inherit_slots``
+#       is what dispatches the user ``__eq__`` in the ``type_ready_inherit``
+#       finding, and including loop-carried exposure, because in
+#       ``recurse_down_subclasses`` the guard test that runs Python sits *after*
+#       the use in text order and *before* it in iteration order;
+# (iii) the use must be a **dereference**.  ``lookup_tp_bases(type) ==
+#       new_bases`` (:1957, :1993, :3667) is a deliberate re-entrancy check and
+#       correct code; counting a pointer comparison as a use drowns the rule;
+# (iv)  ``high`` only when a *guarded twin* exists in the same file -- a site
+#       that takes a strong reference on the same accessor's result.  That one
+#       test is what separates the findings from the clean borrowed-MRO loops.
+#
+# True positives: ``type_ready_inherit`` (:9332 load, :9336 use, CPY-0068) and
+# ``recurse_down_subclasses`` (:12369 load, :12377 use, CPY-0069), both
+# reproduced as ASan heap-use-after-free.  Guarded twins: ``_PyType_GetBases``
+# (``Py_INCREF`` on the ``lookup_tp_bases`` result) and :3665
+# (``Py_XNewRef(lookup_tp_mro(type))``).
+#
+# ``PyDict_Next`` is deliberately *not* in ``PYTHON_REACHING_APIS``: it walks
+# the entry table by index and neither hashes nor compares, so it cannot reach
+# a user ``__eq__``.  It is a *use* of the borrowed container, not a call that
+# invalidates it.
+
+_ANY_RETURN_RE = re.compile(r"\breturn\b([^;]*);")
+
+# ``return X->field;`` / ``return (PyObject *)X->field;`` -- the whole body of a
+# borrowing accessor.
+_ACCESSOR_RETURN_RE = re.compile(
+    r"^\s*(?:\(\s*[\w\s*]+\)\s*)?([A-Za-z_]\w*)\s*->\s*([A-Za-z_]\w*)\s*$"
+)
+
+_STRONG_REF_ANY_RE = re.compile(r"\bPy_X?(?:INCREF|NewRef)\b|\b_Py_X?NewRef\b")
+
+
+def _strong_ref_re(name: str) -> re.Pattern:
+    """``Py_INCREF(name)`` / ``Py_XNewRef(name)`` for one exact operand."""
+    return re.compile(
+        r"\b(?:Py_X?INCREF|Py_X?NewRef|_Py_X?NewRef)\s*\(\s*"
+        + re.escape(name)
+        + r"\s*\)"
+    )
+
+
+def discover_field_accessors(source: str, functions: list[dict]) -> dict[str, str]:
+    """Map ``accessor name -> field name`` for borrowing field accessors.
+
+    A borrowing accessor is a file-scope ``static`` function returning
+    ``PyObject *`` whose every ``return`` hands back either a struct field or
+    ``NULL``, and which takes no reference anywhere in its body.  On
+    ``Objects/typeobject.c`` that discovers exactly ``lookup_tp_dict``,
+    ``lookup_tp_bases``, ``lookup_tp_mro`` and ``lookup_tp_subclasses`` --
+    including the two whose bodies have a static-builtin branch and therefore
+    *two* field returns.
+
+    Tabulating the four names instead would have worked on this one file and
+    nowhere else; the shape is what generalises.
+    """
+    lines = source.split("\n")
+    accessors: dict[str, str] = {}
+    for func in functions:
+        header = "\n".join(lines[func["start_line"] - 1 : func["body_start_line"] - 1])
+        if "static" not in header or "PyObject" not in header or "*" not in header:
+            continue
+        body = strip_comments_and_strings(func["body"])
+        if _STRONG_REF_ANY_RE.search(body):
+            # It hands back a strong reference; borrowing is the whole point.
+            continue
+        fields: list[str] = []
+        vouched = True
+        for m in _ANY_RETURN_RE.finditer(body):
+            expr = m.group(1).strip()
+            if expr in ("", "NULL", "0"):
+                continue
+            fm = _ACCESSOR_RETURN_RE.match(expr)
+            if fm is None:
+                # A return this rule cannot vouch for: the function computes
+                # something rather than forwarding a field.
+                vouched = False
+                break
+            fields.append(fm.group(2))
+        if not vouched or not fields:
+            continue
+        # The commonest field wins: `lookup_tp_subclasses` returns
+        # `state->tp_subclasses` and `self->tp_subclasses`, the same field.
+        accessors[func["name"]] = max(set(fields), key=fields.count)
+    return accessors
+
+
+def _accessor_load_re(accessors) -> re.Pattern:
+    """``[Type *]local = ACCESSOR(...)`` for any of ``accessors``.
+
+    An explicit optional declaration prefix rather than a ``(?<![\\w.>*])``
+    lookbehind: the declaration form ``PyObject *mro = lookup_tp_mro(type);``
+    puts a ``*`` immediately before the local, so the lookbehind the sibling
+    rules use rejects the commonest spelling of the thing being looked for.
+    """
+    return re.compile(
+        r"(?:^|[;{}\s])(?:(?:const\s+)?[A-Za-z_]\w*\s*\*+\s*)?([A-Za-z_]\w*)\s*=\s*"
+        r"(?:\(\s*[\w\s*]+\)\s*)?("
+        + "|".join(re.escape(a) for a in sorted(accessors, key=len, reverse=True))
+        + r")\s*\(",
+        re.MULTILINE,
+    )
+
+
+def _field_accessor_loads(clean: str, accessors) -> list[tuple[int, str, str]]:
+    """``(end, local, accessor)`` for every borrowing-accessor load."""
+    if not accessors:
+        return []
+    return [
+        (m.end(), m.group(1), m.group(2))
+        for m in _accessor_load_re(accessors).finditer(clean)
+    ]
+
+
+def _loop_scope_end(text: str, pos: int, *, load_end: int) -> int | None:
+    """End of the innermost loop whose *header or body* contains ``pos``.
+
+    Two differences from ``_enclosing_loop_end``:
+
+    * ``pos`` may sit in the controlling expression.  ``_enclosing_loop_end``
+      requires it to follow the opening brace, so a use written as
+      ``while (PyDict_Next(d, ...))`` reads as "not in a loop" -- which is
+      exactly the ``recurse_down_subclasses`` shape, where the invalidating
+      call is the guard test further down the same body.
+    * the loop must begin **at or after the load**.  A load *inside* the loop
+      is refreshed on every iteration, so iteration N+1's use follows iteration
+      N+1's load, not iteration N's call.  Without this, the ``dict =
+      lookup_tp_dict(subclass)`` re-load in that same loop body reports as
+      loop-carried when it is not.
+    """
+    best: int | None = None
+    for m in _LOOP_HEADER_RE.finditer(text):
+        if m.start() < load_end:
+            continue
+        close = _close_paren(text, m.end() - 1)
+        if close is None:
+            continue
+        brace = text.find("{", close)
+        if brace != -1 and not text[close + 1 : brace].strip():
+            end = _block_end(text, brace + 1)
+        else:
+            semi = text.find(";", close)
+            end = len(text) if semi == -1 else semi + 1
+        if m.start() <= pos <= end and (best is None or end < best):
+            best = end
+    return best
+
+
+def _deref_uses(text: str, start: int, end: int, name: str) -> list[int]:
+    """Offsets of every *dereferencing* use of ``name`` in the region.
+
+    ``->``/``[]`` access, or being handed to a call that is not a refcount or
+    assertion macro.  A pointer comparison and a bare ``return name`` are not
+    dereferences -- gate (iii).
+    """
+    out: set[int] = set()
+    for m in re.finditer(rf"(?<![\w.>]){re.escape(name)}\s*(?:->|\[)", text):
+        if start <= m.start() < end:
+            out.add(m.start())
+    for callee, args, pos, call_end in _iter_calls(text, start, end):
+        if call_end > end or _NON_DEREF_CALL_RE.match(callee):
+            continue
+        if name in _BARE_IDENT_RE.findall(args):
+            out.add(pos)
+    return sorted(out)
+
+
+def check_borrowed_field_deref(
+    func: dict,
+    ctx: "FileRefContext",
+    *,
+    accessors: dict[str, str],
+    skip_lines: set[int] | None = None,
+) -> list[dict]:
+    """``local = lookup_field(obj)`` ... Python runs ... ``local`` dereferenced.
+
+    The read-only borrowed-ref hazard.  See the block comment above for the
+    four gates and the two reproduced true positives.
+    """
+    if not accessors:
+        return []
+    clean = strip_comments_and_strings(func["body"])
+    skip = skip_lines or set()
+    findings: list[dict] = []
+    seen: set[int] = set()
+
+    for load_end, local, accessor in _field_accessor_loads(clean, accessors):
+        if _strong_ref_re(local).search(clean):
+            continue
+        rebound = _reassigned_before(clean, local, load_end, len(clean))
+        region_end = len(clean) if rebound is None else rebound
+
+        for use_pos in _deref_uses(clean, load_end, region_end, local):
+            reaching = ctx.reaching_in(clean, load_end, use_pos)
+            carried = False
+            if not reaching:
+                loop_end = _loop_scope_end(clean, use_pos, load_end=load_end)
+                if loop_end is not None:
+                    reaching = ctx.reaching_in(
+                        clean, load_end, min(loop_end, region_end)
+                    )
+                    carried = bool(reaching)
+            if not reaching:
+                continue
+            if ctx.call_is_type_pinned(func, clean, load_end, use_pos):
+                continue
+            line = _line_at(func, clean, use_pos)
+            if line in seen or line in skip:
+                break
+            seen.add(line)
+            twin = ctx.field_accessor_twin(accessor)
+            order = (
+                "a later iteration's use follows this iteration's call"
+                if carried
+                else "the call precedes the use"
+            )
+            # Error formatting reaches Python through %S/%R, but a dispatcher
+            # is the more credible cause and the more useful thing to name.
+            best = sorted(reaching, key=lambda n: n.startswith(("PyErr_", "PySys_")))
+            findings.append(
+                {
+                    "type": "borrowed_field_deref_across_call",
+                    "api_call": best[0],
+                    "variable": local,
+                    "line": line,
+                    "load_line": _line_at(func, clean, load_end),
+                    "source": f"{accessor}() -> {accessors[accessor]}",
+                    "guarded_twin_line": twin,
+                    "detail": (
+                        f"'{local}' is a borrowed reference from {accessor}() "
+                        f"(field {accessors[accessor]}) taken at line "
+                        f"{_line_at(func, clean, load_end)} with no Py_INCREF; "
+                        f"{', '.join(sorted(set(reaching)))} can run arbitrary "
+                        f"Python before it is dereferenced here ({order}). "
+                        f"Re-entrant code that clears the field drops the last "
+                        f"reference and this dereference reads freed memory. "
+                        + (
+                            f"The same file already takes a strong reference on "
+                            f"{accessor}()'s result at line {twin} -- that is the "
+                            f"fix, applied here."
+                            if twin
+                            else f"No site in this file takes a strong reference "
+                            f"on {accessor}()'s result, so confirm the field "
+                            f"cannot be cleared re-entrantly before dismissing."
+                        )
+                    ),
+                    "confidence": "high" if twin else "medium",
                 }
             )
             break
@@ -2637,6 +3007,7 @@ def analyze(target: str, *, max_files: int = 0) -> dict:
 
         functions = find_functions(source)
         ctx = FileRefContext(source, functions)
+        accessors = ctx.field_accessors(source)
 
         for func in functions:
             functions_analyzed += 1
@@ -2650,12 +3021,20 @@ def analyze(target: str, *, max_files: int = 0) -> dict:
             )
             func_findings.extend(borrowed)
             func_findings.extend(check_slot_transfer_across_call(func, ctx))
+            slot_use = check_stale_slot_use(
+                func,
+                ctx,
+                skip_lines={f["line"] for f in stale} | {f["line"] for f in borrowed},
+            )
+            func_findings.extend(slot_use)
             func_findings.extend(
-                check_stale_slot_use(
+                check_borrowed_field_deref(
                     func,
                     ctx,
+                    accessors=accessors,
                     skip_lines={f["line"] for f in stale}
-                    | {f["line"] for f in borrowed},
+                    | {f["line"] for f in borrowed}
+                    | {f["line"] for f in slot_use},
                 )
             )
             func_findings.extend(check_init_reinit_safety(func, slots, functions))
@@ -2682,6 +3061,9 @@ def analyze(target: str, *, max_files: int = 0) -> dict:
             "borrowed_ref_across_call": count("borrowed_ref_across_call"),
             "slot_transfer_across_call": count("slot_transfer_across_call"),
             "stale_slot_use": count("stale_slot_use"),
+            "borrowed_field_deref_across_call": count(
+                "borrowed_field_deref_across_call"
+            ),
             "init_not_reinit_safe": count("init_not_reinit_safe"),
             "new_missing_member_init": count("new_missing_member_init"),
             "total_findings": len(all_findings),

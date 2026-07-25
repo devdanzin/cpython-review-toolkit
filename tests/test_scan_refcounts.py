@@ -1280,5 +1280,324 @@ class TestFindFunctions(unittest.TestCase):
         self.assertIn("sock_family", func["body"])
 
 
+# ---------------------------------------------------------------------------
+# borrowed_field_deref_across_call -- the read-only hazard (issue #28 rule 1)
+# ---------------------------------------------------------------------------
+#
+# All the shapes below are transcribed from Objects/typeobject.c, which
+# contains two reproduced ASan heap-use-after-frees that every release-anchored
+# rule in this file reported as clean (0 findings over 403 functions).
+
+# The four accessors, verbatim in shape.  Two have a static-builtin branch and
+# therefore two field returns; both must still be discovered.
+ACCESSORS = (
+    "static inline PyObject *\n"
+    "lookup_tp_mro(PyTypeObject *self)\n"
+    "{\n"
+    "    return self->tp_mro;\n"
+    "}\n"
+    "\n"
+    "static inline PyObject *\n"
+    "lookup_tp_subclasses(PyTypeObject *self)\n"
+    "{\n"
+    "    if (self->tp_flags & _Py_TPFLAGS_STATIC_BUILTIN) {\n"
+    "        managed_static_type_state *state = _PyStaticType_GetState(interp, self);\n"
+    "        return state->tp_subclasses;\n"
+    "    }\n"
+    "    return (PyObject *)self->tp_subclasses;\n"
+    "}\n"
+)
+
+# CPY-0068: the borrowed tp_mro is only ever READ, and the free happens inside
+# inherit_slots -> overrides_hash -> PyDict_Contains -> a user __eq__.  Both the
+# interprocedural hop and the loop-carried ordering are required to see it.
+TYPE_READY_INHERIT = (
+    "static int\n"
+    "overrides_hash(PyTypeObject *type)\n"
+    "{\n"
+    "    PyObject *dict = type->tp_dict;\n"
+    "    return PyDict_Contains(dict, &_Py_ID(__eq__));\n"
+    "}\n"
+    "\n"
+    "static int\n"
+    "inherit_slots(PyTypeObject *type, PyTypeObject *base)\n"
+    "{\n"
+    "    if (overrides_hash(base)) {\n"
+    "        return -1;\n"
+    "    }\n"
+    "    return 0;\n"
+    "}\n"
+    "\n"
+    "static int\n"
+    "type_ready_inherit(PyTypeObject *type)\n"
+    "{\n"
+    "    PyObject *mro = lookup_tp_mro(type);\n"
+    "    assert(mro != NULL);\n"
+    "    Py_ssize_t n = PyTuple_GET_SIZE(mro);\n"
+    "    for (Py_ssize_t i = 1; i < n; i++) {\n"
+    "        PyObject *b = PyTuple_GET_ITEM(mro, i);\n"
+    "        if (inherit_slots(type, (PyTypeObject *)b) < 0) {\n"
+    "            return -1;\n"
+    "        }\n"
+    "    }\n"
+    "    return 0;\n"
+    "}\n"
+)
+
+# CPY-0069: the use is in the *controlling expression* of the loop and the
+# invalidating call sits after it in text order, before it in iteration order.
+RECURSE_DOWN_SUBCLASSES = (
+    "static int\n"
+    "recurse_down_subclasses(PyTypeObject *type, PyObject *attr_name)\n"
+    "{\n"
+    "    PyObject *subclasses = lookup_tp_subclasses(type);\n"
+    "    if (subclasses == NULL) {\n"
+    "        return 0;\n"
+    "    }\n"
+    "    Py_ssize_t i = 0;\n"
+    "    PyObject *ref;\n"
+    "    while (PyDict_Next(subclasses, &i, NULL, &ref)) {\n"
+    "        PyObject *dict = ref;\n"
+    "        int r = PyDict_Contains(dict, attr_name);\n"
+    "        if (r < 0) {\n"
+    "            return -1;\n"
+    "        }\n"
+    "    }\n"
+    "    return 0;\n"
+    "}\n"
+)
+
+
+class TestFieldAccessorDiscovery(unittest.TestCase):
+    """The accessor set is discovered, not tabulated."""
+
+    def _discover(self, code):
+        funcs = mod.find_functions(code)
+        return mod.discover_field_accessors(code, funcs)
+
+    def test_discovers_single_return_accessor(self):
+        found = self._discover(ACCESSORS)
+        self.assertEqual(found.get("lookup_tp_mro"), "tp_mro")
+
+    def test_discovers_two_branch_accessor(self):
+        """Both returns forward the same field, through different owners."""
+        found = self._discover(ACCESSORS)
+        self.assertEqual(found.get("lookup_tp_subclasses"), "tp_subclasses")
+
+    def test_accessor_returning_a_strong_reference_is_not_borrowing(self):
+        code = (
+            "PyObject *\n"
+            "_PyType_GetBases(PyTypeObject *self)\n"
+            "{\n"
+            "    PyObject *res = self->tp_bases;\n"
+            "    Py_INCREF(res);\n"
+            "    return res;\n"
+            "}\n"
+        )
+        self.assertEqual(self._discover(code), {})
+
+    def test_accessor_that_computes_is_not_vouched_for(self):
+        """One return this rule cannot follow disqualifies the whole function."""
+        code = (
+            "static PyObject *\n"
+            "pick(PyTypeObject *self, int which)\n"
+            "{\n"
+            "    if (which) {\n"
+            "        return self->tp_mro;\n"
+            "    }\n"
+            "    return build_something(self);\n"
+            "}\n"
+        )
+        self.assertEqual(self._discover(code), {})
+
+    def test_null_return_does_not_disqualify(self):
+        code = (
+            "static PyObject *\n"
+            "lookup_tp_dict(PyTypeObject *self)\n"
+            "{\n"
+            "    if (self == NULL) {\n"
+            "        return NULL;\n"
+            "    }\n"
+            "    return self->tp_dict;\n"
+            "}\n"
+        )
+        self.assertEqual(self._discover(code), {"lookup_tp_dict": "tp_dict"})
+
+
+class TestBorrowedFieldDerefAcrossCall(unittest.TestCase):
+    KIND = "borrowed_field_deref_across_call"
+
+    def test_reaches_python_through_a_same_file_helper(self):
+        """CPY-0068. inherit_slots looks local; it dispatches a user __eq__."""
+        found = _types(_scan(ACCESSORS + TYPE_READY_INHERIT), self.KIND)
+        hits = [f for f in found if f["function"] == "type_ready_inherit"]
+        self.assertEqual(len(hits), 1, found)
+        self.assertEqual(hits[0]["source"], "lookup_tp_mro() -> tp_mro")
+        self.assertIn("inherit_slots", hits[0]["api_call"])
+
+    def test_use_in_a_loop_controlling_expression(self):
+        """CPY-0069. The invalidating call is textually after the use."""
+        found = _types(_scan(ACCESSORS + RECURSE_DOWN_SUBCLASSES), self.KIND)
+        hits = [f for f in found if f["function"] == "recurse_down_subclasses"]
+        self.assertEqual(len(hits), 1, found)
+        self.assertIn("PyDict_Contains", hits[0]["api_call"])
+
+    def test_pointer_comparison_is_not_a_dereference(self):
+        """typeobject.c:1957/:1993/:3667 are re-entrancy checks, correct code."""
+        code = ACCESSORS + (
+            "static int\n"
+            "type_set_bases_unlocked(PyTypeObject *type, PyObject *new_bases)\n"
+            "{\n"
+            "    PyObject *mro = lookup_tp_mro(type);\n"
+            "    if (PyDict_Contains(type->tp_dict, new_bases) < 0) {\n"
+            "        return -1;\n"
+            "    }\n"
+            "    if (lookup_tp_mro(type) != mro) {\n"
+            "        return -1;\n"
+            "    }\n"
+            "    return 0;\n"
+            "}\n"
+        )
+        self.assertEqual(_types(_scan(code), self.KIND), [])
+
+    def test_strong_reference_suppresses(self):
+        code = ACCESSORS + (
+            "static int\n"
+            "safe(PyTypeObject *type)\n"
+            "{\n"
+            "    PyObject *mro = lookup_tp_mro(type);\n"
+            "    Py_INCREF(mro);\n"
+            "    if (PyDict_Contains(type->tp_dict, mro) < 0) {\n"
+            "        return -1;\n"
+            "    }\n"
+            "    Py_ssize_t n = PyTuple_GET_SIZE(mro);\n"
+            "    Py_DECREF(mro);\n"
+            "    return (int)n;\n"
+            "}\n"
+        )
+        self.assertEqual(_types(_scan(code), self.KIND), [])
+
+    def test_no_reaching_call_in_the_window_is_silent(self):
+        """typeobject.c:8771/:10128/:11368 -- borrowed, read, but nothing runs."""
+        code = ACCESSORS + (
+            "static int\n"
+            "hackcheck_unlocked(PyTypeObject *type)\n"
+            "{\n"
+            "    PyObject *mro = lookup_tp_mro(type);\n"
+            "    if (!mro) {\n"
+            "        return 1;\n"
+            "    }\n"
+            "    for (Py_ssize_t i = PyTuple_GET_SIZE(mro) - 1; i >= 0; i--) {\n"
+            "        PyObject *base = PyTuple_GET_ITEM(mro, i);\n"
+            "        if (base == NULL) {\n"
+            "            break;\n"
+            "        }\n"
+            "    }\n"
+            "    return 1;\n"
+            "}\n"
+        )
+        self.assertEqual(_types(_scan(code), self.KIND), [])
+
+    def test_a_load_inside_the_loop_is_not_loop_carried(self):
+        """It is refreshed every iteration, so iteration N's call cannot reach it."""
+        code = ACCESSORS + (
+            "static int\n"
+            "per_iteration(PyTypeObject *type, PyObject *name)\n"
+            "{\n"
+            "    for (Py_ssize_t i = 0; i < 4; i++) {\n"
+            "        PyObject *mro = lookup_tp_mro(type);\n"
+            "        int r = PyDict_Contains(mro, name);\n"
+            "        if (r < 0) {\n"
+            "            return -1;\n"
+            "        }\n"
+            "    }\n"
+            "    return 0;\n"
+            "}\n"
+        )
+        self.assertEqual(_types(_scan(code), self.KIND), [])
+
+    def test_guarded_twin_raises_confidence_to_high(self):
+        twin = (
+            "PyObject *\n"
+            "_PyType_GetMro(PyTypeObject *self)\n"
+            "{\n"
+            "    PyObject *res = lookup_tp_mro(self);\n"
+            "    Py_INCREF(res);\n"
+            "    return res;\n"
+            "}\n"
+        )
+        without = _types(_scan(ACCESSORS + TYPE_READY_INHERIT), self.KIND)
+        withtwin = _types(_scan(ACCESSORS + twin + TYPE_READY_INHERIT), self.KIND)
+        self.assertEqual([f["confidence"] for f in without], ["medium"])
+        self.assertEqual([f["confidence"] for f in withtwin], ["high"])
+        self.assertIsNotNone(withtwin[0]["guarded_twin_line"])
+
+    def test_wrapped_newref_also_counts_as_a_twin(self):
+        """typeobject.c:3665 spells it Py_XNewRef(lookup_tp_mro(type))."""
+        twin = (
+            "static int\n"
+            "mro_hierarchy(PyTypeObject *type)\n"
+            "{\n"
+            "    PyObject *old_mro = Py_XNewRef(lookup_tp_mro(type));\n"
+            "    Py_XDECREF(old_mro);\n"
+            "    return 0;\n"
+            "}\n"
+        )
+        found = _types(_scan(ACCESSORS + twin + TYPE_READY_INHERIT), self.KIND)
+        self.assertEqual([f["confidence"] for f in found], ["high"])
+
+    def test_pydict_next_is_not_a_python_reaching_call(self):
+        """It walks the entry table by index: no hashing, no comparison."""
+        self.assertNotIn("PyDict_Next", mod.PYTHON_REACHING_APIS)
+        code = ACCESSORS + (
+            "static int\n"
+            "walk_only(PyTypeObject *type)\n"
+            "{\n"
+            "    PyObject *subclasses = lookup_tp_subclasses(type);\n"
+            "    Py_ssize_t i = 0;\n"
+            "    PyObject *ref;\n"
+            "    while (PyDict_Next(subclasses, &i, NULL, &ref)) {\n"
+            "        i++;\n"
+            "    }\n"
+            "    return 0;\n"
+            "}\n"
+        )
+        self.assertEqual(_types(_scan(code), self.KIND), [])
+
+    def test_external_call_does_not_count_as_reaching(self):
+        """An unresolved callee stays unknown; assuming would stop the gate gating."""
+        code = ACCESSORS + (
+            "static int\n"
+            "calls_out(PyTypeObject *type)\n"
+            "{\n"
+            "    PyObject *mro = lookup_tp_mro(type);\n"
+            "    some_external_helper(type);\n"
+            "    return (int)PyTuple_GET_SIZE(mro);\n"
+            "}\n"
+        )
+        self.assertEqual(_types(_scan(code), self.KIND), [])
+
+
+class TestLoopScopeEnd(unittest.TestCase):
+    """_block_end reports where the block *enclosing* its start closes."""
+
+    def test_block_end_needs_the_index_after_the_brace(self):
+        text = "a { b } c } d"
+        brace = text.index("{")
+        # Handed the brace itself it starts one level deep and overshoots to
+        # the *next* closing brace -- how hackcheck_unlocked's first loop
+        # window came to include the second loop's PyErr_Format.
+        self.assertEqual(text[mod._block_end(text, brace)], "}")
+        self.assertEqual(mod._block_end(text, brace), text.rindex("}"))
+        self.assertEqual(mod._block_end(text, brace + 1), text.index("}"))
+
+    def test_two_sibling_loops_get_distinct_windows(self):
+        body = "for (i = 0; i < n; i++) { A(); }\nfor (j = 0; j < n; j++) { B(); }\n"
+        first = body.index("A()")
+        end = mod._loop_scope_end(body, first, load_end=0)
+        self.assertIsNotNone(end)
+        self.assertNotIn("B()", body[:end])
+
+
 if __name__ == "__main__":
     unittest.main()
