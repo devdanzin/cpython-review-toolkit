@@ -54,6 +54,34 @@ Start with `map` to understand the include graph, then `hotspots` to find the hi
 - **7 commands** (`explore`, `informed-explore`, `known-issues`, `reproduce`, `map`, `hotspots`, `health`) for different analysis workflows.
 - **Analysis scripts** — stdlib-only regex scanners for the legacy dimensions, plus tree-sitter crash-class detectors, a `known-issues` regression checker, and an `informed-explore` briefing generator.
 
+## Reviewing the whole tree, one slice at a time
+
+An `informed-explore` run works best when the whole scope fits in one context.
+Measured: a 13,250-line slice of `Objects/` dispatched 12 agents and triaged
+well; a 39,800-line slice of `Modules/` dispatched only 6 and strained. So the
+reviewable surface — every non-vendored `.c` file under `Objects/` and
+`Modules/`, 188 files and ~358,000 lines — is partitioned into **37 slices** of
+at most 13,000 lines each, tracked in
+[`data/review_slices.json`](plugins/cpython-review-toolkit/data/review_slices.json).
+
+```bash
+python tools/slice_status.py --catalog-dir ~/projects/cpython-review-findings
+python tools/make_slice_context.py mod-io --cpython ~/projects/cpython \
+    --catalog-dir ~/projects/cpython-review-findings
+/cpython-review-toolkit:informed-explore Modules/_io all
+```
+
+`slice_status.py` is the campaign cursor — progress per tier, findings per
+slice, and the next slice to run. `make_slice_context.py` does the setup that
+was previously manual: the run tree, the informed briefing, every scanner run
+both corpus-wide and re-run slice-scoped (never post-filtered, so denominators
+stay honest), the calibration/new-territory split, and the `RUN_CONTEXT.md` the
+agents read. When a slice finishes, flip its `status` to `done` and commit.
+
+CPython gains and loses files, so the manifest can silently stop covering the
+tree. `--verify` re-walks a checkout and fails on any unassigned or vanished
+file; `--sync` refreshes line counts.
+
 ## Prerequisites
 
 - **Claude Code** installed and running.

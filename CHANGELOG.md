@@ -5,6 +5,51 @@ Format loosely follows [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+### Added — the review-slice campaign
+
+Two informed runs have covered 26 files and ~53,000 lines; the reviewable
+surface under `Objects/` + `Modules/` is 188 files and ~358,000 lines. The
+remaining 85% was untracked, and the setup for each run was manual. Both are
+now mechanical.
+
+- **`data/review_slices.json`** — partitions every non-vendored `.c` file under
+  `Objects/` and `Modules/` into **37 slices**, each within a sizing rule
+  derived from measurement rather than taste: **≤13,000 lines and ≤12 files**.
+  The 13,250-line `Objects/` run dispatched 12 agents and triaged well; the
+  39,800-line `Modules/` run dispatched only 6. Three single files exceed the
+  cap and cannot be split (`posixmodule.c` 18,951, `unicodeobject.c` 15,395,
+  `typeobject.c` 13,068), so they declare a `passes` count and a subsystem
+  split instead. Slices are cut for cohesion first — `_io` with its `_pyio`
+  twin oracle, the user-callback re-entrancy family, the `_sqlite` package —
+  because an agent triaging one file benefits from having seen its siblings.
+  Tiers record expected yield: **A** adversarial-object reachable (21 slices,
+  where all 61 findings so far came from — 2 already done, 19 pending),
+  **B** library and system surface (12), **C** platform-locked or low yield (4).
+- **`tools/slice_status.py`** — the campaign cursor, since none of this
+  survives in conversation context. Reports progress per tier and findings per
+  slice, the latter derived by mapping each catalog finding's cited files back
+  to the owning slice. That cross-reference surfaces a distinct state:
+  **a *pending* slice that already has findings** — one a sweep reached into
+  but nobody reviewed. Six slices are in that state today.
+  `--verify` re-walks a checkout and fails on any unassigned or vanished file,
+  because a manifest that quietly stops covering the tree still prints a
+  completion percentage; `--sync` refreshes line counts.
+- **`tools/make_slice_context.py`** — generates a slice's run directory,
+  informed briefing, scanner baselines and `RUN_CONTEXT.md`. Two things it gets
+  right by construction: sample scans are **re-run** via `sample_scan.py`
+  rather than filtered, so no slice-scoped zero sits next to a corpus-wide
+  denominator; and the calibration/new-territory split is **derived** from
+  `cpython_known_bugs.tsv` plus the findings catalog, so a clean result is
+  legible as either a recall failure or a real negative. Corpus baselines are
+  cached per top-level directory — 85s once, then under a second per slice.
+- **24 tests** covering manifest partition, the sizing rule, drift detection in
+  both directions, and end-to-end context generation. The sizing-rule test
+  immediately caught a 15-file slice in the manifest it was written to check,
+  which was split into `mod-runtime-support` and `mod-startup-leaf`.
+
+Also: `ruff check tools/` is now clean (a missing `check=` on a `subprocess.run`
+in `validate_precision.py`, and executable bits on the four `tools/` scripts).
+
 ### Fixed — six defects measured by the informed `Modules/` review
 
 Every number below was measured on CPython main @ `4f3be1b5777` (3.16.0a0) over

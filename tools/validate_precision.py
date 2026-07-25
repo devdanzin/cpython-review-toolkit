@@ -125,6 +125,7 @@ def run_scanner(script: str, target: Path, cpython: Path) -> dict | None:
     """Run one scanner over one directory; return its parsed report."""
     proc = subprocess.run(
         [sys.executable, str(SCRIPTS / f"{script}.py"), str(target)],
+        check=False,
         capture_output=True,
         text=True,
         errors="replace",
