@@ -992,5 +992,118 @@ class TestElementDerivation(unittest.TestCase):
         self.assertIsNone(self.mod.descent_element_op("a, 0", {"b": "x"}))
 
 
+class TestPlainGraphFieldDescent(unittest.TestCase):
+    """D-13: a graph edge read as a plain member, with no accessor to key on.
+
+    This rule keyed on ``_OBJECT_GRAPH_WALK_OPS`` -- the names of the
+    ``lookup_tp_*`` family -- so a descent spelled ``solid_base(type->tp_base)``
+    was invisible. That is ``Objects/typeobject.c:3776``, an unguarded
+    self-recursion reproduced exit 139 on **debug and release** whose trigger is
+    the entirely ordinary ``class X(Deep): pass``; pass 1 dismissed it on an
+    assumed tail call that ``objdump`` disproves.
+
+    The same blindness is shared with ``scan_refcounts`` and
+    ``scan_null_checks``, which is why ``GRAPH_FIELDS`` lives in ``scan_common``
+    rather than here.
+    """
+
+    def setUp(self):
+        self.mod = import_script("scan_recursion_guards")
+
+    def _findings(self, files):
+        with TempProject(files) as root:
+            return self.mod.analyze(str(root))
+
+    def _get(self, result, name):
+        return next((f for f in result["findings"] if f["function"] == name), None)
+
+    SOLID_BASE = (
+        "static int\n"
+        "shape_differs(PyTypeObject *t1, PyTypeObject *t2)\n"
+        "{\n"
+        "    return t1->tp_basicsize != t2->tp_basicsize;\n"
+        "}\n"
+        "\n"
+        "static PyTypeObject *\n"
+        "solid_base(PyTypeObject *type)\n"
+        "{\n"
+        "    PyTypeObject *base;\n"
+        "    if (type->tp_base) {\n"
+        "        base = solid_base(type->tp_base);\n"
+        "    }\n"
+        "    else {\n"
+        "        base = &PyBaseObject_Type;\n"
+        "    }\n"
+        "    if (shape_differs(type, base)) {\n"
+        "        return type;\n"
+        "    }\n"
+        "    return base;\n"
+        "}\n"
+    )
+
+    def test_field_read_passed_straight_into_the_recursive_call(self):
+        result = self._findings({"Objects/typeobject.c": self.SOLID_BASE})
+        f = self._get(result, "solid_base")
+        self.assertIsNotNone(f, "solid_base must be reported")
+        self.assertEqual(f["shape"], "self_recursion")
+        # The element op names the graph edge, not a helper that does not exist.
+        self.assertEqual(f["element_op"], "->tp_base")
+
+    def test_field_read_bound_to_a_local_first(self):
+        """The same descent with one extra hop through a local."""
+        result = self._findings(
+            {
+                "Objects/typeobject.c": (
+                    "static PyTypeObject *\n"
+                    "walk_bases(PyTypeObject *type)\n"
+                    "{\n"
+                    "    PyTypeObject *next = type->tp_base;\n"
+                    "    if (next != NULL) {\n"
+                    "        return walk_bases(next);\n"
+                    "    }\n"
+                    "    return type;\n"
+                    "}\n"
+                )
+            }
+        )
+        f = self._get(result, "walk_bases")
+        self.assertIsNotNone(f)
+        self.assertEqual(f["element_op"], "->tp_base")
+
+    def test_a_non_graph_field_is_not_a_descent(self):
+        """The writer gate in reverse: an unrelated member is not an edge.
+
+        Without this the rule would fire on every recursive helper that happens
+        to pass any struct member, which is most of them.
+        """
+        result = self._findings(
+            {
+                "Objects/typeobject.c": (
+                    "static int\n"
+                    "count_down(PyTypeObject *type, int n)\n"
+                    "{\n"
+                    "    if (n <= 0) {\n"
+                    "        return type->tp_basicsize;\n"
+                    "    }\n"
+                    "    return count_down(type, n - 1);\n"
+                    "}\n"
+                )
+            }
+        )
+        self.assertIsNone(self._get(result, "count_down"))
+
+    def test_a_guarded_field_descent_is_silent(self):
+        """Py_EnterRecursiveCall is the fix, and the rule must honour it."""
+        guarded = self.SOLID_BASE.replace(
+            "    PyTypeObject *base;\n",
+            "    PyTypeObject *base;\n"
+            '    if (Py_EnterRecursiveCall(" in solid_base")) {\n'
+            "        return NULL;\n"
+            "    }\n",
+        )
+        result = self._findings({"Objects/typeobject.c": guarded})
+        self.assertIsNone(self._get(result, "solid_base"))
+
+
 if __name__ == "__main__":
     unittest.main()

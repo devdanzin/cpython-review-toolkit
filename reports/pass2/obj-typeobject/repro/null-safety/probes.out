@@ -1,0 +1,28 @@
+mro_returns_self_twice                 debug-gil=0 release-gil=0 debug-ft=0
+mro_mutates_bases_during_call          debug-gil=0 release-gil=0 debug-ft=0
+mro_returns_incomplete_via_finalizer   debug-gil=0 release-gil=0 debug-ft=0
+mro_result_finalizer_replaces_mro      debug-gil=0 release-gil=0 debug-ft=0
+set_bases_to_incomplete                debug-gil=0 release-gil=0 debug-ft=0
+setclass_during_del                    debug-gil=0 release-gil=0 debug-ft=0
+setclass_self_referential              debug-gil=0 release-gil=0 debug-ft=0
+setclass_module_subtype                debug-gil=0 release-gil=0 debug-ft=0
+setclass_slots_evil_eq                 debug-gil=0 release-gil=0 debug-ft=-6 <<<<< ABNORMAL
+      [debug-gil] rc=0 ok assigned | 
+      [release-gil] rc=0 ok assigned | 
+      [debug-ft] rc=-6  | python: Python/ceval.h:148: void check_invalid_reentrancy(void): Assertion `!interp->stoptheworld.world_stopped' failed.
+super_reinit_during_descr_get          debug-gil=0 release-gil=0 debug-ft=0
+super_new_then_getattr                 debug-gil=0 release-gil=0 debug-ft=0
+super_new_then_init_partial            debug-gil=0 release-gil=0 debug-ft=0
+super_lying_class_attr                 debug-gil=0 release-gil=0 debug-ft=0
+type_watcher_mutates_in_callback       debug-gil=-6 <<<<< ABNORMAL release-gil=-6 <<<<< ABNORMAL debug-ft=-6 <<<<< ABNORMAL
+      [debug-gil] rc=-6  | python: ./Modules/_testcapi/watchers.c:239: PyObject *add_type_watcher(PyObject *, PyObject *): Assertion `PyLong_Check(kind)' failed.
+      [release-gil] rc=-6  | python: ./Modules/_testcapi/watchers.c:239: PyObject *add_type_watcher(PyObject *, PyObject *): Assertion `PyLong_Check(kind)' failed.
+      [debug-ft] rc=-6  | python: ./Modules/_testcapi/watchers.c:239: PyObject *add_type_watcher(PyObject *, PyObject *): Assertion `PyLong_Check(kind)' failed.
+setattr_dunder_storm                   debug-gil=0 release-gil=0 debug-ft=0
+getattro_metaclass_descr_mutates       debug-gil=0 release-gil=0 debug-ft=0
+type_dict_del_during_lookup            debug-gil=0 release-gil=0 debug-ft=0
+slotnames_shrinks_during_iteration     debug-gil=0 release-gil=0 debug-ft=0
+slotnames_nonstring                    debug-gil=0 release-gil=0 debug-ft=0
+reduce_lying_class                     debug-gil=0 release-gil=0 debug-ft=0
+abc_register_flag_version              debug-gil=0 release-gil=0 debug-ft=0
+subinterp_static_types                 debug-gil=0 release-gil=0 debug-ft=0

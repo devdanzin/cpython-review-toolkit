@@ -1,0 +1,101 @@
+{
+  "project_root": "/home/danzin/projects/cpython",
+  "scan_root": "/home/danzin/projects/cpython",
+  "files_analyzed": 1,
+  "functions_analyzed": 362,
+  "denominators": {
+    "files_analyzed": 1,
+    "functions_analyzed": 362,
+    "findings": 6,
+    "fallible_assignment_sites": 45,
+    "int_status_callees_resolved": 116,
+    "int_status_callees_discovered": 86
+  },
+  "findings": [
+    {
+      "type": "int_status_never_tested",
+      "api_call": "add_all_subclasses",
+      "variable": "res",
+      "detail": "'res' takes add_all_subclasses's int status and is never tested. Unlike a NULL pointer returned straight back to the caller, a `return res` at the end of the function stops nothing in between: the code below runs with a live exception, and anything it commits or skips (a rollback, a slot update) happens anyway. Test res at the assignment and take the error path there.",
+      "confidence": "high",
+      "file": "Objects/typeobject.c",
+      "function": "type_set_bases_unlocked",
+      "line": 1966,
+      "use_line": 1982
+    },
+    {
+      "type": "unconditional_pyerr_clear",
+      "api_call": "PyErr_Clear",
+      "detail": "PyErr_Clear() with no PyErr_ExceptionMatches within the preceding 3 lines \u2014 swallows any live exception, including KeyboardInterrupt and MemoryError raised by user code",
+      "confidence": "medium",
+      "file": "Objects/typeobject.c",
+      "function": "type_repr",
+      "line": 2405
+    },
+    {
+      "type": "unconditional_pyerr_clear",
+      "api_call": "PyErr_Clear",
+      "detail": "PyErr_Clear() with no PyErr_ExceptionMatches within the preceding 3 lines \u2014 swallows any live exception, including KeyboardInterrupt and MemoryError raised by user code",
+      "confidence": "medium",
+      "file": "Objects/typeobject.c",
+      "function": "find_name_in_mro",
+      "line": 6149
+    },
+    {
+      "type": "unconditional_pyerr_clear",
+      "api_call": "PyErr_Clear",
+      "detail": "PyErr_Clear() with no PyErr_ExceptionMatches within the preceding 3 lines \u2014 swallows any live exception, including KeyboardInterrupt and MemoryError raised by user code",
+      "confidence": "medium",
+      "file": "Objects/typeobject.c",
+      "function": "find_name_in_mro",
+      "line": 6158
+    },
+    {
+      "type": "unconditional_pyerr_clear",
+      "api_call": "PyErr_Clear",
+      "detail": "PyErr_Clear() with no PyErr_ExceptionMatches within the preceding 3 lines \u2014 swallows any live exception, including KeyboardInterrupt and MemoryError raised by user code",
+      "confidence": "medium",
+      "file": "Objects/typeobject.c",
+      "function": "object_repr",
+      "line": 7490
+    },
+    {
+      "type": "unconditional_pyerr_clear",
+      "api_call": "PyErr_Clear",
+      "detail": "PyErr_Clear() with no PyErr_ExceptionMatches within the preceding 3 lines \u2014 swallows any live exception, including KeyboardInterrupt and MemoryError raised by user code",
+      "confidence": "medium",
+      "file": "Objects/typeobject.c",
+      "function": "get_subclasses_key",
+      "line": 9748
+    }
+  ],
+  "summary": {
+    "missing_null_checks": 0,
+    "unchecked_returns": 0,
+    "alloc_null_no_memerror": 0,
+    "unconditional_pyerr_clear": 5,
+    "pylong_sentinel_no_errcheck": 0,
+    "unchecked_parse_calls": 0,
+    "int_status_never_tested": 1,
+    "total_findings": 6
+  },
+  "_sample": {
+    "files_requested": [
+      "Objects/typeobject.c"
+    ],
+    "files_scanned": [
+      "Objects/typeobject.c"
+    ],
+    "files_missing": [],
+    "method": "the scanner was RE-RUN over exactly these files; every count in this report is sample-scoped. This is not a post-hoc filter of a corpus-wide scan -- a filtered report keeps corpus-wide denominators next to sample-scoped findings, which makes an unearned zero look earned.",
+    "merge_policy": {
+      "project_root": "carried (constant, not a count)",
+      "scan_root": "carried (constant, not a count)",
+      "files_analyzed": "summed",
+      "functions_analyzed": "summed",
+      "denominators": "merged key-wise",
+      "findings": "concatenated",
+      "summary": "merged key-wise"
+    }
+  }
+}

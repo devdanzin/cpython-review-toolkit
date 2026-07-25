@@ -1,0 +1,217 @@
+{
+  "project_root": "/home/danzin/projects/cpython",
+  "scan_root": "/home/danzin/projects/cpython",
+  "files_analyzed": 1,
+  "functions_analyzed": 459,
+  "findings": [
+    {
+      "type": "missing_recursion_guard",
+      "function": "_PyType_Modified_Unlocked",
+      "slot": "not_a_slot",
+      "shape": "self_recursion",
+      "element_op": "type_from_ref",
+      "descent_via": "type_from_ref",
+      "line": 1206,
+      "confidence": "high",
+      "detail": "'_PyType_Modified_Unlocked' recurses into itself with no Py_EnterRecursiveCall guard \u2014 a deeply-nested or cyclic object overflows the C stack (SIGSEGV) instead of raising RecursionError. The recursive argument comes out of type_from_ref, so the depth is the depth of a Python-mutable class hierarchy. A guarded dispatcher does not help: it increments the recursion counter once, then the self-call chain runs unbounded. Bracket the descent with Py_EnterRecursiveCall()/Py_LeaveRecursiveCall().",
+      "file": "Objects/typeobject.c"
+    },
+    {
+      "type": "missing_recursion_guard",
+      "function": "assign_version_tag",
+      "slot": "not_a_slot",
+      "shape": "self_recursion",
+      "element_op": "PyTuple_GET_ITEM",
+      "descent_via": "PyTuple_GET_ITEM",
+      "line": 1431,
+      "confidence": "high",
+      "detail": "'assign_version_tag' recurses into itself with no Py_EnterRecursiveCall guard \u2014 a deeply-nested or cyclic object overflows the C stack (SIGSEGV) instead of raising RecursionError. The recursive argument comes out of PyTuple_GET_ITEM, so the depth is the nesting depth of a user-supplied container. A guarded dispatcher does not help: it increments the recursion counter once, then the self-call chain runs unbounded. Bracket the descent with Py_EnterRecursiveCall()/Py_LeaveRecursiveCall().",
+      "file": "Objects/typeobject.c"
+    },
+    {
+      "type": "missing_recursion_guard",
+      "function": "mro_hierarchy_for_complete_type",
+      "slot": "not_a_slot",
+      "shape": "self_recursion",
+      "element_op": "PyList_GET_ITEM",
+      "descent_via": "PyList_GET_ITEM",
+      "line": 1854,
+      "confidence": "high",
+      "detail": "'mro_hierarchy_for_complete_type' recurses into itself with no Py_EnterRecursiveCall guard \u2014 a deeply-nested or cyclic object overflows the C stack (SIGSEGV) instead of raising RecursionError. The recursive argument comes out of PyList_GET_ITEM, so the depth is the nesting depth of a user-supplied container. A guarded dispatcher does not help: it increments the recursion counter once, then the self-call chain runs unbounded. Bracket the descent with Py_EnterRecursiveCall()/Py_LeaveRecursiveCall().",
+      "file": "Objects/typeobject.c"
+    },
+    {
+      "type": "missing_recursion_guard",
+      "function": "get_base_by_token_recursive",
+      "slot": "not_a_slot",
+      "shape": "self_recursion",
+      "element_op": "lookup_tp_bases",
+      "descent_via": "lookup_tp_bases",
+      "line": 6002,
+      "confidence": "high",
+      "detail": "'get_base_by_token_recursive' recurses into itself with no Py_EnterRecursiveCall guard \u2014 a deeply-nested or cyclic object overflows the C stack (SIGSEGV) instead of raising RecursionError. The recursive argument comes out of lookup_tp_bases, so the depth is the depth of a Python-mutable class hierarchy. A guarded dispatcher does not help: it increments the recursion counter once, then the self-call chain runs unbounded. Bracket the descent with Py_EnterRecursiveCall()/Py_LeaveRecursiveCall().",
+      "file": "Objects/typeobject.c"
+    },
+    {
+      "type": "missing_recursion_guard",
+      "function": "find_name_in_mro",
+      "slot": "not_a_slot",
+      "shape": "hash_entry_point",
+      "element_op": "_PyObject_HashDictKey",
+      "argument_kind": "parameter",
+      "tail_call": false,
+      "line": 6147,
+      "sites": [
+        {
+          "line": 6147,
+          "argument_kind": "parameter",
+          "argument": "name",
+          "dispatcher": "_PyObject_HashDictKey"
+        }
+      ],
+      "confidence": "low",
+      "detail": "'find_name_in_mro' calls _PyObject_HashDictKey on a caller-supplied value \u2014 this adds exactly one C frame, so it is an entry point into the unguarded hash graph rather than an additive descent. _PyObject_HashDictKey (Include/internal/pycore_object.h:840 \u2014 a Py_ALWAYS_INLINE wrapper whose tail is PyObject_Hash) is an element-descent dispatcher with NO recursion guard, so a tp_hash descent is unguarded at every level: a deeply-nested or cyclic object overflows the C stack (SIGSEGV) instead of raising RecursionError. Bracket the descent with Py_EnterRecursiveCall(\" while hashing\")/Py_LeaveRecursiveCall().",
+      "file": "Objects/typeobject.c"
+    },
+    {
+      "type": "missing_recursion_guard",
+      "function": "set_flags_recursive",
+      "slot": "not_a_slot",
+      "shape": "self_recursion",
+      "element_op": "PyList_GET_ITEM",
+      "descent_via": "PyList_GET_ITEM",
+      "line": 6500,
+      "confidence": "high",
+      "detail": "'set_flags_recursive' recurses into itself with no Py_EnterRecursiveCall guard \u2014 a deeply-nested or cyclic object overflows the C stack (SIGSEGV) instead of raising RecursionError. The recursive argument comes out of PyList_GET_ITEM, so the depth is the nesting depth of a user-supplied container. A guarded dispatcher does not help: it increments the recursion counter once, then the self-call chain runs unbounded. Bracket the descent with Py_EnterRecursiveCall()/Py_LeaveRecursiveCall().",
+      "file": "Objects/typeobject.c"
+    },
+    {
+      "type": "missing_recursion_guard",
+      "function": "merge_class_dict",
+      "slot": "not_a_slot",
+      "shape": "self_recursion",
+      "element_op": "PySequence_GetItem",
+      "descent_via": "PySequence_GetItem",
+      "line": 7117,
+      "confidence": "high",
+      "detail": "'merge_class_dict' recurses into itself with no Py_EnterRecursiveCall guard \u2014 a deeply-nested or cyclic object overflows the C stack (SIGSEGV) instead of raising RecursionError. The recursive argument comes out of PySequence_GetItem, so the depth is the nesting depth of a user-supplied container. A guarded dispatcher does not help: it increments the recursion counter once, then the self-call chain runs unbounded. Bracket the descent with Py_EnterRecursiveCall()/Py_LeaveRecursiveCall().",
+      "file": "Objects/typeobject.c"
+    },
+    {
+      "type": "missing_recursion_guard",
+      "function": "update_subclasses",
+      "slot": "not_a_slot",
+      "shape": "mutual_recursion",
+      "element_op": "type_from_ref",
+      "descent_via": "type_from_ref",
+      "cycle": [
+        "update_subclasses",
+        "recurse_down_subclasses"
+      ],
+      "cycle_size": 2,
+      "descent_edge": {
+        "caller": "recurse_down_subclasses",
+        "callee": "update_subclasses",
+        "line": 12397
+      },
+      "line": 12359,
+      "confidence": "high",
+      "confirmed_by": "CPY-0087 (ASan-confirmed native stack overflow)",
+      "detail": "update_subclasses -> recurse_down_subclasses -> update_subclasses is a 2-function recursion cycle with no Py_EnterRecursiveCall guard in any member \u2014 no function in it calls itself, so per-function analysis cannot see the recursion at all. recurse_down_subclasses passes update_subclasses a value from type_from_ref at line 12397, so the depth is supplied by a Python-controlled graph and a deep or cyclic one overflows the C stack (SIGSEGV) rather than raising RecursionError. One guard anywhere in the cycle bounds every trip round it.",
+      "file": "Objects/typeobject.c"
+    }
+  ],
+  "summary": {
+    "total_findings": 8,
+    "missing_recursion_guard": 8,
+    "guarded_by_dispatcher": 0,
+    "by_confidence": {
+      "high": 7,
+      "low": 1
+    },
+    "by_shape": {
+      "self_recursion": 6,
+      "hash_entry_point": 1,
+      "mutual_recursion": 1
+    },
+    "by_type": {
+      "missing_recursion_guard": 8
+    }
+  },
+  "recursion_prone_slot_functions": 11,
+  "dispatcher_guard_model": {
+    "unguarded": {
+      "PyObject_Hash": "Objects/object.c:1158 \u2014 NO guard",
+      "_PyObject_HashDictKey": "Include/internal/pycore_object.h:840 \u2014 Py_ALWAYS_INLINE alias, tail-calls PyObject_Hash, so equally unguarded"
+    },
+    "guarded": {
+      "PyObject_Repr": "Objects/object.c:759",
+      "PyObject_Str": "Objects/object.c:800",
+      "PyObject_ASCII": "Objects/object.c:759 (via PyObject_Repr)",
+      "PyObject_RichCompare": "Objects/object.c:1099",
+      "PyObject_RichCompareBool": "Objects/object.c:1099 (via PyObject_RichCompare)"
+    },
+    "bound_zero_excluded": [
+      "PyObject_GenericHash",
+      "Py_HashBuffer",
+      "Py_HashPointer"
+    ],
+    "note": "Verified against CPython main @ 3.16.0a0. Only the hash dispatchers lack _Py_EnterRecursiveCallTstate, so only hash descents are unguarded at every level. Self-recursion is unguarded regardless of dispatcher. bound_zero_excluded lists hash spellings deliberately kept out of the vocabulary because they never descend into the object graph (identity, raw pointer, flat byte range)."
+  },
+  "large_cycles_not_reported": [
+    {
+      "head": "has_custom_mro",
+      "line": 1260,
+      "size": 14,
+      "members": [
+        "has_custom_mro",
+        "type_mro_modified",
+        "lookup_method_ex",
+        "lookup_method",
+        "call_method_noarg",
+        "mro_implementation_unlocked",
+        "mro_invoke",
+        "mro_internal",
+        "find_name_in_mro",
+        "_PyType_LookupStackRefAndVersion",
+        "type_ready_set_base",
+        "type_ready_mro",
+        "type_ready",
+        "PyType_Ready"
+      ],
+      "file": "Objects/typeobject.c"
+    }
+  ],
+  "cycle_reporting_cap": 3,
+  "skipped_files": [],
+  "denominators": {
+    "files_analyzed": 1,
+    "functions_analyzed": 459,
+    "findings": 8,
+    "recursion_prone_slot_functions": 11
+  },
+  "_sample": {
+    "files_requested": [
+      "Objects/typeobject.c"
+    ],
+    "files_scanned": [
+      "Objects/typeobject.c"
+    ],
+    "files_missing": [],
+    "method": "the scanner was RE-RUN over exactly these files; every count in this report is sample-scoped. This is not a post-hoc filter of a corpus-wide scan -- a filtered report keeps corpus-wide denominators next to sample-scoped findings, which makes an unearned zero look earned.",
+    "merge_policy": {
+      "project_root": "carried (constant, not a count)",
+      "scan_root": "carried (constant, not a count)",
+      "files_analyzed": "summed",
+      "functions_analyzed": "summed",
+      "findings": "concatenated",
+      "summary": "merged key-wise",
+      "recursion_prone_slot_functions": "summed",
+      "dispatcher_guard_model": "merged key-wise",
+      "large_cycles_not_reported": "concatenated",
+      "cycle_reporting_cap": "summed",
+      "skipped_files": "concatenated",
+      "denominators": "merged key-wise"
+    }
+  }
+}

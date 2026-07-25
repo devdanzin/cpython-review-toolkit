@@ -70,6 +70,7 @@ from typing import Generator
 # Shared utilities
 # ---------------------------------------------------------------------------
 
+
 def find_cpython_root(start: Path) -> Path | None:
     current = start if start.is_dir() else start.parent
     for _ in range(20):
@@ -84,14 +85,25 @@ def find_cpython_root(start: Path) -> Path | None:
     return None
 
 
-_EXCLUDE_DIRS = frozenset({
-    ".git", ".tox", ".venv", "venv", "__pycache__",
-    "node_modules", "build", "dist", ".eggs",
-})
+_EXCLUDE_DIRS = frozenset(
+    {
+        ".git",
+        ".tox",
+        ".venv",
+        "venv",
+        "__pycache__",
+        "node_modules",
+        "build",
+        "dist",
+        ".eggs",
+    }
+)
 
 
 def discover_c_files(
-    root: Path, *, max_files: int = 0,
+    root: Path,
+    *,
+    max_files: int = 0,
 ) -> Generator[Path, None, None]:
     count = 0
     if root.is_file():
@@ -117,9 +129,14 @@ def discover_c_files(
 # ---------------------------------------------------------------------------
 
 # Reported on any run.
-WHOLE_TREE_RULES = frozenset({
-    "tab-indent", "trailing-whitespace", "keyword-space", "header-guard",
-})
+WHOLE_TREE_RULES = frozenset(
+    {
+        "tab-indent",
+        "trailing-whitespace",
+        "keyword-space",
+        "header-guard",
+    }
+)
 
 # Reported only within a diff scope (or when forced via --enable-rule).
 DIFF_GATED_RULES = frozenset({"missing-braces", "line-too-long"})
@@ -143,15 +160,16 @@ RULE_SEVERITY = {
 # Comment / string tracking for line-by-line analysis
 # ---------------------------------------------------------------------------
 
+
 def _build_line_mask(source: str) -> list[bool]:
     """Return a per-line mask: True if the line is inside a multiline comment."""
-    lines = source.split('\n')
+    lines = source.split("\n")
     mask = [False] * len(lines)
     in_comment = False
     for i, line in enumerate(lines):
         if in_comment:
             mask[i] = True
-            if '*/' in line:
+            if "*/" in line:
                 in_comment = False
         else:
             # Check for /* without matching */ on same line.
@@ -160,11 +178,11 @@ def _build_line_mask(source: str) -> list[bool]:
             stripped = re.sub(r'"(?:[^"\\\n]|\\.)*"', '""', stripped)
             stripped = re.sub(r"'(?:[^'\\\n]|\\.)*'", "''", stripped)
             # Remove single-line comments.
-            stripped = re.sub(r'//.*$', '', stripped)
-            if '/*' in stripped:
-                idx = stripped.index('/*')
-                rest = stripped[idx + 2:]
-                if '*/' not in rest:
+            stripped = re.sub(r"//.*$", "", stripped)
+            if "/*" in stripped:
+                idx = stripped.index("/*")
+                rest = stripped[idx + 2 :]
+                if "*/" not in rest:
                     in_comment = True
                     mask[i] = True
     return mask
@@ -174,9 +192,9 @@ def _strip_line_strings_and_comments(line: str) -> str:
     """Remove string literals and comments from a single line."""
     line = re.sub(r'"(?:[^"\\\n]|\\.)*"', '""', line)
     line = re.sub(r"'(?:[^'\\\n]|\\.)*'", "''", line)
-    line = re.sub(r'//.*$', '', line)
+    line = re.sub(r"//.*$", "", line)
     # Partial: remove /* ... */ on single line.
-    line = re.sub(r'/\*.*?\*/', ' ', line)
+    line = re.sub(r"/\*.*?\*/", " ", line)
     return line
 
 
@@ -187,28 +205,24 @@ def _strip_line_strings_and_comments(line: str) -> str:
 # PEP 7: "one space between keywords like if, for and the following left
 # paren". `do` never takes a paren, so it is not in this set; the `while` of a
 # `do { ... } while (0)` idiom is caught by `while`.
-_CONTROL_KEYWORDS = ('if', 'for', 'while', 'switch')
+_CONTROL_KEYWORDS = ("if", "for", "while", "switch")
 
 # Keyword followed by ( without space: if(, for(, while(, switch(
-_KEYWORD_NO_SPACE = re.compile(
-    r'\b(' + '|'.join(_CONTROL_KEYWORDS) + r')\('
-)
+_KEYWORD_NO_SPACE = re.compile(r"\b(" + "|".join(_CONTROL_KEYWORDS) + r")\(")
 
 # Preprocessor conditionals are not control statements: `#if(defined X)` is
 # not the `if (` of PEP 7's rule.
-_PREPROCESSOR_LINE = re.compile(r'^\s*#')
+_PREPROCESSOR_LINE = re.compile(r"^\s*#")
 
 # Tabs in indentation.
-_TAB_INDENT = re.compile(r'^\t')
+_TAB_INDENT = re.compile(r"^\t")
 
 # Trailing whitespace.
-_TRAILING_WS = re.compile(r'[ \t]+$')
+_TRAILING_WS = re.compile(r"[ \t]+$")
 
 # Missing braces: if/for/while followed by a single statement
 # (heuristic: next non-blank line is not { and not blank).
-_CONTROL_NO_BRACE = re.compile(
-    r'^\s+(?:if|for|while)\s*\(.*\)\s*$'
-)
+_CONTROL_NO_BRACE = re.compile(r"^\s+(?:if|for|while)\s*\(.*\)\s*$")
 
 DEFAULT_LINE_LIMIT = 79
 
@@ -231,7 +245,7 @@ def check_file(
     """
     if rules is None:
         rules = WHOLE_TREE_RULES
-    lines = source.split('\n')
+    lines = source.split("\n")
     comment_mask = _build_line_mask(source)
     violations: list[dict] = []
 
@@ -250,19 +264,23 @@ def check_file(
         # 1. Trailing whitespace.
         if "trailing-whitespace" in rules:
             if _TRAILING_WS.search(raw_line) and raw_line.strip():
-                violations.append({
-                    "line": lineno,
-                    "rule": "trailing-whitespace",
-                    "message": "Trailing whitespace",
-                })
+                violations.append(
+                    {
+                        "line": lineno,
+                        "rule": "trailing-whitespace",
+                        "message": "Trailing whitespace",
+                    }
+                )
 
         # 2. Tab indentation.
         if "tab-indent" in rules and _TAB_INDENT.match(raw_line):
-            violations.append({
-                "line": lineno,
-                "rule": "tab-indent",
-                "message": "Tab indentation (PEP 7 requires 4 spaces)",
-            })
+            violations.append(
+                {
+                    "line": lineno,
+                    "rule": "tab-indent",
+                    "message": "Tab indentation (PEP 7 requires 4 spaces)",
+                }
+            )
 
         # 3. Line length (diff-gated, and off unless --line-limit is given).
         if (
@@ -271,11 +289,13 @@ def check_file(
             and len(raw_line) > line_limit
             and in_diff_scope(lineno)
         ):
-            violations.append({
-                "line": lineno,
-                "rule": "line-too-long",
-                "message": f"Line length {len(raw_line)} > {line_limit}",
-            })
+            violations.append(
+                {
+                    "line": lineno,
+                    "rule": "line-too-long",
+                    "message": f"Line length {len(raw_line)} > {line_limit}",
+                }
+            )
 
         # 4. Missing space after control keyword.
         if (
@@ -283,11 +303,13 @@ def check_file(
             and not _PREPROCESSOR_LINE.match(raw_line)
             and _KEYWORD_NO_SPACE.search(clean)
         ):
-            violations.append({
-                "line": lineno,
-                "rule": "keyword-space",
-                "message": "Missing space between keyword and parenthesis",
-            })
+            violations.append(
+                {
+                    "line": lineno,
+                    "rule": "keyword-space",
+                    "message": "Missing space between keyword and parenthesis",
+                }
+            )
 
         # 5. Missing braces after control statement (diff-gated: PEP 7 says
         #    "do not add them to code you are not otherwise modifying").
@@ -296,19 +318,40 @@ def check_file(
             and in_diff_scope(lineno)
             and _CONTROL_NO_BRACE.match(raw_line)
         ):
-            # Check if next non-blank line starts with {.
-            for j in range(i + 1, min(i + 3, len(lines))):
-                next_stripped = lines[j].strip()
+            # Walk to the true end of the condition before testing for a brace.
+            #
+            # This used to look ahead a fixed 2 lines from the control keyword,
+            # assuming the condition ended there. It does not when the condition
+            # spans lines AND the brace sits on its own -- which is this
+            # codebase's deliberate Allman sub-convention for multi-line
+            # conditions (~60 sites in Objects/typeobject.c alone). The first
+            # continuation line neither starts nor ends with `{`, so the rule
+            # fired on a block that is correctly braced: 4 false positives out
+            # of 153, and they skew 2024-2026 because multi-line Allman
+            # conditions are how new code here is written, so the cost grows.
+            depth = raw_line.count("(") - raw_line.count(")")
+            j = i
+            while depth > 0 and j + 1 < len(lines):
+                j += 1
+                depth += lines[j].count("(") - lines[j].count(")")
+            # Anything after the closing paren on its own line settles it.
+            tail = lines[j].split(")")[-1].strip() if j > i else ""
+            if tail.startswith("{"):
+                continue
+            for k in range(j + 1, len(lines)):
+                next_stripped = lines[k].strip()
                 if not next_stripped:
                     continue
-                if next_stripped.startswith('{') or next_stripped.endswith('{'):
+                if next_stripped.startswith("{") or next_stripped.endswith("{"):
                     break
                 # Next line is a statement without braces.
-                violations.append({
-                    "line": lineno,
-                    "rule": "missing-braces",
-                    "message": "Control statement without braces",
-                })
+                violations.append(
+                    {
+                        "line": lineno,
+                        "rule": "missing-braces",
+                        "message": "Control statement without braces",
+                    }
+                )
                 break
 
     return violations
@@ -337,10 +380,20 @@ _GENERATED_MARKERS = (
 _MULTI_INCLUDE_DIRS = frozenset({"stringlib", "clinic"})
 
 # Vendored third-party trees. These follow their upstream's style, not PEP 7.
-_VENDORED_DIRS = frozenset({
-    "_decimal", "libmpdec", "_hacl", "expat", "zlib", "zlib-ng",
-    "_blake2", "_sha3", "cjkcodecs", "_ctypes",
-})
+_VENDORED_DIRS = frozenset(
+    {
+        "_decimal",
+        "libmpdec",
+        "_hacl",
+        "expat",
+        "zlib",
+        "zlib-ng",
+        "_blake2",
+        "_sha3",
+        "cjkcodecs",
+        "_ctypes",
+    }
+)
 
 
 def is_vendored(filepath: str) -> bool:
@@ -372,25 +425,25 @@ def check_header_guard(source: str, filepath: str) -> list[dict]:
     Note this is a CPython *convention*, not a PEP 7 rule -- PEP 7 says
     nothing about include guards -- hence CONSIDER severity.
     """
-    if not filepath.endswith('.h'):
+    if not filepath.endswith(".h"):
         return []
     if is_generated_or_textual_header(source, filepath):
         return []
     violations = []
-    has_ifndef = bool(re.search(r'^\s*#\s*ifndef\s+\w+', source, re.MULTILINE))
-    has_define = bool(re.search(r'^\s*#\s*define\s+\w+', source, re.MULTILINE))
-    has_pragma_once = bool(
-        re.search(r'^\s*#\s*pragma\s+once', source, re.MULTILINE)
-    )
+    has_ifndef = bool(re.search(r"^\s*#\s*ifndef\s+\w+", source, re.MULTILINE))
+    has_define = bool(re.search(r"^\s*#\s*define\s+\w+", source, re.MULTILINE))
+    has_pragma_once = bool(re.search(r"^\s*#\s*pragma\s+once", source, re.MULTILINE))
     if not (has_ifndef and has_define) and not has_pragma_once:
-        violations.append({
-            "line": 1,
-            "rule": "header-guard",
-            "message": (
-                "Header file missing include guard "
-                "(#ifndef/#define or #pragma once)"
-            ),
-        })
+        violations.append(
+            {
+                "line": 1,
+                "rule": "header-guard",
+                "message": (
+                    "Header file missing include guard "
+                    "(#ifndef/#define or #pragma once)"
+                ),
+            }
+        )
     return violations
 
 
@@ -398,8 +451,8 @@ def check_header_guard(source: str, filepath: str) -> list[dict]:
 # Diff scope
 # ---------------------------------------------------------------------------
 
-_DIFF_FILE_RE = re.compile(r'^\+\+\+ b/(.+)$')
-_DIFF_HUNK_RE = re.compile(r'^@@ -\d+(?:,\d+)? \+(\d+)(?:,(\d+))? @@')
+_DIFF_FILE_RE = re.compile(r"^\+\+\+ b/(.+)$")
+_DIFF_HUNK_RE = re.compile(r"^@@ -\d+(?:,\d+)? \+(\d+)(?:,(\d+))? @@")
 
 
 def parse_diff(diff_text: str) -> dict[str, set[int]]:
@@ -411,7 +464,7 @@ def parse_diff(diff_text: str) -> dict[str, set[int]]:
     """
     scope: dict[str, set[int]] = {}
     current: str | None = None
-    for line in diff_text.split('\n'):
+    for line in diff_text.split("\n"):
         m = _DIFF_FILE_RE.match(line)
         if m:
             current = m.group(1)
@@ -433,9 +486,21 @@ def diff_scope_from_git(project_root: Path, ref: str) -> dict[str, set[int]]:
     """
     try:
         proc = subprocess.run(
-            ["git", "-C", str(project_root), "diff", "--unified=0", ref,
-             "--", "*.c", "*.h"],
-            capture_output=True, text=True, timeout=120, check=False,
+            [
+                "git",
+                "-C",
+                str(project_root),
+                "diff",
+                "--unified=0",
+                ref,
+                "--",
+                "*.c",
+                "*.h",
+            ],
+            capture_output=True,
+            text=True,
+            timeout=120,
+            check=False,
         )
     except (OSError, subprocess.SubprocessError) as exc:
         raise RuntimeError(f"git diff failed: {exc}") from exc
@@ -449,6 +514,7 @@ def diff_scope_from_git(project_root: Path, ref: str) -> dict[str, set[int]]:
 # ---------------------------------------------------------------------------
 # Main analysis
 # ---------------------------------------------------------------------------
+
 
 def analyze(
     target: str,
@@ -493,7 +559,7 @@ def analyze(
     active_rules = set(WHOLE_TREE_RULES)
     if diff_only:
         active_rules |= DIFF_GATED_RULES
-    active_rules |= (enable_rules & ALL_RULES)
+    active_rules |= enable_rules & ALL_RULES
     if line_limit <= 0:
         active_rules.discard("line-too-long")
     rules = frozenset(active_rules)
@@ -535,23 +601,27 @@ def analyze(
         violations.sort(key=lambda v: (v["line"], v["rule"]))
 
         if violations:
-            files_data.append({
-                "file": rel,
-                "violation_count": len(violations),
-                "violations": violations,
-            })
+            files_data.append(
+                {
+                    "file": rel,
+                    "violation_count": len(violations),
+                    "violations": violations,
+                }
+            )
             total_violations += len(violations)
             for v in violations:
                 rule_counts[v["rule"]] = rule_counts.get(v["rule"], 0) + 1
-                findings.append({
-                    "type": v["rule"],
-                    "rule": v["rule"],
-                    "file": rel,
-                    "line": v["line"],
-                    "severity": RULE_SEVERITY.get(v["rule"], "CONSIDER"),
-                    "confidence": "high",
-                    "detail": v["message"],
-                })
+                findings.append(
+                    {
+                        "type": v["rule"],
+                        "rule": v["rule"],
+                        "file": rel,
+                        "line": v["line"],
+                        "severity": RULE_SEVERITY.get(v["rule"], "CONSIDER"),
+                        "confidence": "high",
+                        "detail": v["message"],
+                    }
+                )
 
     # Sort files by violation count descending.
     files_data.sort(key=lambda x: -x["violation_count"])
@@ -561,15 +631,12 @@ def analyze(
         "total_findings": len(findings),
         "total_violations": total_violations,
         "files_with_violations": len(files_data),
-        "rule_counts": dict(
-            sorted(rule_counts.items(), key=lambda x: -x[1])
-        ),
+        "rule_counts": dict(sorted(rule_counts.items(), key=lambda x: -x[1])),
         "by_severity": _count_by(findings, "severity"),
         "active_rules": sorted(rules),
         "skipped_rules": sorted(ALL_RULES - rules),
         "diff_scope": (
-            "whole-tree" if diff_scope is None
-            else f"{len(diff_scope)} changed file(s)"
+            "whole-tree" if diff_scope is None else f"{len(diff_scope)} changed file(s)"
         ),
     }
     if diff_error:

@@ -5,6 +5,127 @@ Format loosely follows [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+### Fixed — three scanners that reported a structural zero or a false positive
+
+- **`scan_stw_safety` resolves file-local stop-the-world wrappers (D-2).** The
+  rule keyed on the literal `_PyEval_StopTheWorld` token, and nine of
+  `Objects/typeobject.c`'s eleven regions are opened through
+  `types_stop_world()`. It therefore saw **2 real regions out of 11 — 18%
+  recall** — and reported the zero as a clean bill; **both** of that file's
+  reproduced STW findings were in the 82% it never opened. A function whose
+  body, after dropping `assert(...)`, calls nothing but the stop primitive (or
+  nothing but the start primitive) is now a region delimiter. Measured:
+  typeobject.c `stw_functions` **3 → 11**, findings **0 → 8** including both
+  high-confidence real ones; `Objects/` 8 → 16 and 13 → 21; **`Modules/` and
+  `Python/` unchanged, zero spurious wrapper detections**. `stw_wrapper_count`
+  is now in the envelope so the denominator is visible.
+  Note `resolve_local_lock_macros` could not have done this: in the
+  free-threaded build the wrapper is a static *function*, and in the GIL build a
+  `#define` with an empty body that the resolver deliberately skips.
+- **`check_pep7`'s `missing-braces` walks to the end of the condition (D-1).**
+  It looked ahead a **fixed 2 lines** from the control keyword, assuming the
+  condition ended there. It does not when the condition spans lines and the
+  brace sits on its own — this codebase's deliberate Allman sub-convention. It
+  now tracks paren balance to the true end. Measured on `Objects/typeobject.c`:
+  **153 → 149**, removing exactly the four known false positives (`:1676`,
+  `:5449`, `:7655`, `:7660`) and adding none — **97.4% → 100%** precision. The
+  FPs skew 2024–2026, so the cost was growing.
+- **`scan_deprecated_apis` no longer reports a meaningless zero denominator.**
+  `functions_analyzed` was hard-coded to `0`, which reads as "no functions
+  analysed" — a claim this line-based rule never makes. It is now `-1` (N/A)
+  with a `denominator_note` naming the real denominator,
+  `files_analyzed × apis_in_vocabulary`.
+
+### Added — `GRAPH_FIELDS`, and one of three proposed widenings (D-13)
+
+Three scanners went blind for one reason: each keyed on the *name of an accessor
+function* rather than on the *member being read*. The accessor names came from a
+2023 encapsulation refactor (gh-94673) that was mechanical and never a lifetime
+audit, so the toolkit inherited a naming convention as if it were a semantic
+boundary — and `tp_dict`, the field that refactor mostly touched, is the one
+member of the family with no Python-reachable writer at all.
+
+`scan_common.GRAPH_FIELDS` is the shared vocabulary. **All three proposed
+widenings were measured before landing, and only one survived.**
+
+- **`scan_recursion_guards` — shipped.** A graph-field read passed straight into
+  a recursive call is now a descent: `solid_base(type->tp_base)` binds no local
+  and calls no accessor, so the rule could not see it. It now recovers
+  `Objects/typeobject.c:3776` at exactly its recorded coordinate
+  (`self_recursion`, high confidence, `element_op: "->tp_base"`) — an unguarded
+  self-recursion reproduced **exit 139 on debug and release** whose trigger is
+  the entirely ordinary `class X(Deep): pass`, and which pass 1 dismissed on an
+  assumed tail call that `objdump` disproves. Cost tree-wide over `Objects/` +
+  `Modules/` + `Python/`: **+2**, the other being `_ctypes.c:4865
+  _init_pos_args`, a genuine unguarded recursion over a user-controlled base
+  chain. No pre-existing shape moved.
+- **`scan_refcounts` — rejected on measurement.** The proposed rule (treat
+  `X->field` as a borrowed load wherever the file can re-bind that member) adds
+  **+65 findings tree-wide** and recovers **0 of the 4** ASan-confirmed misses it
+  was designed for, because none of them is that shape. The misses decompose
+  into two *other* shapes, both now written down rather than approximated: a
+  **parameter-passed borrow** (the load and the dereference are in different
+  functions, and the Python-reaching call *is* the consumer) and **live-cursor
+  iteration** (a borrowed container walked with a live `PyDict_Next` cursor while
+  the body runs user Python). Building those deliberately is the follow-up.
+- **`scan_null_checks` — not attempted, on evidence.** Widening its source
+  alphabet by 46% was measured on `Objects/typeobject.c` and produced 18
+  candidates, all already triaged, **zero net-new**.
+
+### Fixed — two false-clean generators in `run_oom_sweep.py` (obj-typeobject pass 2)
+
+Both produced a *confident wrong answer*, which is what makes them worse than a
+miss. Found while re-verifying pass-2 findings, and both are now measured.
+
+- **A raising `--setup` scored as SAFE.** The child ran `exec(_SETUP_CODE, _NS)`
+  outside any `try`; a raising setup exited 1, which is the harness's own clean
+  -`MemoryError` code, so `classify()` returned the safe outcome at every index
+  and a wholly broken sweep scored perfectly. Measured: four sweeps reported
+  **400/400 `memory_error`**, caused entirely by one `pickle.dumps` line in the
+  setup; deleting that line turned the same four sweeps into **13 aborts and 2
+  SIGSEGVs**. Two defences, both load-bearing: the setup `exec` and both
+  `compile` calls are guarded and exit **3** as a distinct `setup_error`
+  outcome; and `sweep()` rehearses setup+payload **unarmed** before the loop,
+  returning `{"error": …}` with **no `summary`/`reproduced` key** if either
+  phase raises, so nothing downstream can be misread as a result. A mid-loop
+  `setup_error` aborts the sweep; `--no-dry-run` stamps the clean verdict
+  UNVERIFIED.
+- **A clean sweep's denominator was `iterations_run`, which is not the
+  denominator.** Every index past the payload's last allocation returns
+  `completed` and exercises nothing, so a 220-iteration sweep over a payload
+  with four allocations is **four** pieces of evidence — and it printed "no
+  crash in this range (all failures handled cleanly)" either way. The envelope
+  now carries `allocation_failure_points` (= `iterations_run − completed`) and
+  `summary.thin_evidence`, and below `THIN_EVIDENCE_POINTS` (20) the verdict
+  reads **"clean over N=… — TOO THIN TO CERTIFY"** instead. Measured on
+  `Objects/typeobject.c`: `__class__` assignment, pickle and lookup/getattro
+  were certified clean over **4, 12 and 5** real failure points; de-warmed
+  variants reached 11 / 83 / 11. The usual cause is a `--setup` that warms the
+  paths under test, and the new phrasing says so.
+
+The first defect is **cloned in 8 harnesses this fix does not reach**, including
+five catalog `repro.py` files — noted in the agent prompt so a maintainer-facing
+artifact is not trusted blind.
+
+### Added — false-positive taxonomy: dynamic-verification artifacts
+
+`data/cpython_non_bugs.md` gains two sections, both from obj-typeobject pass 2:
+
+- **Harness artifacts, not CPython defects.** A deprecated API in a stress
+  script (`sys._clear_type_cache()`) emits a warning that formats via
+  `linecache`, lazily importing `tokenize` → `io` → `ABCMeta.__new__` — class
+  creation on a worker thread, starved by four threads stopping the world. That
+  produced a textbook 5/6-FT-vs-0/4-GIL hang signature; suppressing the warning
+  gave 0/6. Also: a partial TSan log is indistinguishable from a clean one (this
+  misled one run three times), and `os.fork()`-per-scenario isolation deadlocks
+  under TSan.
+- **A guarded twin is twin for a specific threat model.** `_PyType_GetSubclasses`
+  was cited as the correctly-handled sibling of a cursor-invalidation UAF on the
+  strength of an in-code comment — but that comment addresses **re-entrancy**,
+  not **concurrent mutation**, and the site is a live race under the second
+  threat model. Before citing a twin, confirm its comment covers the threat
+  model you are reasoning about.
+
 ### Added — the nine recall rules the `obj-typeobject` review proposed (#28)
 
 Each rule was stated in the issue with the finding it would have caught, so

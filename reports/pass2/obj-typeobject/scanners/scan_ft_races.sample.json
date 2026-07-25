@@ -1,0 +1,125 @@
+{
+  "project_root": "/home/danzin/projects/cpython",
+  "scan_root": "/home/danzin/projects/cpython",
+  "files_analyzed": 1,
+  "functions_analyzed": 459,
+  "findings": [
+    {
+      "type": "guarded_writer_unguarded_reader",
+      "ft_class": "T1",
+      "file": "Objects/typeobject.c",
+      "member": "managed_static_type_state.readying",
+      "function": "is_readying",
+      "line": 518,
+      "guarded_twin": "start_readying:489",
+      "confidence": "low",
+      "detail": "'managed_static_type_state.readying' (`state->readying`) is accessed under a critical section at start_readying:489 but is read plainly here, with nothing synchronising it. A lock held by only some accessors of a field serialises nothing: the guarded and unguarded accessors race each other. This is the shape of gh-153298 (ga_parameters / CPY-0025), gh-128714 (func.__annotations__ / CPY-0029) and gh-153908 (itertools count_repr). Py_ssize_t does not tear on LP64, so the visible effect is a stale value rather than memory unsafety \u2014 one FT_ATOMIC_* on each access is the fix. Guarded twin: start_readying:489."
+    },
+    {
+      "type": "publish_before_init_complete",
+      "ft_class": "T4",
+      "function": "type_set_bases_unlocked",
+      "member": "type.tp_base",
+      "access": "type->tp_base",
+      "line": 2007,
+      "publish_line": 1966,
+      "publish_api": "add_all_subclasses",
+      "written_in": "this function",
+      "call_hops": 0,
+      "confidence": "medium",
+      "detail": "'type' becomes reachable from other threads at add_all_subclasses() (line 1966), and 'tp_base' is still written afterwards, in this function, with a plain non-atomic store and no critical section. On a free-threaded build another thread can observe the object between the two \u2014 half-initialised, and torn if the store is wider than a word. Finish initialising before publishing, or make the tail stores atomic. This is the fixup_slot_dispatchers shape (gh-151377).",
+      "file": "Objects/typeobject.c"
+    },
+    {
+      "type": "publish_before_init_complete",
+      "ft_class": "T4",
+      "function": "type_new_impl",
+      "member": "type.*ptr (computed from type)",
+      "access": "type->*ptr (computed from type)",
+      "line": 4958,
+      "publish_line": 4953,
+      "publish_api": "PyType_Ready",
+      "written_in": "fixup_slot_dispatchers():12136",
+      "call_hops": 2,
+      "confidence": "low",
+      "detail": "'type' becomes reachable from other threads at PyType_Ready() (line 4953), and '*ptr (computed from type)' is still written afterwards, in fixup_slot_dispatchers():12136, with a plain non-atomic store and no critical section. On a free-threaded build another thread can observe the object between the two \u2014 half-initialised, and torn if the store is wider than a word. Finish initialising before publishing, or make the tail stores atomic. This is the fixup_slot_dispatchers shape (gh-151377).",
+      "file": "Objects/typeobject.c"
+    },
+    {
+      "type": "lazy_init_no_critical_section",
+      "ft_class": "T2",
+      "function": "type_from_slots_or_spec",
+      "member": "type->tp_dealloc",
+      "line": 5701,
+      "confidence": "medium",
+      "detail": "Lazy init of 'type->tp_dealloc' guarded only by a NULL check, with no critical section. Under free-threading two threads both observe NULL and both compute/store -> leak + torn/lost write (cf. descr_get_qualname / TSAN-0043). Guard with Py_BEGIN_CRITICAL_SECTION or a compare-exchange.",
+      "file": "Objects/typeobject.c"
+    },
+    {
+      "type": "publish_before_init_complete",
+      "ft_class": "T4",
+      "function": "_Py_type_getattro_stackref",
+      "member": "type.*slot (computed from tp)",
+      "access": "type->*slot (computed from tp)",
+      "line": 6620,
+      "publish_line": 6586,
+      "publish_api": "PyType_Ready",
+      "written_in": "_PyType_LookupStackRefAndVersion():6359",
+      "call_hops": 3,
+      "confidence": "low",
+      "detail": "'type' becomes reachable from other threads at PyType_Ready() (line 6586), and '*slot (computed from tp)' is still written afterwards, in _PyType_LookupStackRefAndVersion():6359, with a plain non-atomic store and no critical section. On a free-threaded build another thread can observe the object between the two \u2014 half-initialised, and torn if the store is wider than a word. Finish initialising before publishing, or make the tail stores atomic. This is the fixup_slot_dispatchers shape (gh-151377).",
+      "file": "Objects/typeobject.c"
+    }
+  ],
+  "summary": {
+    "total_findings": 5,
+    "by_class": {
+      "T1": 1,
+      "T4": 3,
+      "T2": 1
+    },
+    "by_type": {
+      "guarded_writer_unguarded_reader": 1,
+      "publish_before_init_complete": 3,
+      "lazy_init_no_critical_section": 1
+    },
+    "by_confidence": {
+      "low": 3,
+      "medium": 2
+    }
+  },
+  "iternext_functions": 1,
+  "lock_held_functions": 0,
+  "files_with_ft_regions": 1,
+  "skipped_files": [],
+  "denominators": {
+    "files_analyzed": 1,
+    "functions_analyzed": 459,
+    "findings": 5,
+    "iternext_functions": 1,
+    "lock_held_functions": 0
+  },
+  "_sample": {
+    "files_requested": [
+      "Objects/typeobject.c"
+    ],
+    "files_scanned": [
+      "Objects/typeobject.c"
+    ],
+    "files_missing": [],
+    "method": "the scanner was RE-RUN over exactly these files; every count in this report is sample-scoped. This is not a post-hoc filter of a corpus-wide scan -- a filtered report keeps corpus-wide denominators next to sample-scoped findings, which makes an unearned zero look earned.",
+    "merge_policy": {
+      "project_root": "carried (constant, not a count)",
+      "scan_root": "carried (constant, not a count)",
+      "files_analyzed": "summed",
+      "functions_analyzed": "summed",
+      "findings": "concatenated",
+      "summary": "merged key-wise",
+      "iternext_functions": "summed",
+      "lock_held_functions": "summed",
+      "files_with_ft_regions": "summed",
+      "skipped_files": "concatenated",
+      "denominators": "merged key-wise"
+    }
+  }
+}

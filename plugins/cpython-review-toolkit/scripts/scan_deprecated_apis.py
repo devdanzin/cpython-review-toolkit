@@ -477,10 +477,19 @@ def analyze(target: str, *, max_files: int = 0) -> dict:
         project_root=project_root,
         scan_root=scan_root,
         files_analyzed=files_analyzed,
-        functions_analyzed=0,
+        # This rule is LINE-based, not function-based: it matches API names in
+        # the source text and never walks a function body. Reporting 0 here read
+        # as "no functions analysed", which is a denominator claim the rule does
+        # not make. -1 means "not applicable to this rule"; the real denominator
+        # is files_analyzed x apis_in_vocabulary, both reported.
+        functions_analyzed=-1,
         findings=findings,
         summary={
             "total_findings": len(findings),
+            "denominator_note": (
+                "line-based rule: functions_analyzed is -1 (N/A). The "
+                "denominator is files_analyzed x apis_in_vocabulary."
+            ),
             "by_api": dict(sorted(by_api.items(), key=lambda x: -x[1])),
             "by_tier": dict(by_tier),
             "by_severity": dict(by_severity),

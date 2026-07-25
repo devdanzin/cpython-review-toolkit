@@ -1,0 +1,78 @@
+{
+  "project_root": "/home/danzin/projects/cpython",
+  "scan_root": "/home/danzin/projects/cpython",
+  "files_analyzed": 1,
+  "functions_analyzed": 459,
+  "findings": [
+    {
+      "type": "varobject_nitems_unguarded",
+      "function": "PyType_GenericAlloc",
+      "line": 2559,
+      "confidence": "low",
+      "nitems": "nitems",
+      "operands": [
+        "nitems"
+      ],
+      "dispatch": "direct",
+      "detail": "_PyType_AllocNoTrack(..., nitems) reaches _PyObject_VAR_SIZE(tp, nitems) = tp_basicsize + nitems * tp_itemsize with **no** overflow guard before the call (no PY_SSIZE_T_MAX/itemsize division check, no __builtin_mul_overflow). The multiply is inside the macro, so it never appears in source and alloc_size_overflow cannot see it. If nitems is attacker-controlled the product wraps, the allocation succeeds far too small, and the first ob_item write is a heap overflow (Objects/structseq.c:77 PyStructSequence_New \u2014 reachable from pure Python via `os.terminal_size.n_fields = 2**62`). Guarded twin: Objects/tupleobject.c:52 tuple_alloc (`n > (PY_SSIZE_T_MAX - base) / sizeof(PyObject *)`).",
+      "file": "Objects/typeobject.c"
+    },
+    {
+      "type": "varobject_nitems_unguarded",
+      "function": "type_from_slots_or_spec",
+      "line": 5623,
+      "confidence": "low",
+      "nitems": "nmembers",
+      "operands": [
+        "nmembers"
+      ],
+      "dispatch": "slot_pointer",
+      "detail": "metaclass->tp_alloc(..., nmembers) reaches _PyObject_VAR_SIZE(tp, nitems) = tp_basicsize + nitems * tp_itemsize with **no** overflow guard before the call (no PY_SSIZE_T_MAX/itemsize division check, no __builtin_mul_overflow). The multiply is inside the macro, so it never appears in source and alloc_size_overflow cannot see it. If nitems is attacker-controlled the product wraps, the allocation succeeds far too small, and the first ob_item write is a heap overflow (Objects/structseq.c:77 PyStructSequence_New \u2014 reachable from pure Python via `os.terminal_size.n_fields = 2**62`). Guarded twin: Objects/tupleobject.c:52 tuple_alloc (`n > (PY_SSIZE_T_MAX - base) / sizeof(PyObject *)`).",
+      "file": "Objects/typeobject.c"
+    }
+  ],
+  "summary": {
+    "total_findings": 2,
+    "by_type": {
+      "varobject_nitems_unguarded": 2
+    },
+    "by_confidence": {
+      "low": 2
+    }
+  },
+  "varobject_allocation_census": {
+    "sites": 7,
+    "via_slot_pointer": 5,
+    "non_constant_nitems": 2
+  },
+  "skipped_files": [],
+  "denominators": {
+    "files_analyzed": 1,
+    "functions_analyzed": 459,
+    "findings": 2,
+    "varobject_allocation_census.sites": 7,
+    "varobject_allocation_census.via_slot_pointer": 5,
+    "varobject_allocation_census.non_constant_nitems": 2
+  },
+  "_sample": {
+    "files_requested": [
+      "Objects/typeobject.c"
+    ],
+    "files_scanned": [
+      "Objects/typeobject.c"
+    ],
+    "files_missing": [],
+    "method": "the scanner was RE-RUN over exactly these files; every count in this report is sample-scoped. This is not a post-hoc filter of a corpus-wide scan -- a filtered report keeps corpus-wide denominators next to sample-scoped findings, which makes an unearned zero look earned.",
+    "merge_policy": {
+      "project_root": "carried (constant, not a count)",
+      "scan_root": "carried (constant, not a count)",
+      "files_analyzed": "summed",
+      "functions_analyzed": "summed",
+      "findings": "concatenated",
+      "summary": "merged key-wise",
+      "varobject_allocation_census": "merged key-wise",
+      "skipped_files": "concatenated",
+      "denominators": "merged key-wise"
+    }
+  }
+}

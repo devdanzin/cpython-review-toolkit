@@ -1,0 +1,93 @@
+{
+  "project_root": "/home/danzin/projects/cpython",
+  "scan_root": "/home/danzin/projects/cpython",
+  "files_analyzed": 1,
+  "functions_analyzed": 459,
+  "findings": [],
+  "summary": {
+    "total_findings": 0,
+    "by_type": {},
+    "by_classification": {}
+  },
+  "critical_section_functions": 23,
+  "mutex_functions": 3,
+  "lock_families": [
+    "critical_section",
+    "python_mutex"
+  ],
+  "local_lock_macros": {
+    "Objects/typeobject.c": {
+      "aliases": {
+        "BEGIN_TYPE_DICT_LOCK": [
+          "critical_section",
+          "acquire"
+        ],
+        "BEGIN_TYPE_LOCK": [
+          "critical_section",
+          "acquire"
+        ],
+        "END_TYPE_DICT_LOCK": [
+          "critical_section",
+          "release"
+        ],
+        "END_TYPE_LOCK": [
+          "critical_section",
+          "release"
+        ]
+      },
+      "lock_held_assertions": [
+        "ASSERT_TYPE_LOCK_HELD"
+      ]
+    }
+  },
+  "vocabulary_counts": {
+    "BEGIN_TYPE_DICT_LOCK": 3,
+    "BEGIN_TYPE_LOCK": 23,
+    "END_TYPE_DICT_LOCK": 3,
+    "END_TYPE_LOCK": 23,
+    "PyMutex_Lock": 3,
+    "PyMutex_Unlock": 3,
+    "Py_BEGIN_CRITICAL_SECTION": 2,
+    "Py_BEGIN_CRITICAL_SECTION2_MUTEX": 1,
+    "Py_BEGIN_CRITICAL_SECTION_MUTEX": 1,
+    "Py_END_CRITICAL_SECTION": 3,
+    "Py_END_CRITICAL_SECTION2": 1
+  },
+  "skipped_files": [],
+  "rule_not_applicable": false,
+  "denominators": {
+    "files_analyzed": 1,
+    "functions_analyzed": 459,
+    "findings": 0,
+    "vocabulary_resolved": 66,
+    "vocabulary_tokens_seen": 11,
+    "critical_section_functions": 23,
+    "mutex_functions": 3
+  },
+  "_sample": {
+    "files_requested": [
+      "Objects/typeobject.c"
+    ],
+    "files_scanned": [
+      "Objects/typeobject.c"
+    ],
+    "files_missing": [],
+    "method": "the scanner was RE-RUN over exactly these files; every count in this report is sample-scoped. This is not a post-hoc filter of a corpus-wide scan -- a filtered report keeps corpus-wide denominators next to sample-scoped findings, which makes an unearned zero look earned.",
+    "merge_policy": {
+      "project_root": "carried (constant, not a count)",
+      "scan_root": "carried (constant, not a count)",
+      "files_analyzed": "summed",
+      "functions_analyzed": "summed",
+      "findings": "concatenated",
+      "summary": "merged key-wise",
+      "critical_section_functions": "summed",
+      "mutex_functions": "summed",
+      "lock_families": "concatenated",
+      "local_lock_macros": "merged key-wise",
+      "vocabulary_counts": "merged key-wise",
+      "skipped_files": "concatenated",
+      "rule_not_applicable": "or",
+      "denominators": "merged key-wise"
+    }
+  }
+}

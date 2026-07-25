@@ -1,0 +1,192 @@
+{
+  "target": "/home/danzin/projects/cpython/Objects/typeobject.c",
+  "before": {
+    "stw_function_count": 3,
+    "finding_count": 0,
+    "by_type": {},
+    "stw_functions": [
+      {
+        "file": "Objects/typeobject.c",
+        "function": "types_stop_world",
+        "line": 123,
+        "classification": "unknown"
+      },
+      {
+        "file": "Objects/typeobject.c",
+        "function": "type_set_name",
+        "line": 1546,
+        "classification": "unsafe"
+      },
+      {
+        "file": "Objects/typeobject.c",
+        "function": "type_set_qualname",
+        "line": 1581,
+        "classification": "unsafe"
+      }
+    ]
+  },
+  "after": {
+    "stw_function_count": 11,
+    "finding_count": 8,
+    "by_type": {
+      "stw_unknown_call": 6,
+      "stw_unsafe_call": 2
+    },
+    "wrappers_found": [
+      {
+        "file": "Objects/typeobject.c",
+        "wrapper": "types_start_world",
+        "kind": "start"
+      },
+      {
+        "file": "Objects/typeobject.c",
+        "wrapper": "types_stop_world",
+        "kind": "stop"
+      }
+    ],
+    "stw_functions": [
+      {
+        "file": "Objects/typeobject.c",
+        "function": "types_stop_world",
+        "line": 123,
+        "classification": "unknown"
+      },
+      {
+        "file": "Objects/typeobject.c",
+        "function": "set_tp_mro",
+        "line": 650,
+        "classification": "unknown"
+      },
+      {
+        "file": "Objects/typeobject.c",
+        "function": "type_set_name",
+        "line": 1546,
+        "classification": "unsafe"
+      },
+      {
+        "file": "Objects/typeobject.c",
+        "function": "type_set_qualname",
+        "line": 1581,
+        "classification": "unsafe"
+      },
+      {
+        "file": "Objects/typeobject.c",
+        "function": "type_set_abstractmethods",
+        "line": 1715,
+        "classification": "unsafe"
+      },
+      {
+        "file": "Objects/typeobject.c",
+        "function": "type_set_bases_unlocked",
+        "line": 1928,
+        "classification": "unsafe"
+      },
+      {
+        "file": "Objects/typeobject.c",
+        "function": "apply_type_slot_updates",
+        "line": 3901,
+        "classification": "unknown"
+      },
+      {
+        "file": "Objects/typeobject.c",
+        "function": "_PyType_SetFlags",
+        "line": 6452,
+        "classification": "unknown"
+      },
+      {
+        "file": "Objects/typeobject.c",
+        "function": "_PyType_SetFlagsRecursive",
+        "line": 6505,
+        "classification": "unsafe"
+      },
+      {
+        "file": "Objects/typeobject.c",
+        "function": "object_set_class",
+        "line": 7799,
+        "classification": "unsafe"
+      },
+      {
+        "file": "Objects/typeobject.c",
+        "function": "PyType_Freeze",
+        "line": 12505,
+        "classification": "unsafe"
+      }
+    ],
+    "findings": [
+      {
+        "type": "stw_unknown_call",
+        "function": "type_set_abstractmethods",
+        "line": 1747,
+        "confidence": "medium",
+        "detail": "Unclassified call type_add_flags() inside a _PyEval_StopTheWorld region in 'type_set_abstractmethods'. Cannot statically determine whether it may invoke Python code \u2014 it is not in the STW API vocabulary and (if local) its body reaches an unclassified callee. Manual review needed. Intra-file analysis only.",
+        "api_call": "type_add_flags",
+        "file": "Objects/typeobject.c"
+      },
+      {
+        "type": "stw_unknown_call",
+        "function": "type_set_abstractmethods",
+        "line": 1749,
+        "confidence": "medium",
+        "detail": "Unclassified call type_clear_flags() inside a _PyEval_StopTheWorld region in 'type_set_abstractmethods'. Cannot statically determine whether it may invoke Python code \u2014 it is not in the STW API vocabulary and (if local) its body reaches an unclassified callee. Manual review needed. Intra-file analysis only.",
+        "api_call": "type_clear_flags",
+        "file": "Objects/typeobject.c"
+      },
+      {
+        "type": "stw_unknown_call",
+        "function": "type_set_bases_unlocked",
+        "line": 1940,
+        "confidence": "medium",
+        "detail": "Unclassified call set_tp_bases() inside a _PyEval_StopTheWorld region in 'type_set_bases_unlocked'. Cannot statically determine whether it may invoke Python code \u2014 it is not in the STW API vocabulary and (if local) its body reaches an unclassified callee. Manual review needed. Intra-file analysis only.",
+        "api_call": "set_tp_bases",
+        "file": "Objects/typeobject.c"
+      },
+      {
+        "type": "stw_unknown_call",
+        "function": "type_set_bases_unlocked",
+        "line": 2006,
+        "confidence": "medium",
+        "detail": "Unclassified call set_tp_bases() inside a _PyEval_StopTheWorld region in 'type_set_bases_unlocked'. Cannot statically determine whether it may invoke Python code \u2014 it is not in the STW API vocabulary and (if local) its body reaches an unclassified callee. Manual review needed. Intra-file analysis only.",
+        "api_call": "set_tp_bases",
+        "file": "Objects/typeobject.c"
+      },
+      {
+        "type": "stw_unknown_call",
+        "function": "apply_type_slot_updates",
+        "line": 3924,
+        "confidence": "medium",
+        "detail": "Unclassified call apply_slot_updates() inside a _PyEval_StopTheWorld region in 'apply_type_slot_updates'. Cannot statically determine whether it may invoke Python code \u2014 it is not in the STW API vocabulary and (if local) its body reaches an unclassified callee. Manual review needed. Intra-file analysis only.",
+        "api_call": "apply_slot_updates",
+        "file": "Objects/typeobject.c"
+      },
+      {
+        "type": "stw_unsafe_call",
+        "function": "_PyType_SetFlagsRecursive",
+        "line": 6523,
+        "confidence": "high",
+        "detail": "Unsafe call set_flags_recursive() inside a _PyEval_StopTheWorld region in '_PyType_SetFlagsRecursive'. During STW every other thread is suspended; this call may invoke Python code, set an exception via the format machinery, or take a lock a stopped thread holds \u2014 which can deadlock the world or corrupt interpreter state on the free-threaded build. Category: transitively_invokes_python. Call _PyEval_StartTheWorld before it (cf. Python/gc_free_threading.c:2223). Intra-file analysis: transitive callees in other files are not followed.",
+        "api_call": "set_flags_recursive",
+        "unsafe_reason": "transitively_invokes_python",
+        "file": "Objects/typeobject.c"
+      },
+      {
+        "type": "stw_unsafe_call",
+        "function": "object_set_class",
+        "line": 7826,
+        "confidence": "high",
+        "detail": "Unsafe call object_set_class_world_stopped() inside a _PyEval_StopTheWorld region in 'object_set_class'. During STW every other thread is suspended; this call may invoke Python code, set an exception via the format machinery, or take a lock a stopped thread holds \u2014 which can deadlock the world or corrupt interpreter state on the free-threaded build. Category: transitively_invokes_python. Call _PyEval_StartTheWorld before it (cf. Python/gc_free_threading.c:2223). Intra-file analysis: transitive callees in other files are not followed.",
+        "api_call": "object_set_class_world_stopped",
+        "unsafe_reason": "transitively_invokes_python",
+        "file": "Objects/typeobject.c"
+      },
+      {
+        "type": "stw_unknown_call",
+        "function": "PyType_Freeze",
+        "line": 12524,
+        "confidence": "medium",
+        "detail": "Unclassified call type_add_flags() inside a _PyEval_StopTheWorld region in 'PyType_Freeze'. Cannot statically determine whether it may invoke Python code \u2014 it is not in the STW API vocabulary and (if local) its body reaches an unclassified callee. Manual review needed. Intra-file analysis only.",
+        "api_call": "type_add_flags",
+        "file": "Objects/typeobject.c"
+      }
+    ]
+  }
+}

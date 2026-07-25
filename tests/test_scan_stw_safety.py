@@ -282,5 +282,124 @@ class TestScanStwSafety(unittest.TestCase):
             self.assertIn(key, result)
 
 
+class TestLocalWrapperResolution(unittest.TestCase):
+    """D-2: a file-local trivial wrapper hides the token this rule keys on.
+
+    On ``Objects/typeobject.c`` nine of the eleven stop-the-world regions are
+    opened through ``types_stop_world()``, so the scanner saw 2 real regions out
+    of 11 -- 18% recall -- and its zero was read as a clean bill. Both of that
+    file's reproduced STW findings were in the 82% it never opened.
+
+    ``resolve_local_lock_macros`` cannot do this: in the free-threaded build the
+    wrapper is a static *function*, and in the GIL build it is a ``#define`` with
+    an empty body that the resolver deliberately skips.
+    """
+
+    def setUp(self):
+        self.mod = import_script("scan_stw_safety")
+
+    def _analyze(self, files):
+        with TempProject(files) as root:
+            return self.mod.analyze(str(root))
+
+    WRAPPED = (
+        "static void\n"
+        "types_stop_world(void)\n"
+        "{\n"
+        "    assert(!types_world_is_stopped());\n"
+        "    PyInterpreterState *interp = _PyInterpreterState_GET();\n"
+        "    _PyEval_StopTheWorld(interp);\n"
+        "}\n"
+        "static void\n"
+        "types_start_world(void)\n"
+        "{\n"
+        "    PyInterpreterState *interp = _PyInterpreterState_GET();\n"
+        "    _PyEval_StartTheWorld(interp);\n"
+        "}\n"
+        "static int\n"
+        "set_flags_recursive(PyTypeObject *type)\n"
+        "{\n"
+        "    types_stop_world();\n"
+        "    PyObject *r = PyObject_Call(cb, args, NULL);\n"
+        "    types_start_world();\n"
+        "    return 0;\n"
+        "}\n"
+    )
+
+    def test_wrapper_is_discovered_and_classified(self):
+        w = self.mod.discover_stw_wrappers(
+            [
+                {
+                    "name": "types_stop_world",
+                    "body": "{ _PyEval_StopTheWorld(interp); }",
+                },
+                {
+                    "name": "types_start_world",
+                    "body": "{ _PyEval_StartTheWorld(interp); }",
+                },
+            ]
+        )
+        self.assertEqual(w, {"types_stop_world": "stop", "types_start_world": "start"})
+
+    def test_asserts_do_not_stop_a_wrapper_being_trivial(self):
+        kind = self.mod.stw_wrapper_kind(
+            "{ assert(!types_world_is_stopped()); _PyEval_StopTheWorld(interp); }"
+        )
+        self.assertEqual(kind, "stop")
+
+    def test_a_wrapper_that_does_real_work_is_not_a_delimiter(self):
+        """Only a bare delimiter may stand in for the primitive."""
+        self.assertIsNone(
+            self.mod.stw_wrapper_kind(
+                "{ PyObject *r = PyObject_Call(f, a, NULL);"
+                "  _PyEval_StopTheWorld(interp); }"
+            )
+        )
+
+    def test_a_region_opened_through_a_wrapper_is_seen(self):
+        result = self._analyze({"Objects/typeobject.c": self.WRAPPED})
+        names = {f["function"] for f in result["findings"]}
+        self.assertIn(
+            "set_flags_recursive",
+            names,
+            "the unsafe call inside the wrapper-delimited region must be flagged",
+        )
+        self.assertEqual(result["summary"]["stw_wrapper_count"], 2)
+        # The census counts the caller, not just the wrapper definitions.
+        census = {f["function"] for f in result["stw_functions"]}
+        self.assertIn("set_flags_recursive", census)
+
+    def test_the_wrapper_call_itself_is_not_reported_as_unsafe_work(self):
+        result = self._analyze({"Objects/typeobject.c": self.WRAPPED})
+        for f in result["findings"]:
+            self.assertNotIn(
+                f.get("call"),
+                {"types_stop_world", "types_start_world"},
+                "the delimiter is not work done inside the region",
+            )
+
+    def test_a_file_with_no_wrapper_is_unaffected(self):
+        """Zero spurious detections is the whole point of the trivial gate."""
+        result = self._analyze(
+            {
+                "Python/ceval.c": (
+                    "static int\n"
+                    "raw_region(PyInterpreterState *interp)\n"
+                    "{\n"
+                    "    _PyEval_StopTheWorld(interp);\n"
+                    "    PyObject *r = PyObject_Call(cb, args, NULL);\n"
+                    "    _PyEval_StartTheWorld(interp);\n"
+                    "    return 0;\n"
+                    "}\n"
+                )
+            }
+        )
+        self.assertEqual(result["summary"]["stw_wrapper_count"], 0)
+        self.assertTrue(
+            any(f["function"] == "raw_region" for f in result["findings"]),
+            "the raw form must keep working exactly as before",
+        )
+
+
 if __name__ == "__main__":
     unittest.main()

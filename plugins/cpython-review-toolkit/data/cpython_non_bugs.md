@@ -569,3 +569,46 @@ envelope: `assignment_sites`, `fallible_sources_resolved`, and
 `summary.decref_of_nulled_outparam_call_sites` exists for the same reason: that
 rule's denominator on CPython is **effectively zero**, so its zero is
 structural and must never be reported as a clean result.
+
+## Dynamic verification — artifacts of the harness, not of CPython (obj-typeobject pass 2)
+
+Three of these cost real time in one run. All three produce a *confident wrong
+answer*, which is what makes them worth naming.
+
+- **A deprecated API in the stress script imports a module on a worker
+  thread.** `scenario_mixed` hung under TSan and then reproduced **5/6 on plain
+  FT vs 0/4 on GIL** — a textbook new-finding signature. The cause was
+  `sys._clear_type_cache()` being **deprecated**: emitting its warning formats
+  via `linecache`, which lazily imports `tokenize` → `io` → `ABCMeta.__new__`,
+  i.e. **class creation on a worker thread**, starved by four other threads
+  stopping the world. Suppressing the warning: **0/6**. Before believing an
+  FT-only hang in a stress script, check whether any call in it is deprecated
+  or triggers a lazy import. Note the honest limit: this data does **not**
+  settle starvation vs. true deadlock — it only shows the trigger is the
+  harness.
+- **A partial TSan log is indistinguishable from a clean one.** TSan writes
+  race blocks as it goes, so a run still executing looks exactly like a run
+  that found nothing. This misled the same session **three times**: two
+  scenarios read 0 races mid-run and finished at 29 and 22, and the third
+  nearly cost the second confirmation of a real finding. Never conclude from a
+  log whose process is still alive.
+- **`os.fork()`-per-scenario isolation deadlocks under TSan.** The stress-agent
+  template's default isolation cannot be used on a TSan build. Use
+  `STRESS_NO_FORK=1` with per-process scenario selection from a driver script.
+
+## Guarded twins are twin *for a specific threat model*
+
+The informed-explore method leans on "name the guarded twin — that is the fix".
+One correction, from `obj-typeobject` pass 2: `_PyType_GetSubclasses:793` was
+cited as a guarded twin of the `_PyType_Modified_Unlocked` cursor-invalidation
+UAF, on the strength of an explicit in-code comment justifying its borrowed
+reference. **That comment addresses re-entrancy, not concurrent mutation** —
+and under the second threat model the "twin" is itself a defect (reproduced
+cross-thread: `T.__subclasses__()` racing `X.__bases__ = (...)`, against
+`init_tp_subclasses:702` replacing the dict and `delitem_common:2987` deleting
+from it).
+
+Before citing a site as the twin, read *what its comment actually claims* and
+confirm the claim covers the threat model you are reasoning about. A site can
+be simultaneously the correct model for re-entrancy and a live bug for
+concurrency.
