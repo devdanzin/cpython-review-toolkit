@@ -115,9 +115,26 @@ _DELEGATION_SUFFIXES: tuple[str, ...] = (
 # type arguments; not a slot, but the same native-stack-overflow shape.
 _PARAM_WALK_RE = re.compile(r"(?:make|subs)_parameters", re.IGNORECASE)
 
-# The one element-descent dispatcher with NO recursion guard (object.c:1158).
-# Every call to it is an unguarded entry into the object graph.
-_UNGUARDED_DISPATCH = frozenset({"PyObject_Hash"})
+# Element-descent dispatchers with NO recursion guard. Every call to one of
+# these is an unguarded entry into the object graph.
+#
+# `PyObject_Hash` (Objects/object.c:1158) is the primary spelling.
+# `_PyObject_HashDictKey` (Include/internal/pycore_object.h:840) is the same
+# operation under another name: a `static inline Py_ALWAYS_INLINE` wrapper with
+# a PyUnicode_CheckExact cached-hash fast path whose tail is literally
+# `return PyObject_Hash(op);`. Omitting it hid 27 call sites tree-wide,
+# including 8+ in Objects/dictobject.c and Modules/_collectionsmodule.c:2592
+# (`collections.Counter` -> confirmed stack overflow under ASan).
+_UNGUARDED_DISPATCH = frozenset({"PyObject_Hash", "_PyObject_HashDictKey"})
+
+# Hash spellings whose bound is exactly 0 — they never descend into the object
+# graph, so they are excluded *deliberately* and with a reason, rather than by
+# never having been in the vocabulary. `PyObject_GenericHash` hashes the
+# object's identity (Objects/object.c), `Py_HashPointer` a raw address, and
+# `Py_HashBuffer` a flat byte range.
+_BOUND_ZERO_HASH = frozenset(
+    {"PyObject_GenericHash", "Py_HashPointer", "Py_HashBuffer"}
+)
 
 # Element-descent dispatchers that DO wrap _Py_EnterRecursiveCallTstate. A
 # descent that only goes through these is bounded by the interpreter recursion
@@ -182,6 +199,18 @@ _SCALAR_CTOR_RE = re.compile(
 _TEMP_CTOR_RE = re.compile(
     r"^_?Py(?:Tuple|List|FrozenSet|Set|Dict)_(?:New|Pack)\s*\(|^Py_BuildValue\s*\("
 )
+
+# `Py_BuildValue("iii", ...)` packs three C ints: the result is a container, but
+# every leaf is a freshly built scalar, so the descent bound is 0 exactly as for
+# `_SCALAR_CTOR_RE`. Only the object-taking codes (O S N U V) can introduce a
+# nestable element.
+_BUILDVALUE_FIRST_ARG_RE = re.compile(r'^Py_BuildValue\s*\(\s*"((?:[^"\\]|\\.)*)"')
+_BUILDVALUE_OBJECT_CODES = frozenset("OSNUV")
+
+# A call expression whose callee is a plain identifier: `delta_getstate(self)`.
+_CALL_EXPR_RE = re.compile(r"^([A-Za-z_]\w*)\s*\((.*)\)$", re.DOTALL)
+# A file-local helper is only followed if it is a thin single-`return` wrapper.
+_MAX_ONE_HOP_STATEMENTS = 5
 
 # A pure lvalue path: `self`, `self->view`, `a->b.c`, `items[i]`.
 _LVALUE_PATH_RE = re.compile(
@@ -346,12 +375,55 @@ def _aliases_receiver(rhs: str, roots: set[str]) -> bool:
     return base in roots
 
 
+def _buildvalue_is_scalar(arg: str) -> bool:
+    """True for a ``Py_BuildValue`` whose format packs only non-nestable leaves."""
+    m = _BUILDVALUE_FIRST_ARG_RE.match(arg)
+    if m is None:
+        return False
+    fmt = m.group(1)
+    return bool(fmt) and not (set(fmt) & _BUILDVALUE_OBJECT_CODES)
+
+
+def ctor_returning_helpers(functions: list[dict]) -> dict[str, str]:
+    """Map file-local thin helper -> ``"scalar"`` / ``"temporary"``.
+
+    The ``*_getstate`` idiom (``delta_getstate`` is
+    ``return Py_BuildValue("iii", GET_TD_DAYS(self), ...);``) hides the fresh
+    container behind one call, so ``_TEMP_CTOR_RE`` — which only matches a
+    constructor written in the argument expression itself — degraded
+    ``delta_hash`` to ``field_element_descent`` at ``high``, the worst-rated
+    finding in the informed ``Modules/`` sample.  Following exactly one hop into
+    a helper whose whole body is ``return <ctor>(...)`` fixes that, and
+    generalises to the whole ``*_getstate`` family.
+
+    Deliberately conservative: single-``return`` bodies only, under
+    ``_MAX_ONE_HOP_STATEMENTS`` statements, never across files, and only when
+    the returned expression is a constructor — so the classification never
+    depends on the callee's own receiver/parameter scope.
+    """
+    out: dict[str, str] = {}
+    for func in functions:
+        body = func.get("body", "")
+        if body.count(";") > _MAX_ONE_HOP_STATEMENTS:
+            continue
+        returns = re.findall(r"\breturn\s+([^;]+);", body)
+        if len(returns) != 1:
+            continue
+        expr = _strip_casts(returns[0].strip())
+        if _SCALAR_CTOR_RE.match(expr) or _buildvalue_is_scalar(expr):
+            out[func["name"]] = "scalar"
+        elif _TEMP_CTOR_RE.match(expr):
+            out[func["name"]] = "temporary"
+    return out
+
+
 def classify_hash_argument(
     arg_text: str,
     params: list[str],
     roots: set[str],
     assignments: dict[str, list[str]],
     _depth: int = 0,
+    ctor_helpers: dict[str, str] | None = None,
 ) -> str:
     """Classify the hashed expression by where its *depth* comes from.
 
@@ -380,10 +452,16 @@ def classify_hash_argument(
         return "unknown"
     base = _base_identifier(arg)
 
-    if _SCALAR_CTOR_RE.match(arg):
+    if _SCALAR_CTOR_RE.match(arg) or _buildvalue_is_scalar(arg):
         return "scalar"
     if _TEMP_CTOR_RE.match(arg):
         return "temporary"
+
+    # One hop into a file-local `return <ctor>(...)` helper.
+    if ctor_helpers and _depth < 3:
+        call_m = _CALL_EXPR_RE.match(arg)
+        if call_m is not None and call_m.group(1) in ctor_helpers:
+            return ctor_helpers[call_m.group(1)]
 
     if _IDENT_RE.fullmatch(arg) and arg in roots:
         # Hashing the whole receiver is a pass-through, not a descent into a
@@ -407,7 +485,9 @@ def classify_hash_argument(
     if base is not None and _IDENT_RE.fullmatch(arg) and _depth < 3:
         # A bare local: follow its assignment(s).
         kinds = {
-            classify_hash_argument(rhs, params, roots, assignments, _depth + 1)
+            classify_hash_argument(
+                rhs, params, roots, assignments, _depth + 1, ctor_helpers
+            )
             for rhs in assignments.get(arg, ())
         }
         for preferred in ("receiver", "container", "temporary", "parameter", "scalar"):
@@ -490,6 +570,7 @@ def _analyze_function(
     slot_callers: set[str],
     source_bytes: bytes,
     tree,
+    ctor_helpers: dict[str, str] | None = None,
 ) -> dict | None:
     """Return a finding dict for an unguarded recursive descent, else None."""
     if _has_guard(func):
@@ -539,7 +620,12 @@ def _analyze_function(
         sites = []
         for c in hash_calls:
             kind = classify_hash_argument(
-                _first_argument(c["arguments_text"]), params, roots, assignments
+                _first_argument(c["arguments_text"]),
+                params,
+                roots,
+                assignments,
+                0,
+                ctor_helpers,
             )
             if kind == "receiver" and _in_loop(c["node"]):
                 # A receiver-derived value hashed once per loop iteration is a
@@ -550,6 +636,7 @@ def _analyze_function(
                     "line": c["start_line"],
                     "argument_kind": kind,
                     "argument": _first_argument(c["arguments_text"]).strip(),
+                    "dispatcher": c["function_name"],
                     "node": c["node"],
                 }
             )
@@ -573,6 +660,15 @@ def _analyze_function(
         primary = min(sites, key=lambda s: (rank[s["argument_kind"]], s["line"]))
         line = primary["line"]
         kind = primary["argument_kind"]
+        dispatcher = primary["dispatcher"]
+        dispatch_note = (
+            "PyObject_Hash (Objects/object.c:1158)"
+            if dispatcher == "PyObject_Hash"
+            else (
+                f"{dispatcher} (Include/internal/pycore_object.h:840 — a "
+                "Py_ALWAYS_INLINE wrapper whose tail is PyObject_Hash)"
+            )
+        )
 
         if is_suppressed_by_comment(source_bytes, tree, line):
             return None
@@ -587,7 +683,7 @@ def _analyze_function(
                 else "field_element_descent"
             )
             confidence = "high"
-            why = f"'{func['name']}' calls PyObject_Hash on " + (
+            why = f"'{func['name']}' calls {dispatcher} on " + (
                 "each element of a container it owns"
                 if kind == "container"
                 else "a receiver-derived value (fixed arity — arity is "
@@ -606,7 +702,7 @@ def _analyze_function(
             shape = "slot_helper_descent"
             confidence = "high"
             why = (
-                f"'{func['name']}' calls PyObject_Hash on a parameter and is "
+                f"'{func['name']}' calls {dispatcher} on a parameter and is "
                 f"called from recursion-prone slot(s) "
                 f"{', '.join(sorted(slot_callers))} in the same file, so the "
                 "descent is additive per nesting level"
@@ -615,7 +711,7 @@ def _analyze_function(
             shape = "hash_entry_point"
             confidence = "low"
             why = (
-                f"'{func['name']}' calls PyObject_Hash on a caller-supplied "
+                f"'{func['name']}' calls {dispatcher} on a caller-supplied "
                 "value — this adds exactly one C frame, so it is an entry "
                 "point into the unguarded hash graph rather than an additive "
                 "descent"
@@ -633,7 +729,7 @@ def _analyze_function(
             "function": func["name"],
             "slot": slot or "not_a_slot",
             "shape": shape,
-            "element_op": "PyObject_Hash",
+            "element_op": dispatcher,
             "argument_kind": kind,
             "tail_call": tail_call,
             "line": line,
@@ -643,7 +739,7 @@ def _analyze_function(
             ],
             "confidence": confidence,
             "detail": (
-                f"{why}. PyObject_Hash (Objects/object.c:1158) is the one "
+                f"{why}. {dispatch_note} is an "
                 "element-descent dispatcher with NO recursion guard, so a "
                 "tp_hash descent is unguarded at every level: a deeply-nested "
                 "or cyclic object overflows the C stack (SIGSEGV) instead of "
@@ -757,6 +853,7 @@ def analyze(target: str, *, max_files: int = 0) -> dict:
         calls_by_func: list[list[dict]] = []
         slots: list[str | None] = []
         slot_callers: dict[str, set[str]] = defaultdict(set)
+        ctor_helpers = ctor_returning_helpers(functions)
         for func in functions:
             calls = find_calls_in_scope(func["body_node"], source_bytes)
             calls_by_func.append(calls)
@@ -779,6 +876,7 @@ def analyze(target: str, *, max_files: int = 0) -> dict:
                 slot_callers.get(func["name"], set()),
                 source_bytes,
                 tree,
+                ctor_helpers,
             )
             if f is not None:
                 f["file"] = rel
@@ -812,13 +910,23 @@ def analyze(target: str, *, max_files: int = 0) -> dict:
         },
         recursion_prone_slot_functions=slot_functions,
         dispatcher_guard_model={
-            "unguarded": {"PyObject_Hash": "Objects/object.c:1158 — NO guard"},
+            "unguarded": {
+                "PyObject_Hash": "Objects/object.c:1158 — NO guard",
+                "_PyObject_HashDictKey": (
+                    "Include/internal/pycore_object.h:840 — Py_ALWAYS_INLINE "
+                    "alias, tail-calls PyObject_Hash, so equally unguarded"
+                ),
+            },
             "guarded": _DISPATCH_GUARD_SITE,
+            "bound_zero_excluded": sorted(_BOUND_ZERO_HASH),
             "note": (
-                "Verified against CPython main @ 3.16.0a0. Only PyObject_Hash "
-                "lacks _Py_EnterRecursiveCallTstate, so only hash descents are "
-                "unguarded at every level. Self-recursion is unguarded "
-                "regardless of dispatcher."
+                "Verified against CPython main @ 3.16.0a0. Only the hash "
+                "dispatchers lack _Py_EnterRecursiveCallTstate, so only hash "
+                "descents are unguarded at every level. Self-recursion is "
+                "unguarded regardless of dispatcher. bound_zero_excluded lists "
+                "hash spellings deliberately kept out of the vocabulary "
+                "because they never descend into the object graph (identity, "
+                "raw pointer, flat byte range)."
             ),
         },
         skipped_files=skipped,

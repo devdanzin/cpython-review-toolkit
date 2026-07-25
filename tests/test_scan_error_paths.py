@@ -306,6 +306,144 @@ class TestUnconditionalPyErrClear(unittest.TestCase):
             result = mod.analyze(str(root))
             self.assertEqual(_types(result, "unconditional_pyerr_clear"), [])
 
+    def test_pyerr_occurred_is_the_failure_test_not_a_narrowing(self):
+        """Modules/itertoolsmodule.c islice_new — the archetype spelling.
+
+        `if (x == -1 && PyErr_Occurred()) PyErr_Clear();` was silently
+        suppressed because PyErr_Occurred sat in the guard alternation. It
+        answers "is *something* pending", never "is it the exception I
+        expected".
+        """
+        c_code = (
+            "static PyObject *\n"
+            "islice_new(PyObject *a3)\n"
+            "{\n"
+            "    Py_ssize_t step = PyNumber_AsSsize_t(a3, PyExc_OverflowError);\n"
+            "    if (step == -1 && PyErr_Occurred())\n"
+            "        PyErr_Clear();\n"
+            '    PyErr_SetString(PyExc_ValueError, "Step must be positive.");\n'
+            "    return NULL;\n"
+            "}\n"
+        )
+        with TempProject({"Modules/t.c": c_code}) as root:
+            result = mod.analyze(str(root))
+            found = _types(result, "unconditional_pyerr_clear")
+            self.assertEqual(len(found), 1)
+            self.assertEqual(found[0]["line"], 6)
+
+    def test_checked_long_conversion_is_suppressed(self):
+        """The guarded twin: Modules/itertoolsmodule.c count_repr.
+
+        PyLong_AsLong short-circuits on PyLong_Check, so not even an int
+        subclass runs user code — only OverflowError can be pending, and that
+        is exactly the case the branch handles.
+        """
+        c_code = (
+            "static PyObject *\n"
+            "count_repr(countobject *lz)\n"
+            "{\n"
+            "    if (PyLong_Check(lz->long_step)) {\n"
+            "        long step = PyLong_AsLong(lz->long_step);\n"
+            "        if (step == -1 && PyErr_Occurred()) {\n"
+            "            PyErr_Clear();\n"
+            "            return NULL;\n"
+            "        }\n"
+            "    }\n"
+            "    return NULL;\n"
+            "}\n"
+        )
+        with TempProject({"Modules/t.c": c_code}) as root:
+            result = mod.analyze(str(root))
+            self.assertEqual(_types(result, "unconditional_pyerr_clear"), [])
+
+
+class TestPyLongSentinelNoErrCheck(unittest.TestCase):
+    """Rule pylong_sentinel_no_errcheck (Modules/_zoneinfo.c:2314)."""
+
+    def test_true_positive_bare_sentinel_comparison(self):
+        c_code = (
+            "static int\n"
+            "get_local_timestamp(PyObject *dt, int64_t *out)\n"
+            "{\n"
+            '    PyObject *num = PyObject_GetAttrString(dt, "hour");\n'
+            "    long hour = PyLong_AsLong(num);\n"
+            "    Py_DECREF(num);\n"
+            "    if (hour == -1) {\n"
+            "        return -1;\n"
+            "    }\n"
+            "    return 0;\n"
+            "}\n"
+        )
+        with TempProject({"Modules/t.c": c_code}) as root:
+            result = mod.analyze(str(root))
+            found = _types(result, "pylong_sentinel_no_errcheck")
+            self.assertEqual(len(found), 1)
+            self.assertEqual(found[0]["line"], 7)
+            self.assertEqual(found[0]["assign_line"], 5)
+            self.assertEqual(found[0]["variable"], "hour")
+            self.assertEqual(found[0]["confidence"], "high")
+
+    def test_true_negative_guarded_twin(self):
+        """Modules/_zoneinfo.c:2304, ten lines above the bug, gets it right."""
+        c_code = (
+            "static int\n"
+            "get_local_timestamp(PyObject *dt, int64_t *out)\n"
+            "{\n"
+            '    PyObject *num = PyObject_CallMethod(dt, "toordinal", NULL);\n'
+            "    long ord = PyLong_AsLong(num);\n"
+            "    Py_DECREF(num);\n"
+            "    if (ord == -1 && PyErr_Occurred()) {\n"
+            "        return -1;\n"
+            "    }\n"
+            "    return 0;\n"
+            "}\n"
+        )
+        with TempProject({"Modules/t.c": c_code}) as root:
+            result = mod.analyze(str(root))
+            self.assertEqual(_types(result, "pylong_sentinel_no_errcheck"), [])
+
+    def test_subscripted_lvalue_and_goto_branch(self):
+        """Modules/_zoneinfo.c load_data: `self->trans[i]` + `goto error`."""
+        c_code = (
+            "static int\n"
+            "load_data(PyZoneInfo *self, PyObject *num)\n"
+            "{\n"
+            "    Py_ssize_t cur = PyLong_AsSsize_t(num);\n"
+            "    if (cur == -1) {\n"
+            "        goto error;\n"
+            "    }\n"
+            "    return 0;\n"
+            "error:\n"
+            "    return -1;\n"
+            "}\n"
+        )
+        with TempProject({"Modules/t.c": c_code}) as root:
+            result = mod.analyze(str(root))
+            found = _types(result, "pylong_sentinel_no_errcheck")
+            self.assertEqual(len(found), 1)
+            self.assertEqual(found[0]["confidence"], "high")
+
+    def test_checked_long_operand_is_not_a_finding(self):
+        """Python/flowgraph.c const_folding_safe_power — NULL is a
+        'do not fold' sentinel, not an error sentinel, and the operand is
+        PyLong_Check-ed so no user code runs."""
+        c_code = (
+            "static PyObject *\n"
+            "const_folding_safe_power(PyObject *v, PyObject *w)\n"
+            "{\n"
+            "    if (PyLong_Check(v) && PyLong_Check(w)) {\n"
+            "        size_t wbits = PyLong_AsSize_t(w);\n"
+            "        if (wbits == (size_t)-1) {\n"
+            "            return NULL;\n"
+            "        }\n"
+            "    }\n"
+            "    return NULL;\n"
+            "}\n"
+        )
+        with TempProject({"Python/t.c": c_code}) as root:
+            result = mod.analyze(str(root))
+            self.assertEqual(_types(result, "pylong_sentinel_no_errcheck"), [])
+
 
 class TestUncheckedReturnFalsePositives(unittest.TestCase):
     """The five mechanical FP classes measured at 28/28 on Objects/."""
@@ -521,6 +659,7 @@ class TestAnalyze(unittest.TestCase):
                 "unchecked_returns",
                 "alloc_null_no_memerror",
                 "unconditional_pyerr_clear",
+                "pylong_sentinel_no_errcheck",
                 "unchecked_parse_calls",
                 "total_findings",
             ):

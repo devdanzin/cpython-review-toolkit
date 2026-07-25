@@ -33,6 +33,29 @@ Rules, all reported with exact ``file:line`` coordinates:
     valid.  Deliberately narrower than "any use after any call": that broader
     form is unresolvable without dataflow and floods on CPython's own code.
 
+``slot_transfer_across_call``
+    The *escape* hazard, the second of the three things that can happen to a
+    borrowed pointer after a Python-reaching call.  ``local = obj->fld`` ...
+    call ... ``obj->fld = <new>`` ... ``return local``: the "we hold one
+    reference to the old value; we'll either return it or keep it in the slot"
+    transfer idiom, performed across a window in which a re-entrant call can
+    perform the *same* transfer, so two callers each believe they own the single
+    reference.  True positive: ``Modules/itertoolsmodule.c`` ``count_nextlong``
+    (ASan heap-use-after-free).  Suppressed twin: ``Objects/enumobject.c``
+    ``increment_longindex_lock_held``, a structural clone that is safe because
+    both ``PyNumber_Add`` operands are provably ``PyLong``.
+
+``stale_slot_use``
+    The *deref/call* hazard.  ``local = obj->fld`` ... call ...
+    ``Py_CLEAR(obj->fld)`` reachable ... ``local`` dereferenced or **called**.
+    Strictly worse than a double-DECREF: ``slot_tp_iternext`` reads
+    ``Py_TYPE(self)`` out of the freed block.  True positives:
+    ``Modules/itertoolsmodule.c`` ``batched_next`` and ``islice_next``, both
+    ASan heap-use-after-free.  Requires two primitives the release-only model
+    did not need: runtime type-slot dispatch as a Python-reaching call
+    (``iternext = *Py_TYPE(x)->tp_iternext; ... iternext(x)``) and loop-carried
+    exposure, since the borrowed local often appears exactly once textually.
+
 ``potential_leak`` / ``potential_leak_on_error`` / ``potential_double_free``
     New-reference balance checks.  Heavily gated: assignments through ``*p =``
     or ``x->m =`` transfer ownership and are not leaks, ``Py_SETREF``'s second
@@ -80,14 +103,25 @@ def find_cpython_root(start: Path) -> Path | None:
     return None
 
 
-_EXCLUDE_DIRS = frozenset({
-    ".git", ".tox", ".venv", "venv", "__pycache__",
-    "node_modules", "build", "dist", ".eggs",
-})
+_EXCLUDE_DIRS = frozenset(
+    {
+        ".git",
+        ".tox",
+        ".venv",
+        "venv",
+        "__pycache__",
+        "node_modules",
+        "build",
+        "dist",
+        ".eggs",
+    }
+)
 
 
 def discover_c_files(
-    root: Path, *, max_files: int = 0,
+    root: Path,
+    *,
+    max_files: int = 0,
 ) -> Generator[Path, None, None]:
     """Yield ``.c``/``.h`` files under ``root``."""
     count = 0
@@ -148,103 +182,213 @@ def with_private_aliases(names: frozenset[str]) -> frozenset[str]:
         "_" + name for name in names if name.startswith("Py")
     )
 
-NEW_REF_APIS = with_private_aliases(frozenset({
-    "PyObject_Call", "PyObject_CallObject", "PyObject_CallFunction",
-    "PyObject_CallMethod", "PyObject_CallNoArgs", "PyObject_CallOneArg",
-    "PyObject_GetAttr", "PyObject_GetAttrString",
-    "PyObject_GetItem", "PyObject_Str", "PyObject_Repr", "PyObject_ASCII",
-    "PyObject_Bytes", "PyObject_RichCompare", "PyObject_Format",
-    "PyObject_Vectorcall",
-    "PyUnicode_FromString", "PyUnicode_FromFormat", "PyUnicode_Decode",
-    "PyUnicode_FromEncodedObject", "PyUnicode_Join",
-    "PyUnicode_FromObject", "PyUnicode_Substring",
-    "PyBytes_FromString", "PyBytes_FromStringAndSize",
-    "PyBytes_FromObject",
-    "PyLong_FromLong", "PyLong_FromUnsignedLong", "PyLong_FromDouble",
-    "PyLong_FromLongLong", "PyLong_FromSsize_t", "PyLong_FromSize_t",
-    "PyFloat_FromDouble", "PyFloat_FromString",
-    "PyList_New", "PyList_GetSlice",
-    "PyTuple_New", "PyTuple_GetSlice", "PyTuple_Pack",
-    "PyDict_New", "PyDict_Copy", "PyDict_Keys", "PyDict_Values",
-    "PyDict_Items",
-    "PySet_New", "PyFrozenSet_New",
-    "Py_BuildValue", "Py_VaBuildValue",
-    "PySequence_List", "PySequence_Tuple", "PySequence_GetItem",
-    "PySequence_Concat", "PySequence_InPlaceConcat",
-    "PyNumber_Add", "PyNumber_Subtract", "PyNumber_Multiply",
-    "PyNumber_TrueDivide", "PyNumber_FloorDivide", "PyNumber_Remainder",
-    "PyNumber_Power", "PyNumber_Negative", "PyNumber_Positive",
-    "PyNumber_Absolute", "PyNumber_Long", "PyNumber_Float",
-    "PyNumber_Index", "PyNumber_InPlaceAdd", "PyNumber_InPlaceSubtract",
-    "PyIter_Next",
-    "PyImport_ImportModule", "PyImport_Import",
-    "PyModule_New", "PyModule_NewObject",
-    "PyType_FromSpec", "PyType_FromSpecWithBases",
-    "PyType_FromModuleAndSpec",
-    "_PyObject_New", "PyObject_Init",
-    "PyErr_NewException", "PyErr_NewExceptionWithDoc",
-    "PyMapping_Keys", "PyMapping_Values", "PyMapping_Items",
-    "PyObject_GenericGetAttr",
-    "PyCapsule_New",
-    "PyMemoryView_FromObject",
-    "PyWeakref_NewRef", "PyWeakref_NewProxy",
-    "PyStructSequence_New",
-    "PyCode_New", "PyCode_NewEmpty",
-    "PyFrame_New",
-}))
 
-BORROWED_REF_APIS = with_private_aliases(frozenset({
-    "PyList_GetItem", "PyList_GET_ITEM",
-    "PyTuple_GetItem", "PyTuple_GET_ITEM",
-    "PyDict_GetItem", "PyDict_GetItemString",
-    "PyDict_GetItemWithError",
-    "PyModule_GetDict",
-    "PyImport_GetModuleDict",
-    "PyThreadState_GetDict",
-    "PySys_GetObject",
-    "PyWeakref_GetObject", "PyWeakref_GET_OBJECT",
-    "PyErr_Occurred",
-    "PyMethod_GET_SELF", "PyMethod_GET_FUNCTION",
-    "PyCell_GET",
-    "Py_None", "Py_True", "Py_False",
-    "PyExc_TypeError", "PyExc_ValueError", "PyExc_KeyError",
-    "PyExc_AttributeError", "PyExc_RuntimeError",
-}))
+NEW_REF_APIS = with_private_aliases(
+    frozenset(
+        {
+            "PyObject_Call",
+            "PyObject_CallObject",
+            "PyObject_CallFunction",
+            "PyObject_CallMethod",
+            "PyObject_CallNoArgs",
+            "PyObject_CallOneArg",
+            "PyObject_GetAttr",
+            "PyObject_GetAttrString",
+            "PyObject_GetItem",
+            "PyObject_Str",
+            "PyObject_Repr",
+            "PyObject_ASCII",
+            "PyObject_Bytes",
+            "PyObject_RichCompare",
+            "PyObject_Format",
+            "PyObject_Vectorcall",
+            "PyUnicode_FromString",
+            "PyUnicode_FromFormat",
+            "PyUnicode_Decode",
+            "PyUnicode_FromEncodedObject",
+            "PyUnicode_Join",
+            "PyUnicode_FromObject",
+            "PyUnicode_Substring",
+            "PyBytes_FromString",
+            "PyBytes_FromStringAndSize",
+            "PyBytes_FromObject",
+            "PyLong_FromLong",
+            "PyLong_FromUnsignedLong",
+            "PyLong_FromDouble",
+            "PyLong_FromLongLong",
+            "PyLong_FromSsize_t",
+            "PyLong_FromSize_t",
+            "PyFloat_FromDouble",
+            "PyFloat_FromString",
+            "PyList_New",
+            "PyList_GetSlice",
+            "PyTuple_New",
+            "PyTuple_GetSlice",
+            "PyTuple_Pack",
+            "PyDict_New",
+            "PyDict_Copy",
+            "PyDict_Keys",
+            "PyDict_Values",
+            "PyDict_Items",
+            "PySet_New",
+            "PyFrozenSet_New",
+            "Py_BuildValue",
+            "Py_VaBuildValue",
+            "PySequence_List",
+            "PySequence_Tuple",
+            "PySequence_GetItem",
+            "PySequence_Concat",
+            "PySequence_InPlaceConcat",
+            "PyNumber_Add",
+            "PyNumber_Subtract",
+            "PyNumber_Multiply",
+            "PyNumber_TrueDivide",
+            "PyNumber_FloorDivide",
+            "PyNumber_Remainder",
+            "PyNumber_Power",
+            "PyNumber_Negative",
+            "PyNumber_Positive",
+            "PyNumber_Absolute",
+            "PyNumber_Long",
+            "PyNumber_Float",
+            "PyNumber_Index",
+            "PyNumber_InPlaceAdd",
+            "PyNumber_InPlaceSubtract",
+            "PyIter_Next",
+            "PyImport_ImportModule",
+            "PyImport_Import",
+            "PyModule_New",
+            "PyModule_NewObject",
+            "PyType_FromSpec",
+            "PyType_FromSpecWithBases",
+            "PyType_FromModuleAndSpec",
+            "_PyObject_New",
+            "PyObject_Init",
+            "PyErr_NewException",
+            "PyErr_NewExceptionWithDoc",
+            "PyMapping_Keys",
+            "PyMapping_Values",
+            "PyMapping_Items",
+            "PyObject_GenericGetAttr",
+            "PyCapsule_New",
+            "PyMemoryView_FromObject",
+            "PyWeakref_NewRef",
+            "PyWeakref_NewProxy",
+            "PyStructSequence_New",
+            "PyCode_New",
+            "PyCode_NewEmpty",
+            "PyFrame_New",
+        }
+    )
+)
+
+BORROWED_REF_APIS = with_private_aliases(
+    frozenset(
+        {
+            "PyList_GetItem",
+            "PyList_GET_ITEM",
+            "PyTuple_GetItem",
+            "PyTuple_GET_ITEM",
+            "PyDict_GetItem",
+            "PyDict_GetItemString",
+            "PyDict_GetItemWithError",
+            "PyModule_GetDict",
+            "PyImport_GetModuleDict",
+            "PyThreadState_GetDict",
+            "PySys_GetObject",
+            "PyWeakref_GetObject",
+            "PyWeakref_GET_OBJECT",
+            "PyErr_Occurred",
+            "PyMethod_GET_SELF",
+            "PyMethod_GET_FUNCTION",
+            "PyCell_GET",
+            "Py_None",
+            "Py_True",
+            "Py_False",
+            "PyExc_TypeError",
+            "PyExc_ValueError",
+            "PyExc_KeyError",
+            "PyExc_AttributeError",
+            "PyExc_RuntimeError",
+        }
+    )
+)
 
 # The subset of BORROWED_REF_APIS that is actually *called* and hands back a
 # borrowed item, plus the borrowing accessors the original table missed.
 # ``Py_None`` and the ``PyExc_*`` singletons are immortal and are excluded on
 # purpose -- they can never dangle.
-BORROWED_GETTER_APIS = with_private_aliases(frozenset({
-    "PyList_GetItem", "PyList_GET_ITEM",
-    "PyTuple_GetItem", "PyTuple_GET_ITEM",
-    "PyDict_GetItem", "PyDict_GetItemString", "PyDict_GetItemWithError",
-    "_PyDict_GetItemStringWithError",
-    "PySequence_Fast_GET_ITEM", "PyStructSequence_GET_ITEM",
-    "PyModule_GetDict", "PyImport_GetModuleDict", "PyThreadState_GetDict",
-    "PySys_GetObject", "PySys_GetObjectId",
-    "PyWeakref_GetObject", "PyWeakref_GET_OBJECT",
-    "PyMethod_GET_SELF", "PyMethod_GET_FUNCTION",
-    "PyFunction_GET_CODE", "PyFunction_GET_GLOBALS",
-    "PyFunction_GET_DEFAULTS", "PyFunction_GET_CLOSURE",
-    "PyCell_GET",
-    "PyEval_GetBuiltins", "PyEval_GetGlobals", "PyEval_GetLocals",
-}))
+BORROWED_GETTER_APIS = with_private_aliases(
+    frozenset(
+        {
+            "PyList_GetItem",
+            "PyList_GET_ITEM",
+            "PyTuple_GetItem",
+            "PyTuple_GET_ITEM",
+            "PyDict_GetItem",
+            "PyDict_GetItemString",
+            "PyDict_GetItemWithError",
+            "_PyDict_GetItemStringWithError",
+            "PySequence_Fast_GET_ITEM",
+            "PyStructSequence_GET_ITEM",
+            "PyModule_GetDict",
+            "PyImport_GetModuleDict",
+            "PyThreadState_GetDict",
+            "PySys_GetObject",
+            "PySys_GetObjectId",
+            "PyWeakref_GetObject",
+            "PyWeakref_GET_OBJECT",
+            "PyMethod_GET_SELF",
+            "PyMethod_GET_FUNCTION",
+            "PyFunction_GET_CODE",
+            "PyFunction_GET_GLOBALS",
+            "PyFunction_GET_DEFAULTS",
+            "PyFunction_GET_CLOSURE",
+            "PyCell_GET",
+            "PyEval_GetBuiltins",
+            "PyEval_GetGlobals",
+            "PyEval_GetLocals",
+        }
+    )
+)
 
-STEAL_REF_APIS = with_private_aliases(frozenset({
-    "PyList_SET_ITEM", "PyList_SetItem",
-    "PyTuple_SET_ITEM", "PyTuple_SetItem",
-    "PyModule_AddObject",
-}))
+STEAL_REF_APIS = with_private_aliases(
+    frozenset(
+        {
+            "PyList_SET_ITEM",
+            "PyList_SetItem",
+            "PyTuple_SET_ITEM",
+            "PyTuple_SetItem",
+            "PyModule_AddObject",
+        }
+    )
+)
 
-INCREF_APIS = with_private_aliases(frozenset({
-    "Py_INCREF", "Py_XINCREF", "Py_NewRef", "Py_XNewRef",
-    "_Py_NewRef", "_Py_XNewRef", "_Py_TryIncref",
-}))
+INCREF_APIS = with_private_aliases(
+    frozenset(
+        {
+            "Py_INCREF",
+            "Py_XINCREF",
+            "Py_NewRef",
+            "Py_XNewRef",
+            "_Py_NewRef",
+            "_Py_XNewRef",
+            "_Py_TryIncref",
+        }
+    )
+)
 
-DECREF_APIS = with_private_aliases(frozenset({
-    "Py_DECREF", "Py_XDECREF", "Py_CLEAR", "Py_SETREF", "Py_XSETREF",
-}))
+DECREF_APIS = with_private_aliases(
+    frozenset(
+        {
+            "Py_DECREF",
+            "Py_XDECREF",
+            "Py_CLEAR",
+            "Py_SETREF",
+            "Py_XSETREF",
+        }
+    )
+)
 
 # ---------------------------------------------------------------------------
 # Calls that can execute arbitrary Python code
@@ -256,65 +400,143 @@ DECREF_APIS = with_private_aliases(frozenset({
 # reference runs ``tp_dealloc`` and therefore a Python-level ``__del__``, which
 # is what makes the ``genericaliasobject.c`` owner-freed shape detectable.
 
-PYTHON_REACHING_APIS = with_private_aliases(frozenset({
-    # Refcount drops: tp_dealloc / __del__ / weakref callbacks are Python.
-    "Py_DECREF", "Py_XDECREF", "Py_CLEAR", "Py_SETREF", "Py_XSETREF",
-    "_Py_Dealloc",
-    # Direct invocation.
-    "PyObject_CallObject", "PyObject_CallFunction",
-    "PyObject_CallFunctionObjArgs", "PyObject_CallMethod",
-    "PyObject_CallMethodObjArgs", "PyObject_CallMethodNoArgs",
-    "PyObject_CallMethodOneArg", "PyObject_CallNoArgs", "PyObject_CallOneArg",
-    "PyObject_CallFinalizer", "PyObject_CallFinalizerFromDealloc",
-    "PyEval_CallObject", "PyEval_EvalCode", "PyEval_EvalCodeEx",
-    "_PyEval_GetBuiltin", "_PyObject_MakeTpCall",
-    # Attribute and item protocols.
-    "PyObject_GetAttr", "PyObject_GetAttrString", "PyObject_SetAttr",
-    "PyObject_SetAttrString", "PyObject_DelAttr", "PyObject_DelAttrString",
-    "PyObject_HasAttr", "PyObject_HasAttrString",
-    "PyObject_HasAttrWithError", "PyObject_HasAttrStringWithError",
-    "PyObject_GetOptionalAttr", "PyObject_GetOptionalAttrString",
-    "PyObject_GenericGetAttr", "PyObject_GenericSetAttr",
-    "_PyObject_LookupSpecial", "_PyObject_LookupAttr",
-    "PyObject_GetItem", "PyObject_SetItem", "PyObject_DelItem",
-    "PyObject_GetOptionalItem",
-    # Comparison, hashing, stringification, truthiness.
-    "PyObject_Hash", "PyObject_RichCompare", "PyObject_RichCompareBool",
-    "PyObject_Repr", "PyObject_Str", "PyObject_ASCII", "PyObject_Bytes",
-    "PyObject_Format", "PyObject_Print",
-    "PyObject_IsTrue", "PyObject_Not", "PyObject_Size", "PyObject_Length",
-    "PyObject_IsInstance", "PyObject_IsSubclass",
-    "_PyObject_RealIsInstance", "_PyObject_RealIsSubclass",
-    # Iteration.
-    "PyIter_Next", "PyIter_Send", "PyObject_GetIter", "PyObject_GetAIter",
-    # Container operations that reach __hash__ / __eq__ / __lt__.
-    "PyDict_GetItem", "PyDict_GetItemString", "PyDict_GetItemWithError",
-    "PyDict_GetItemRef", "PyDict_SetItem", "PyDict_SetItemString",
-    "PyDict_DelItem", "PyDict_DelItemString", "PyDict_Contains",
-    "PyDict_SetDefault", "PyDict_SetDefaultRef", "PyDict_Pop",
-    "PyDict_Update", "PyDict_Merge", "PyDict_MergeFromSeq2",
-    "PyList_Append", "PyList_Insert", "PyList_Sort", "PyList_SetSlice",
-    "PySet_Add", "PySet_Contains", "PySet_Discard", "PySet_Pop",
-    # Warnings, auditing and %R/%S/%T-style error formatting.
-    "PyErr_WarnEx", "PyErr_WarnFormat", "PyErr_WarnExplicit",
-    "PyErr_ResourceWarning", "PyErr_Format", "PyErr_FormatV",
-    "PyErr_SetObject", "PyErr_WriteUnraisable", "PyErr_Print",
-    "PySys_Audit", "PySys_AuditTuple",
-    "PyUnicode_FromFormat", "PyUnicode_FromFormatV",
-    # Argument parsing runs "O&" converter callbacks.
-    "PyArg_Parse", "PyArg_ParseTuple", "PyArg_ParseTupleAndKeywords",
-    "PyArg_VaParse", "PyArg_VaParseTupleAndKeywords",
-    "_PyArg_ParseTupleAndKeywordsFast", "_PyArg_ParseStackAndKeywords",
-    "PyUnicode_FSConverter", "PyUnicode_FSDecoder",
-    "PyObject_GetBuffer",
-    # Allocation paths that can trigger a GC pass, which runs finalizers.
-    "PyObject_GC_New", "PyObject_GC_NewVar", "PyObject_GC_Resize",
-    "_PyObject_GC_New", "_PyObject_GC_NewVar", "_PyObject_GC_Malloc",
-    "_PyObject_GC_Resize", "PyType_GenericAlloc", "PyGC_Collect",
-    # Imports execute module bodies.
-    "PyImport_Import", "PyImport_ImportModule",
-    "PyImport_ImportModuleLevelObject",
-}))
+PYTHON_REACHING_APIS = with_private_aliases(
+    frozenset(
+        {
+            # Refcount drops: tp_dealloc / __del__ / weakref callbacks are Python.
+            "Py_DECREF",
+            "Py_XDECREF",
+            "Py_CLEAR",
+            "Py_SETREF",
+            "Py_XSETREF",
+            "_Py_Dealloc",
+            # Direct invocation.
+            "PyObject_CallObject",
+            "PyObject_CallFunction",
+            "PyObject_CallFunctionObjArgs",
+            "PyObject_CallMethod",
+            "PyObject_CallMethodObjArgs",
+            "PyObject_CallMethodNoArgs",
+            "PyObject_CallMethodOneArg",
+            "PyObject_CallNoArgs",
+            "PyObject_CallOneArg",
+            "PyObject_CallFinalizer",
+            "PyObject_CallFinalizerFromDealloc",
+            "PyEval_CallObject",
+            "PyEval_EvalCode",
+            "PyEval_EvalCodeEx",
+            "_PyEval_GetBuiltin",
+            "_PyObject_MakeTpCall",
+            # Attribute and item protocols.
+            "PyObject_GetAttr",
+            "PyObject_GetAttrString",
+            "PyObject_SetAttr",
+            "PyObject_SetAttrString",
+            "PyObject_DelAttr",
+            "PyObject_DelAttrString",
+            "PyObject_HasAttr",
+            "PyObject_HasAttrString",
+            "PyObject_HasAttrWithError",
+            "PyObject_HasAttrStringWithError",
+            "PyObject_GetOptionalAttr",
+            "PyObject_GetOptionalAttrString",
+            "PyObject_GenericGetAttr",
+            "PyObject_GenericSetAttr",
+            "_PyObject_LookupSpecial",
+            "_PyObject_LookupAttr",
+            "PyObject_GetItem",
+            "PyObject_SetItem",
+            "PyObject_DelItem",
+            "PyObject_GetOptionalItem",
+            # Comparison, hashing, stringification, truthiness.
+            "PyObject_Hash",
+            "PyObject_RichCompare",
+            "PyObject_RichCompareBool",
+            "PyObject_Repr",
+            "PyObject_Str",
+            "PyObject_ASCII",
+            "PyObject_Bytes",
+            "PyObject_Format",
+            "PyObject_Print",
+            "PyObject_IsTrue",
+            "PyObject_Not",
+            "PyObject_Size",
+            "PyObject_Length",
+            "PyObject_IsInstance",
+            "PyObject_IsSubclass",
+            "_PyObject_RealIsInstance",
+            "_PyObject_RealIsSubclass",
+            # Iteration.
+            "PyIter_Next",
+            "PyIter_Send",
+            "PyObject_GetIter",
+            "PyObject_GetAIter",
+            # Container operations that reach __hash__ / __eq__ / __lt__.
+            "PyDict_GetItem",
+            "PyDict_GetItemString",
+            "PyDict_GetItemWithError",
+            "PyDict_GetItemRef",
+            "PyDict_SetItem",
+            "PyDict_SetItemString",
+            "PyDict_DelItem",
+            "PyDict_DelItemString",
+            "PyDict_Contains",
+            "PyDict_SetDefault",
+            "PyDict_SetDefaultRef",
+            "PyDict_Pop",
+            "PyDict_Update",
+            "PyDict_Merge",
+            "PyDict_MergeFromSeq2",
+            "PyList_Append",
+            "PyList_Insert",
+            "PyList_Sort",
+            "PyList_SetSlice",
+            "PySet_Add",
+            "PySet_Contains",
+            "PySet_Discard",
+            "PySet_Pop",
+            # Warnings, auditing and %R/%S/%T-style error formatting.
+            "PyErr_WarnEx",
+            "PyErr_WarnFormat",
+            "PyErr_WarnExplicit",
+            "PyErr_ResourceWarning",
+            "PyErr_Format",
+            "PyErr_FormatV",
+            "PyErr_SetObject",
+            "PyErr_WriteUnraisable",
+            "PyErr_Print",
+            "PySys_Audit",
+            "PySys_AuditTuple",
+            "PyUnicode_FromFormat",
+            "PyUnicode_FromFormatV",
+            # Argument parsing runs "O&" converter callbacks.
+            "PyArg_Parse",
+            "PyArg_ParseTuple",
+            "PyArg_ParseTupleAndKeywords",
+            "PyArg_VaParse",
+            "PyArg_VaParseTupleAndKeywords",
+            "_PyArg_ParseTupleAndKeywordsFast",
+            "_PyArg_ParseStackAndKeywords",
+            "PyUnicode_FSConverter",
+            "PyUnicode_FSDecoder",
+            "PyObject_GetBuffer",
+            # Allocation paths that can trigger a GC pass, which runs finalizers.
+            "PyObject_GC_New",
+            "PyObject_GC_NewVar",
+            "PyObject_GC_Resize",
+            "_PyObject_GC_New",
+            "_PyObject_GC_NewVar",
+            "_PyObject_GC_Malloc",
+            "_PyObject_GC_Resize",
+            "PyType_GenericAlloc",
+            "PyGC_Collect",
+            # Imports execute module bodies.
+            "PyImport_Import",
+            "PyImport_ImportModule",
+            "PyImport_ImportModuleLevelObject",
+        }
+    )
+)
 
 # Whole families that reach Python through a type's slots.  Matched by prefix.
 _PY_REACHING_FAMILY_RE = (
@@ -323,27 +545,38 @@ _PY_REACHING_FAMILY_RE = (
 )
 
 # ... except these, which are pure macros / type checks and run nothing.
-_PY_REACHING_EXCLUDE = frozenset({
-    "PySequence_Fast_GET_ITEM", "PySequence_Fast_GET_SIZE",
-    "PySequence_Fast_ITEMS", "PySequence_Check",
-    "PyMapping_Check", "PyNumber_Check",
-    "PyObject_CallableCheck",
-})
+_PY_REACHING_EXCLUDE = frozenset(
+    {
+        "PySequence_Fast_GET_ITEM",
+        "PySequence_Fast_GET_SIZE",
+        "PySequence_Fast_ITEMS",
+        "PySequence_Check",
+        "PyMapping_Check",
+        "PyNumber_Check",
+        "PyObject_CallableCheck",
+    }
+)
 
 _PY_REACHING_RE = re.compile(
     r"\b("
     + "|".join(
-        re.escape(api)
-        for api in sorted(PYTHON_REACHING_APIS, key=len, reverse=True)
+        re.escape(api) for api in sorted(PYTHON_REACHING_APIS, key=len, reverse=True)
     )
-    + r"|" + _PY_REACHING_FAMILY_RE
+    + r"|"
+    + _PY_REACHING_FAMILY_RE
     + r")\s*\("
 )
 
-_REFCOUNT_ONLY_REACHING = frozenset({
-    "Py_DECREF", "Py_XDECREF", "Py_CLEAR", "Py_SETREF", "Py_XSETREF",
-    "_Py_Dealloc",
-})
+_REFCOUNT_ONLY_REACHING = frozenset(
+    {
+        "Py_DECREF",
+        "Py_XDECREF",
+        "Py_CLEAR",
+        "Py_SETREF",
+        "Py_XSETREF",
+        "_Py_Dealloc",
+    }
+)
 
 
 def python_reaching_calls(text: str, start: int, end: int) -> list[str]:
@@ -358,6 +591,77 @@ def python_reaching_calls(text: str, start: int, end: int) -> list[str]:
 
 
 # ---------------------------------------------------------------------------
+# Python-reaching call, spelled as a runtime type-slot dispatch
+# ---------------------------------------------------------------------------
+#
+# ``iternext = *Py_TYPE(it)->tp_iternext; ... iternext(it)`` is invisible to a
+# name table, and it is how ``batched_next`` / ``islice_next`` reach arbitrary
+# Python.  The inline form ``(*Py_TYPE(it)->tp_iternext)(it)`` appears four
+# times in ``Modules/itertoolsmodule.c`` alone.
+#
+# A *statically named* type (``PyUnicode_Type.tp_hash``) is deliberately not
+# matched: its slot is known at compile time and cannot be a Python callable.
+# That is the same line the false-positive taxonomy already draws under
+# "Statically-known type slot".
+
+_RUNTIME_SLOTS = (
+    "tp_iternext",
+    "tp_iter",
+    "tp_call",
+    "tp_richcompare",
+    "tp_hash",
+    "tp_repr",
+    "tp_str",
+    "tp_getattro",
+    "tp_setattro",
+    "tp_descr_get",
+    "tp_descr_set",
+    "bf_getbuffer",
+)
+_RUNTIME_SLOT_ALT = "|".join(_RUNTIME_SLOTS)
+_RUNTIME_TYPE_EXPR = r"(?:Py_TYPE\s*\([^)]*\)|[A-Za-z_]\w*\s*->\s*ob_type)"
+
+# ``(*Py_TYPE(x)->tp_iternext)(x)`` / ``x->ob_type->tp_hash(x)``
+_INLINE_SLOT_CALL_RE = re.compile(
+    r"\(\s*\*?\s*"
+    + _RUNTIME_TYPE_EXPR
+    + r"\s*->\s*("
+    + _RUNTIME_SLOT_ALT
+    + r")\s*\)\s*\("
+)
+# ``f = *Py_TYPE(x)->tp_iternext;`` — the pointer is called later, possibly in
+# a loop, possibly many lines away.
+_SLOT_FPTR_ASSIGN_RE = re.compile(
+    r"([A-Za-z_]\w*)\s*=\s*\*?\s*"
+    + _RUNTIME_TYPE_EXPR
+    + r"\s*->\s*("
+    + _RUNTIME_SLOT_ALT
+    + r")"
+)
+
+
+def reaching_calls_with_slots(clean: str, start: int, end: int) -> list[str]:
+    """``python_reaching_calls`` plus runtime type-slot dispatch.
+
+    ``clean`` must be the *whole* function body: a slot function pointer is
+    frequently assigned above the region under test and called inside it.
+    """
+    names = [
+        n
+        for n in python_reaching_calls(clean, start, end)
+        if n not in _REFCOUNT_ONLY_REACHING
+    ]
+    segment = clean[start:end]
+    for m in _INLINE_SLOT_CALL_RE.finditer(segment):
+        names.append(f"*Py_TYPE(...)->{m.group(1)}()")
+    for m in _SLOT_FPTR_ASSIGN_RE.finditer(clean):
+        fptr, slot = m.group(1), m.group(2)
+        if re.search(rf"\b{re.escape(fptr)}\s*\(", segment):
+            names.append(f"{fptr}() [= Py_TYPE(...)->{slot}]")
+    return names
+
+
+# ---------------------------------------------------------------------------
 # Statement-shape regexes
 # ---------------------------------------------------------------------------
 
@@ -365,18 +669,14 @@ def python_reaching_calls(text: str, start: int, end: int) -> list[str]:
 # transfer ownership somewhere the scanner cannot follow.
 _ASSIGN_CALL_RE = re.compile(
     r"(\w+)\s*=\s*(?:\(\s*[\w\s*]+\)\s*)?("
-    + "|".join(
-        re.escape(api) for api in sorted(NEW_REF_APIS, key=len, reverse=True)
-    )
+    + "|".join(re.escape(api) for api in sorted(NEW_REF_APIS, key=len, reverse=True))
     + r")\s*\("
 )
 
 # Ownership handed to a struct member or through a pointer out-parameter.
 _TRANSFER_ASSIGN_RE = re.compile(
     r"(?:->|\.|\*)\s*(\w+)\s*=\s*(?:\(\s*[\w\s*]+\)\s*)?("
-    + "|".join(
-        re.escape(api) for api in sorted(NEW_REF_APIS, key=len, reverse=True)
-    )
+    + "|".join(re.escape(api) for api in sorted(NEW_REF_APIS, key=len, reverse=True))
     + r")\s*\("
 )
 
@@ -392,21 +692,18 @@ _BARE_DECREF_RE = re.compile(
 )
 
 # ``Py_SETREF(dst, src)`` consumes *src* too.
-_SETREF_RE = re.compile(
-    r"\bPy_X?SETREF\s*\(\s*([\w>.\-]+)\s*,\s*(\w+)"
-)
+_SETREF_RE = re.compile(r"\bPy_X?SETREF\s*\(\s*([\w>.\-]+)\s*,\s*(\w+)")
 
 _INCREF_RE = re.compile(
-    r"\b(" + "|".join(sorted(INCREF_APIS, key=len, reverse=True))
+    r"\b("
+    + "|".join(sorted(INCREF_APIS, key=len, reverse=True))
     + r")\s*\(\s*([A-Za-z_]\w*)\s*\)"
 )
 
 # Capture the last argument (the stolen reference) before the closing paren.
 _STEAL_CALL_RE = re.compile(
     r"\b("
-    + "|".join(
-        re.escape(api) for api in sorted(STEAL_REF_APIS, key=len, reverse=True)
-    )
+    + "|".join(re.escape(api) for api in sorted(STEAL_REF_APIS, key=len, reverse=True))
     + r")\s*\([^)]*,\s*(\w+)\s*\)"
 )
 
@@ -435,8 +732,7 @@ _SLOT_LOAD_RE = re.compile(
 _BORROWED_CALL_LOAD_RE = re.compile(
     r"(?<![\w.>*])([A-Za-z_]\w*)\s*=\s*(?:\(\s*[\w\s*]+\)\s*)?("
     + "|".join(
-        re.escape(api)
-        for api in sorted(BORROWED_GETTER_APIS, key=len, reverse=True)
+        re.escape(api) for api in sorted(BORROWED_GETTER_APIS, key=len, reverse=True)
     )
     + r")\s*\("
 )
@@ -446,9 +742,7 @@ _CHAIN_ASSIGN_RE = re.compile(
     r"(?<![\w.>*=!<])([A-Za-z_]\w*)\s*=\s*([A-Za-z_]\w*)\s*=\s*(?![=])"
 )
 
-_CALL_RE = re.compile(
-    r"\b([A-Za-z_]\w*)\s*\(((?:[^()]|\([^()]*\))*)\)"
-)
+_CALL_RE = re.compile(r"\b([A-Za-z_]\w*)\s*\(((?:[^()]|\([^()]*\))*)\)")
 
 _IDENT_RE = re.compile(r"[A-Za-z_]\w*")
 
@@ -492,20 +786,37 @@ _GOTO_LABEL_RE = re.compile(r"^[ \t]*([A-Za-z_]\w*)[ \t]*:(?!:)[ \t]*$", re.MULT
 # Calls that hand ownership to a container/module that then keeps the object
 # alive.  A `Py_DECREF` after one of these is dropping the *caller's* extra
 # reference, not the last one.
-_PUBLISH_APIS = with_private_aliases(frozenset({
-    "PyModule_AddType", "PyModule_AddObject", "PyModule_AddObjectRef",
-    "PyDict_SetItem", "PyDict_SetItemString", "PyList_Append",
-    "PyList_SetItem", "PyList_SET_ITEM", "PyTuple_SetItem",
-    "PyTuple_SET_ITEM", "PySet_Add", "PyObject_SetAttr",
-    "PyObject_SetAttrString", "PyObject_SetItem", "PyStructSequence_SetItem",
-    "PyType_Ready", "PyModule_AddIntConstant", "PyModule_Add",
-}))
+_PUBLISH_APIS = with_private_aliases(
+    frozenset(
+        {
+            "PyModule_AddType",
+            "PyModule_AddObject",
+            "PyModule_AddObjectRef",
+            "PyDict_SetItem",
+            "PyDict_SetItemString",
+            "PyList_Append",
+            "PyList_SetItem",
+            "PyList_SET_ITEM",
+            "PyTuple_SetItem",
+            "PyTuple_SET_ITEM",
+            "PySet_Add",
+            "PyObject_SetAttr",
+            "PyObject_SetAttrString",
+            "PyObject_SetItem",
+            "PyStructSequence_SetItem",
+            "PyType_Ready",
+            "PyModule_AddIntConstant",
+            "PyModule_Add",
+        }
+    )
+)
 
 _PUBLISH_CALL_RE = re.compile(
     r"\b("
     + "|".join(sorted(_PUBLISH_APIS, key=len, reverse=True))
     + r")\s*\(((?:[^()]|\([^()]*\))*)\)"
 )
+
 
 # ``foo(&var)`` re-binds ``var`` through an out-parameter.
 def _outparam_rebind_re(name: str) -> re.Pattern:
@@ -517,11 +828,23 @@ def _outparam_rebind_re(name: str) -> re.Pattern:
 # Function detection
 # ---------------------------------------------------------------------------
 
-_SKIP_NAMES = frozenset({
-    "if", "for", "while", "switch", "do", "else",
-    "sizeof", "return", "typedef", "struct", "union",
-    "enum", "defined",
-})
+_SKIP_NAMES = frozenset(
+    {
+        "if",
+        "for",
+        "while",
+        "switch",
+        "do",
+        "else",
+        "sizeof",
+        "return",
+        "typedef",
+        "struct",
+        "union",
+        "enum",
+        "defined",
+    }
+)
 
 
 def find_functions(source: str) -> list[dict]:
@@ -606,15 +929,17 @@ def find_functions(source: str) -> list[dict]:
         ):
             actual_start -= 1
 
-        functions.append({
-            "name": func_name,
-            "params": m.group(2),
-            "body": body,
-            "start_line": actual_start + 1,
-            "body_start_line": body_start + 1,
-            "end_line": body_end + 1,
-            "raw_lines": lines[body_start:body_end],
-        })
+        functions.append(
+            {
+                "name": func_name,
+                "params": m.group(2),
+                "body": body,
+                "start_line": actual_start + 1,
+                "body_start_line": body_start + 1,
+                "end_line": body_end + 1,
+                "raw_lines": lines[body_start:body_end],
+            }
+        )
     return functions
 
 
@@ -711,7 +1036,7 @@ def _iter_calls(text: str, start: int = 0, end: int | None = None):
                 depth -= 1
             i += 1
         if callee not in _SKIP_NAMES:
-            yield callee, text[m.end(): i - 1], m.start(), i
+            yield callee, text[m.end() : i - 1], m.start(), i
         pos = m.end()
 
 
@@ -806,6 +1131,29 @@ def _block_end(text: str, start: int) -> int:
     return len(text)
 
 
+_LOOP_HEADER_RE = re.compile(r"\b(?:for|while)\s*\(")
+
+
+def _enclosing_loop_end(text: str, pos: int) -> int | None:
+    """End offset of the innermost ``for``/``while`` body containing ``pos``.
+
+    Loop-carried exposure is why ``batched_next`` is invisible to a rule that
+    only looks for a use positioned *after* a call: the borrowed local appears
+    exactly once textually, and the danger is that iteration N+1's use follows
+    iteration N's call.  Widening the search window to the end of the enclosing
+    loop is what makes the two meet.
+    """
+    best: int | None = None
+    for m in _LOOP_HEADER_RE.finditer(text, 0, pos):
+        brace = text.find("{", m.end())
+        if brace == -1 or brace > pos:
+            continue
+        end = _block_end(text, brace)
+        if end > pos and (best is None or end < best):
+            best = end
+    return best
+
+
 def _same_block_region(text: str, start: int) -> int:
     """End of the straight-line region following ``start``.
 
@@ -839,7 +1187,9 @@ def _same_block_region(text: str, start: int) -> int:
     return end
 
 
-def _uses_of(text: str, start: int, end: int, names: set[str]) -> tuple[int, str] | None:
+def _uses_of(
+    text: str, start: int, end: int, names: set[str]
+) -> tuple[int, str] | None:
     """Find the first *dereferencing* use of any name in ``names``.
 
     A use is a ``->``/``[]`` access or being handed to a call that is not one
@@ -893,17 +1243,13 @@ def _reassigned_before(clean: str, name: str, start: int, end: int) -> int | Non
     outparam = _outparam_rebind_re(name).search(clean, start, end)
     # A nested re-declaration shadows the outer variable entirely
     # (`Py_XDECREF(loader); if (...) { PyObject *loader = ...; }`).
-    shadow = re.compile(rf"\*\s*{re.escape(name)}\s*=(?!=)").search(
-        clean, start, end
-    )
+    shadow = re.compile(rf"\*\s*{re.escape(name)}\s*=(?!=)").search(clean, start, end)
     # SCREAMING_CASE macros routinely assign their first argument
     # (`ASSIGN_PTR(obj, ...)` in Modules/_decimal).  Treat that as a re-bind.
     macro = re.compile(
         rf"\b[A-Z][A-Z0-9_]{{2,}}\s*\(\s*{re.escape(name)}\s*[,)]"
     ).search(clean, start, end)
-    positions = [
-        m.start() for m in (direct, outparam, macro, shadow) if m is not None
-    ]
+    positions = [m.start() for m in (direct, outparam, macro, shadow) if m is not None]
     return min(positions) if positions else None
 
 
@@ -956,25 +1302,25 @@ def check_stale_slot_decref(func: dict) -> list[dict]:
             if drop_line in seen:
                 continue
             seen.add(drop_line)
-            only_refcount = all(
-                name in _REFCOUNT_ONLY_REACHING for name in reaching
+            only_refcount = all(name in _REFCOUNT_ONLY_REACHING for name in reaching)
+            findings.append(
+                {
+                    "type": "stale_slot_decref",
+                    "api_call": reaching[0],
+                    "variable": local,
+                    "line": drop_line,
+                    "detail": (
+                        f"'{local}' was loaded from {obj}->{fld} before "
+                        f"{', '.join(sorted(set(reaching)))} ran, which can execute "
+                        f"arbitrary Python; a re-entrant call can clear {obj}->{fld} "
+                        f"and drop the reference first, so this "
+                        f"{drop.group(1)}({local}) drops it a second time. "
+                        f"Use Py_CLEAR({obj}->{fld}) instead of the "
+                        f"{obj}->{fld} = NULL / {drop.group(1)}({local}) pair"
+                    ),
+                    "confidence": "low" if only_refcount else "high",
+                }
             )
-            findings.append({
-                "type": "stale_slot_decref",
-                "api_call": reaching[0],
-                "variable": local,
-                "line": drop_line,
-                "detail": (
-                    f"'{local}' was loaded from {obj}->{fld} before "
-                    f"{', '.join(sorted(set(reaching)))} ran, which can execute "
-                    f"arbitrary Python; a re-entrant call can clear {obj}->{fld} "
-                    f"and drop the reference first, so this "
-                    f"{drop.group(1)}({local}) drops it a second time. "
-                    f"Use Py_CLEAR({obj}->{fld}) instead of the "
-                    f"{obj}->{fld} = NULL / {drop.group(1)}({local}) pair"
-                ),
-                "confidence": "low" if only_refcount else "high",
-            })
             break
     return findings
 
@@ -1004,8 +1350,7 @@ def check_owner_freed_before_use(func: dict) -> list[dict]:
         # still owns one.  That is the "borrowed under a known-live owner"
         # class, not a use-after-free.
         if any(
-            inc.group(2) in group
-            for inc in _INCREF_RE.finditer(clean, 0, m.start())
+            inc.group(2) in group for inc in _INCREF_RE.finditer(clean, 0, m.start())
         ):
             continue
         # Ownership already handed to a module/container that keeps it alive.
@@ -1034,26 +1379,28 @@ def check_owner_freed_before_use(func: dict) -> list[dict]:
             continue
         seen.add(line)
         via_alias = used != var
-        findings.append({
-            "type": "owner_freed_before_use",
-            "api_call": m.group(1),
-            "variable": var,
-            "line": line,
-            "detail": (
-                f"{m.group(1)}({var}) at line "
-                f"{_line_at(func, clean, m.start())} may release the last "
-                f"reference; '{used}' is then dereferenced here"
-                + (
-                    f" -- '{used}' and '{var}' are aliases "
-                    f"(assigned together in one '=' chain)"
-                    if via_alias
-                    else ""
-                )
-                + ". Hoist the read above the release, or hold a reference "
-                "across it"
-            ),
-            "confidence": "high" if via_alias else "medium",
-        })
+        findings.append(
+            {
+                "type": "owner_freed_before_use",
+                "api_call": m.group(1),
+                "variable": var,
+                "line": line,
+                "detail": (
+                    f"{m.group(1)}({var}) at line "
+                    f"{_line_at(func, clean, m.start())} may release the last "
+                    f"reference; '{used}' is then dereferenced here"
+                    + (
+                        f" -- '{used}' and '{var}' are aliases "
+                        f"(assigned together in one '=' chain)"
+                        if via_alias
+                        else ""
+                    )
+                    + ". Hoist the read above the release, or hold a reference "
+                    "across it"
+                ),
+                "confidence": "high" if via_alias else "medium",
+            }
+        )
     return findings
 
 
@@ -1063,7 +1410,9 @@ def check_owner_freed_before_use(func: dict) -> list[dict]:
 
 
 def check_borrowed_ref_across_call(
-    func: dict, *, skip_lines: set[int] | None = None,
+    func: dict,
+    *,
+    skip_lines: set[int] | None = None,
 ) -> list[dict]:
     """A borrowed pointer is *released* after a Python-reaching call.
 
@@ -1081,10 +1430,14 @@ def check_borrowed_ref_across_call(
     loads: list[tuple[int, str, str, str | None]] = []
     for m in _SLOT_LOAD_RE.finditer(clean):
         if m.group(1) != m.group(2):
-            loads.append((
-                m.end(), m.group(1), f"{m.group(2)}->{m.group(3)}",
-                rf"\b{re.escape(m.group(2))}\s*->\s*{re.escape(m.group(3))}\s*=(?!=)",
-            ))
+            loads.append(
+                (
+                    m.end(),
+                    m.group(1),
+                    f"{m.group(2)}->{m.group(3)}",
+                    rf"\b{re.escape(m.group(2))}\s*->\s*{re.escape(m.group(3))}\s*=(?!=)",
+                )
+            )
     for m in _BORROWED_CALL_LOAD_RE.finditer(clean):
         loads.append((m.end(), m.group(1), m.group(2), None))
 
@@ -1106,17 +1459,14 @@ def check_borrowed_ref_across_call(
         if not reaching:
             continue
         if any(
-            m.group(2) == local
-            for m in _INCREF_RE.finditer(clean, load_end, rel_pos)
+            m.group(2) == local for m in _INCREF_RE.finditer(clean, load_end, rel_pos)
         ):
             continue
         # The INCREF is often written against the *source* expression rather
         # than the destination local (`Py_INCREF(lz->lz_attr); x = lz->lz_attr;`),
         # which makes the local an owner.  Search the whole body: if this
         # function ever takes a reference on that source, it owns one.
-        source_pat = r"\s*->\s*".join(
-            re.escape(part) for part in source.split("->")
-        )
+        source_pat = r"\s*->\s*".join(re.escape(part) for part in source.split("->"))
         if re.search(
             r"\b(?:Py_X?INCREF|Py_X?NewRef)\s*\(\s*" + source_pat + r"\s*\)",
             clean,
@@ -1135,21 +1485,483 @@ def check_borrowed_ref_across_call(
         if line in seen or line in skip:
             continue
         seen.add(line)
-        findings.append({
-            "type": "borrowed_ref_across_call",
-            "api_call": reaching[0],
-            "variable": local,
-            "line": line,
-            "detail": (
-                f"'{local}' is a borrowed reference from {source}; "
-                f"{', '.join(sorted(set(reaching)))} can run arbitrary Python "
-                f"between the read and this {rel_text}, so ownership is "
-                f"released through a pointer this function never owned and "
-                f"may no longer be valid. INCREF before the call, or re-read "
-                f"the owner after it"
-            ),
-            "confidence": "medium",
-        })
+        findings.append(
+            {
+                "type": "borrowed_ref_across_call",
+                "api_call": reaching[0],
+                "variable": local,
+                "line": line,
+                "detail": (
+                    f"'{local}' is a borrowed reference from {source}; "
+                    f"{', '.join(sorted(set(reaching)))} can run arbitrary Python "
+                    f"between the read and this {rel_text}, so ownership is "
+                    f"released through a pointer this function never owned and "
+                    f"may no longer be valid. INCREF before the call, or re-read "
+                    f"the owner after it"
+                ),
+                "confidence": "medium",
+            }
+        )
+    return findings
+
+
+# ---------------------------------------------------------------------------
+# False-positive gate: type-constrained operands
+# ---------------------------------------------------------------------------
+#
+# ``PyNumber_Add`` / ``PyObject_RichCompare`` are in PYTHON_REACHING_APIS, but
+# if every operand is provably a concrete builtin ``int`` for the lifetime of
+# the field, the dispatch resolves to ``long_add`` and **no user code runs**.
+#
+# ``Objects/enumobject.c:196`` ``increment_longindex_lock_held`` is the
+# exemplar: ``en->one`` is ``_PyLong_GetOne()`` and ``en_longindex`` is only
+# ever a ``PyLong``.  Its sibling ``Modules/itertoolsmodule.c``
+# ``count_nextlong`` is textually identical *and is a real, reproduced UAF*,
+# because ``lz->long_step`` comes straight from a constructor parameter that is
+# only ``PyLong_Check``-ed on the fast path -- and ``count_nextlong`` is the
+# slow path.  The discriminator implemented below is exactly that asymmetry: a
+# parameter counts as int-pinned only when the function *coerces it through an
+# int-producing conversion of itself* (``start = PyNumber_Index(start)``), not
+# when it merely receives a default (``long_step = _PyLong_GetOne()``).
+
+_INT_PRODUCER_PREFIXES = (
+    "PyLong_From",
+    "_PyLong_From",
+    "PyLong_Get",
+    "_PyLong_Get",
+    "PyNumber_Index",
+    "_PyNumber_Index",
+    "PyNumber_Long",
+)
+
+# Protocol calls whose dispatch is pinned once every operand's type is known.
+_TYPE_PINNABLE_CALLS = frozenset(
+    {
+        "PyNumber_Add",
+        "PyNumber_Subtract",
+        "PyNumber_Multiply",
+        "PyNumber_FloorDivide",
+        "PyNumber_TrueDivide",
+        "PyNumber_Remainder",
+        "PyNumber_Divmod",
+        "PyNumber_Power",
+        "PyNumber_Lshift",
+        "PyNumber_Rshift",
+        "PyNumber_And",
+        "PyNumber_Xor",
+        "PyNumber_Or",
+        "PyNumber_InPlaceAdd",
+        "PyNumber_InPlaceSubtract",
+        "PyObject_RichCompare",
+        "PyObject_RichCompareBool",
+    }
+)
+
+_CALL_EXPR_RE = re.compile(
+    r"^\s*(?:\(\s*[\w\s*]+\)\s*)?([A-Za-z_]\w*)\s*\((.*)\)\s*$", re.DOTALL
+)
+_FIELD_EXPR_RE = re.compile(r"^\s*([A-Za-z_]\w*)\s*->\s*([A-Za-z_]\w*)\s*$")
+_NAME_EXPR_RE = re.compile(r"^\s*&?\s*([A-Za-z_]\w*)\s*$")
+_INT_LITERAL_RE = re.compile(r"^\s*[-+]?(?:\d+[UuLl]*|0[xX][0-9a-fA-F]+[UuLl]*)\s*$")
+
+
+def _split_args(text: str) -> list[str]:
+    """Split a call's argument text on top-level commas."""
+    args: list[str] = []
+    depth = 0
+    current: list[str] = []
+    for ch in text:
+        if ch in "([{":
+            depth += 1
+        elif ch in ")]}":
+            depth -= 1
+        if ch == "," and depth == 0:
+            args.append("".join(current))
+            current = []
+            continue
+        current.append(ch)
+    if "".join(current).strip():
+        args.append("".join(current))
+    return args
+
+
+def _is_int_producer(name: str) -> bool:
+    return any(name.startswith(p) for p in _INT_PRODUCER_PREFIXES)
+
+
+class FileRefContext:
+    """Per-file context the borrowed-ref rules need beyond one function body.
+
+    Two of the rules reason about a struct *field*, and a field is written from
+    several functions -- typically the constructor writes it and the iterator
+    steps it.  That is file scope, not function scope, so the analysis needs
+    the whole translation unit.
+    """
+
+    def __init__(self, source: str, functions: list[dict]) -> None:
+        self.clean = strip_comments_and_strings(source)
+        self.functions = functions
+        self._pin_cache: dict[tuple, bool] = {}
+
+    def _function_at_line(self, line: int) -> dict | None:
+        for func in self.functions:
+            if func["body_start_line"] <= line <= func["end_line"]:
+                return func
+        return None
+
+    def _field_assignments(self, field: str) -> list[tuple[str, dict | None]]:
+        """Every ``<anything>->field = RHS;`` in the file, with its function."""
+        out: list[tuple[str, dict | None]] = []
+        pattern = re.compile(
+            rf"[A-Za-z_]\w*\s*->\s*{re.escape(field)}\s*=(?!=)([^;]*);"
+        )
+        for m in pattern.finditer(self.clean):
+            line = self.clean.count("\n", 0, m.start()) + 1
+            out.append((m.group(1), self._function_at_line(line)))
+        return out
+
+    def is_int_pinned(self, expr: str, func: dict | None, seen=None) -> bool:
+        """True if ``expr`` can only ever hold a concrete builtin ``int``."""
+        seen = set() if seen is None else seen
+        expr = expr.strip().rstrip(";").strip()
+        if not expr:
+            return False
+        if expr == "NULL" or _INT_LITERAL_RE.match(expr):
+            return True
+
+        field = _FIELD_EXPR_RE.match(expr)
+        if field:
+            key = ("field", field.group(2))
+            if key in seen:
+                # A field assigned from a stepped-up value of itself: the
+                # cycle carries no new type information, so it neither
+                # proves nor disproves.  Treat it as neutral.
+                return True
+            seen.add(key)
+            assignments = self._field_assignments(field.group(2))
+            if not assignments:
+                return False
+            return all(
+                self.is_int_pinned(rhs, owner, seen) for rhs, owner in assignments
+            )
+
+        call = _CALL_EXPR_RE.match(expr)
+        if call:
+            name, args = call.group(1), call.group(2)
+            if _is_int_producer(name):
+                return True
+            if name in _TYPE_PINNABLE_CALLS:
+                return all(self.is_int_pinned(a, func, seen) for a in _split_args(args))
+            return False
+
+        name_m = _NAME_EXPR_RE.match(expr)
+        if name_m and func is not None:
+            name = name_m.group(1)
+            key = ("name", func["name"], name)
+            if key in seen:
+                return True
+            seen.add(key)
+            body = strip_comments_and_strings(func["body"])
+            params = {
+                m.group(1)
+                for m in re.finditer(
+                    r"\**\s*([A-Za-z_]\w*)\s*(?:,|\)|$)", func.get("params", "")
+                )
+            }
+            # Both spellings: a plain re-assignment and a declaration with
+            # initialiser.  Missing the declaration form (`PyObject *x = ...`)
+            # makes every local look unconstrained, which silently disables
+            # the whole gate.
+            plain_re = re.compile(
+                rf"(?<![\w.>*=!<])\b{re.escape(name)}\s*=(?!=)([^;]*);"
+            )
+            decl_re = re.compile(
+                rf"(?<![\w.>])[A-Za-z_]\w*\s+\*+\s*{re.escape(name)}\s*=(?!=)([^;]*);"
+            )
+            assignments = [m.group(1) for m in plain_re.finditer(body)]
+            assignments += [m.group(1) for m in decl_re.finditer(body)]
+            if name in params:
+                # A parameter arrives holding whatever the caller passed.  Only
+                # a *self-coercion* -- an int-producing call that consumes the
+                # parameter -- proves its type.  A plain default assignment
+                # (`long_step = _PyLong_GetOne();`) says nothing about the
+                # value the caller actually supplied.
+                for rhs in assignments:
+                    call_m = _CALL_EXPR_RE.match(rhs)
+                    if (
+                        call_m
+                        and _is_int_producer(call_m.group(1))
+                        and re.search(rf"\b{re.escape(name)}\b", call_m.group(2))
+                    ):
+                        return True
+                return False
+            if not assignments:
+                return False
+            return all(self.is_int_pinned(rhs, func, seen) for rhs in assignments)
+        return False
+
+    def call_is_type_pinned(self, func: dict, clean: str, start: int, end: int) -> bool:
+        """True if every protocol call in the window is type-pinned to a builtin.
+
+        Suppression only, and deliberately narrow: it fires when *all* the
+        Python-reaching calls in the window are binary numeric / comparison
+        protocol calls whose operands are provably ``int``.  Anything else --
+        including one unpinnable operand -- leaves the window dangerous.
+        """
+        found = False
+        for callee, args, pos, _end in _iter_calls(clean, start, end):
+            if callee not in _TYPE_PINNABLE_CALLS:
+                continue
+            found = True
+            if not all(self.is_int_pinned(arg, func) for arg in _split_args(args)):
+                return False
+            del pos
+        return found
+
+
+# ---------------------------------------------------------------------------
+# Rule: slot_transfer_across_call  (the escape hazard)
+# ---------------------------------------------------------------------------
+
+
+_ESCAPE_RETURN_RE = re.compile(r"\breturn\s+([A-Za-z_]\w*)\s*;")
+_ESCAPE_STORE_RE = re.compile(
+    r"(?:\*\s*[A-Za-z_]\w*|[A-Za-z_]\w*\s*->\s*[A-Za-z_]\w*)"
+    r"\s*=\s*([A-Za-z_]\w*)\s*;"
+)
+
+
+def _borrowed_slot_loads(clean: str) -> list[tuple[int, str, str, str]]:
+    """``local = owner->field;`` loads, as ``(end, local, owner, field)``.
+
+    ``local == owner`` is excluded (``it = it->next`` is a walk, not a borrow).
+    A "the local must be named differently from the field" filter is
+    deliberately *not* applied: ``it = lz->it`` / ``seq = it->it_seq`` is the
+    commonest spelling in CPython precisely because the local is named after
+    the field, and filtering on it drops the real hits.
+    """
+    return [
+        (m.end(), m.group(1), m.group(2), m.group(3))
+        for m in _SLOT_LOAD_RE.finditer(clean)
+        if m.group(1) != m.group(2)
+    ]
+
+
+def _owns_a_reference(clean: str, local: str, owner: str, field: str) -> bool:
+    """True if the function takes a reference on the local or on the slot."""
+    if re.search(
+        r"\b(?:Py_X?INCREF|Py_X?NewRef|_Py_X?NewRef)\s*\(\s*"
+        + re.escape(local)
+        + r"\s*\)",
+        clean,
+    ):
+        return True
+    slot = re.escape(owner) + r"\s*->\s*" + re.escape(field)
+    return bool(
+        re.search(
+            r"\b(?:Py_X?INCREF|Py_X?NewRef|_Py_X?NewRef)\s*\(\s*" + slot + r"\s*\)",
+            clean,
+        )
+    )
+
+
+def check_slot_transfer_across_call(
+    func: dict,
+    ctx: "FileRefContext",
+) -> list[dict]:
+    """``local = owner->field`` ... Python runs ... ``owner->field = new`` ...
+    ``return local``.
+
+    The "we hold one reference to the old value; we'll either return it or
+    keep it in the slot" transfer idiom, performed across a window in which a
+    re-entrant call can perform the *same* transfer -- so two callers each
+    believe they own the single reference.
+
+    Ordering gate: the overwrite must come **after** the Python-reaching call.
+    If it precedes the call, the transfer completed while this thread was
+    alone and the local is the legitimate sole owner.
+
+    True positive: ``Modules/itertoolsmodule.c`` ``count_nextlong``
+    (reproduced: ASan heap-use-after-free, and the freed counter recycled as a
+    ``dict``).  Guarded twin / suppressed FP: ``Objects/enumobject.c``
+    ``increment_longindex_lock_held``, structurally identical but
+    type-constrained to ``int``.
+    """
+    clean = strip_comments_and_strings(func["body"])
+    findings: list[dict] = []
+    seen: set[int] = set()
+
+    for load_end, local, owner, field in _borrowed_slot_loads(clean):
+        if _owns_a_reference(clean, local, owner, field):
+            continue
+        if _reassigned_before(clean, local, load_end, len(clean)) is not None:
+            continue
+        escapes = [
+            m.start()
+            for m in _ESCAPE_RETURN_RE.finditer(clean, load_end)
+            if m.group(1) == local
+        ] + [
+            m.start()
+            for m in _ESCAPE_STORE_RE.finditer(clean, load_end)
+            if m.group(1) == local
+        ]
+        if not escapes:
+            continue
+        escape_pos = min(escapes)
+        slot_store = re.compile(
+            re.escape(owner) + r"\s*->\s*" + re.escape(field) + r"\s*=(?!=)"
+        )
+        overwrites = [
+            m.start()
+            for m in slot_store.finditer(clean, load_end)
+            if m.start() < escape_pos
+        ]
+        if not overwrites:
+            continue
+        window_end = max(overwrites)
+        reaching = reaching_calls_with_slots(clean, load_end, window_end)
+        if not reaching:
+            continue
+        if ctx.call_is_type_pinned(func, clean, load_end, window_end):
+            # Every protocol call in the window is pinned to a builtin int:
+            # the dispatch resolves to a C slot and no user code runs
+            # (Objects/enumobject.c increment_longindex_lock_held).
+            continue
+        line = _line_at(func, clean, load_end)
+        if line in seen:
+            continue
+        seen.add(line)
+        findings.append(
+            {
+                "type": "slot_transfer_across_call",
+                "api_call": reaching[0],
+                "variable": local,
+                "line": line,
+                "escape_line": _line_at(func, clean, escape_pos),
+                "source": f"{owner}->{field}",
+                "detail": (
+                    f"'{local}' is borrowed from {owner}->{field} here; "
+                    f"{', '.join(sorted(set(reaching)))} can run arbitrary Python "
+                    f"before {owner}->{field} is overwritten at line "
+                    f"{_line_at(func, clean, window_end)}, and '{local}' then "
+                    f"escapes at line {_line_at(func, clean, escape_pos)}. A "
+                    f"re-entrant call performs the same transfer, so the single "
+                    f"reference is handed to two owners. Take a reference on "
+                    f"{owner}->{field} before the call, or re-read the slot after it"
+                ),
+                "confidence": "medium",
+            }
+        )
+    return findings
+
+
+# ---------------------------------------------------------------------------
+# Rule: stale_slot_use  (the deref / call hazard)
+# ---------------------------------------------------------------------------
+
+
+def check_stale_slot_use(
+    func: dict,
+    ctx: "FileRefContext",
+    *,
+    skip_lines: set[int] | None = None,
+) -> list[dict]:
+    """``local = owner->field`` ... Python runs ... ``Py_CLEAR(owner->field)``
+    ... ``local`` dereferenced or called.
+
+    A re-entrant call reaches the clear and drops the only reference; the outer
+    frame then *calls through* the freed object.  Worse than a double-DECREF:
+    ``slot_tp_iternext`` reads ``Py_TYPE(self)`` out of the freed block.
+
+    True positives: ``Modules/itertoolsmodule.c`` ``batched_next`` (:210) and
+    ``islice_next`` (:1711), both reproduced as ASan heap-use-after-free, and
+    ``Objects/iterobject.c`` ``iter_iternext`` (CPY-0003).
+
+    Three gates carry the precision, all measured:
+    (i) the clear must be reachable *after* a Python-reaching call -- a clear
+    that precedes it is a completed ownership transfer (``_tkinter.c``
+    ``TimerHandler``, ``_elementtree.c`` ``elementiter_next``);
+    (ii) a local re-read from the slot after the call is the guarded twin
+    (``pairwise_next:364``) and must suppress;
+    (iii) ``_reassigned_before``.
+    """
+    clean = strip_comments_and_strings(func["body"])
+    skip = skip_lines or set()
+    findings: list[dict] = []
+    seen: set[int] = set()
+
+    for load_end, local, owner, field in _borrowed_slot_loads(clean):
+        if _owns_a_reference(clean, local, owner, field):
+            continue
+        slot = re.escape(owner) + r"\s*->\s*" + re.escape(field)
+        cleared = re.compile(rf"(?:Py_CLEAR\s*\(\s*{slot}\s*\)|{slot}\s*=\s*NULL)")
+        clears = [m.start() for m in cleared.finditer(clean, load_end)]
+        if not clears:
+            continue
+        if _reassigned_before(clean, local, load_end, len(clean)) is not None:
+            continue
+        if not reaching_calls_with_slots(clean, load_end, min(clears)):
+            continue
+        # A re-read of the slot into the same local is the pairwise_next guard.
+        reread = re.compile(
+            r"(?<![\w.>*=!<])\b" + re.escape(local) + r"\s*=\s*"
+            r"(?:\(\s*[\w\s*]+\)\s*)?" + slot
+        )
+        if len(reread.findall(clean)) > 1:
+            continue
+        uses = [
+            m.start()
+            for m in re.finditer(
+                r"\b" + re.escape(local) + r"\s*->"
+                r"|\(\s*\*?\s*[\w>.\-]*\)?\s*\(\s*" + re.escape(local) + r"\s*[,)]"
+                r"|\b\w+\s*\(\s*" + re.escape(local) + r"\s*[,)]",
+                clean,
+            )
+            if m.start() > load_end
+        ]
+        for use_pos in uses:
+            reaching = reaching_calls_with_slots(clean, load_end, use_pos)
+            if not reaching:
+                # Loop-carried exposure: the use sits inside a loop, so
+                # iteration N+1's use follows iteration N's call.
+                loop_end = _enclosing_loop_end(clean, use_pos)
+                if loop_end is not None:
+                    reaching = reaching_calls_with_slots(clean, load_end, loop_end)
+            if not reaching:
+                continue
+            if ctx.call_is_type_pinned(func, clean, load_end, use_pos):
+                continue
+            line = _line_at(func, clean, use_pos)
+            if line in seen or line in skip:
+                # The narrower stale_slot_decref / borrowed_ref_across_call
+                # rules already own this line and name the exact fix; a second
+                # finding at the same coordinates is noise, not recall.
+                break
+            seen.add(line)
+            findings.append(
+                {
+                    "type": "stale_slot_use",
+                    "api_call": reaching[0],
+                    "variable": local,
+                    "line": line,
+                    "source": f"{owner}->{field}",
+                    "load_line": _line_at(func, clean, load_end),
+                    "detail": (
+                        f"'{local}' is borrowed from {owner}->{field} at line "
+                        f"{_line_at(func, clean, load_end)}; "
+                        f"{', '.join(sorted(set(reaching)))} can run arbitrary "
+                        f"Python, and a re-entrant call reaching the "
+                        f"{owner}->{field} clear at line "
+                        f"{_line_at(func, clean, min(clears))} frees the object "
+                        f"'{local}' still points at -- which is then dereferenced "
+                        f"or called here. Re-read {owner}->{field} after the call "
+                        f"and bail on NULL (the pairwise_next pattern), or hold a "
+                        f"strong reference for the duration"
+                    ),
+                    "confidence": "high",
+                }
+            )
+            break
     return findings
 
 
@@ -1231,7 +2043,8 @@ def analyze_function_refcounts(func: dict) -> list[dict]:
     error_cleanup_vars: set[str] = set()
     for label in error_labels:
         label_pattern = re.compile(
-            re.escape(label) + r"\s*:(.+?)(?=\n\w+\s*:|$)", re.DOTALL,
+            re.escape(label) + r"\s*:(.+?)(?=\n\w+\s*:|$)",
+            re.DOTALL,
         )
         m = label_pattern.search(clean)
         if m:
@@ -1244,27 +2057,26 @@ def analyze_function_refcounts(func: dict) -> list[dict]:
 
     for var, info in new_refs.items():
         handled = (
-            var in decreffed
-            or var in stolen
-            or var in increffed
-            or var in returned
+            var in decreffed or var in stolen or var in increffed or var in returned
         )
         if not handled:
             if var in escaped:
                 # Ownership may have moved into an unmodelled helper.
                 continue
-            findings.append({
-                "type": "potential_leak",
-                "api_call": info["api"],
-                "variable": var,
-                "line": info["line"],
-                "detail": (
-                    f"New reference from {info['api']} assigned to '{var}' "
-                    f"is never DECREF'd, stolen, returned, or handed to "
-                    f"another call"
-                ),
-                "confidence": "high",
-            })
+            findings.append(
+                {
+                    "type": "potential_leak",
+                    "api_call": info["api"],
+                    "variable": var,
+                    "line": info["line"],
+                    "detail": (
+                        f"New reference from {info['api']} assigned to '{var}' "
+                        f"is never DECREF'd, stolen, returned, or handed to "
+                        f"another call"
+                    ),
+                    "confidence": "high",
+                }
+            )
             continue
 
         # Leak on an error path: returned on success, absent from cleanup.
@@ -1286,17 +2098,19 @@ def analyze_function_refcounts(func: dict) -> list[dict]:
             # scope at a function-level error label, so it cannot leak there.
             and info["depth"] == 0
         ):
-            findings.append({
-                "type": "potential_leak_on_error",
-                "api_call": info["api"],
-                "variable": var,
-                "line": info["line"],
-                "detail": (
-                    f"New reference '{var}' from {info['api']} returned on "
-                    f"success but not DECREF'd in error cleanup"
-                ),
-                "confidence": "medium",
-            })
+            findings.append(
+                {
+                    "type": "potential_leak_on_error",
+                    "api_call": info["api"],
+                    "variable": var,
+                    "line": info["line"],
+                    "detail": (
+                        f"New reference '{var}' from {info['api']} returned on "
+                        f"success but not DECREF'd in error cleanup"
+                    ),
+                    "confidence": "medium",
+                }
+            )
 
     # Stolen then DECREF'd.  Only a double-free if the DECREF is genuinely
     # reached after the steal; the two commonly sit in mutually exclusive
@@ -1314,25 +2128,27 @@ def analyze_function_refcounts(func: dict) -> list[dict]:
             # deeper one is the error branch of the steal's own failure test
             # (`if (PyModule_AddObject(...) < 0) { Py_DECREF(x); }`), where
             # nothing was stolen and the drop is correct.
-            span = clean[m.end(): d.start()]
+            span = clean[m.end() : d.start()]
             if span.count("{") > span.count("}"):
                 continue
             drop = d
             break
         if drop is None:
             continue
-        findings.append({
-            "type": "potential_double_free",
-            "api_call": m.group(1),
-            "variable": var,
-            "line": _line_at(func, clean, drop.start()),
-            "detail": (
-                f"'{var}' is passed to the reference-stealing "
-                f"{m.group(1)} and then {drop.group(1)}'d in the same block "
-                f"— potential double-free"
-            ),
-            "confidence": "medium",
-        })
+        findings.append(
+            {
+                "type": "potential_double_free",
+                "api_call": m.group(1),
+                "variable": var,
+                "line": _line_at(func, clean, drop.start()),
+                "detail": (
+                    f"'{var}' is passed to the reference-stealing "
+                    f"{m.group(1)} and then {drop.group(1)}'d in the same block "
+                    f"— potential double-free"
+                ),
+                "confidence": "medium",
+            }
+        )
 
     return findings
 
@@ -1341,16 +2157,32 @@ def analyze_function_refcounts(func: dict) -> list[dict]:
 # tp_init / tp_new safety
 # ---------------------------------------------------------------------------
 
-_INIT_ALLOC_APIS = with_private_aliases(frozenset({
-    "PyMem_Malloc", "PyMem_Calloc", "PyMem_Realloc",
-    "malloc", "calloc", "realloc",
-    "PyObject_New", "PyObject_GC_New",
-    "PyList_New", "PyDict_New", "PyTuple_New", "PySet_New",
-    "PyUnicode_FromString", "PyBytes_FromString",
-    "Py_BuildValue", "PyObject_Call", "PyObject_CallFunction",
-    "PyObject_CallMethod",
-    "fopen", "open",
-}))
+_INIT_ALLOC_APIS = with_private_aliases(
+    frozenset(
+        {
+            "PyMem_Malloc",
+            "PyMem_Calloc",
+            "PyMem_Realloc",
+            "malloc",
+            "calloc",
+            "realloc",
+            "PyObject_New",
+            "PyObject_GC_New",
+            "PyList_New",
+            "PyDict_New",
+            "PyTuple_New",
+            "PySet_New",
+            "PyUnicode_FromString",
+            "PyBytes_FromString",
+            "Py_BuildValue",
+            "PyObject_Call",
+            "PyObject_CallFunction",
+            "PyObject_CallMethod",
+            "fopen",
+            "open",
+        }
+    )
+)
 
 _INIT_ALLOC_RE = re.compile(
     r"\b("
@@ -1359,6 +2191,10 @@ _INIT_ALLOC_RE = re.compile(
     )
     + r")\s*\("
 )
+
+# Argument Clinic emits `<Type>___init___impl` for `Type.__init__`. The name
+# encodes the slot, so it is proof of tp_init-hood on its own.
+_CLINIC_INIT_IMPL_RE = re.compile(r"^\w+___init___impl$")
 
 _REINIT_GUARD_STATIC = [
     re.compile(r"already.?init", re.IGNORECASE),
@@ -1398,9 +2234,7 @@ def _build_reinit_guards(param: str) -> list[re.Pattern]:
     ]
 
 
-_NON_ZEROING_ALLOC_RE = re.compile(
-    r"\b(PyObject_New|PyObject_GC_New|malloc)\s*\("
-)
+_NON_ZEROING_ALLOC_RE = re.compile(r"\b(PyObject_New|PyObject_GC_New|malloc)\s*\(")
 
 _ZEROING_ALLOC_PATTERN = r"\b(tp_alloc|PyType_GenericAlloc|calloc)\s*\("
 
@@ -1410,9 +2244,7 @@ def _build_zeroing_alloc_re(param: str) -> re.Pattern:
     # `memset(&ob->structmembers, 0, ...)` zeroes just as `memset(ob, 0, ...)`
     # does; only the sub-object spelling differs.
     return re.compile(
-        _ZEROING_ALLOC_PATTERN
-        + r"|"
-        + rf"\bmemset\s*\(\s*&?\s*{re.escape(param)}\b"
+        _ZEROING_ALLOC_PATTERN + r"|" + rf"\bmemset\s*\(\s*&?\s*{re.escape(param)}\b"
     )
 
 
@@ -1430,56 +2262,283 @@ def _extract_self_param(func: dict) -> str | None:
     return None
 
 
-def check_init_reinit_safety(
-    func: dict, slots: dict[str, set[str]],
-) -> list[dict]:
-    """A registered ``tp_init`` that allocates without a re-init guard.
+def _is_tp_init(func: dict, slots: dict[str, set[str]]) -> bool:
+    """Is ``func`` the body of a Python-level ``__init__``?
 
-    Requires real ``tp_init`` registration.  A name ending in ``_init`` proves
-    nothing: ``unionbuilder_init`` initialises a plain C struct on the stack.
+    Two independent proofs, because slot registration alone missed every
+    instance in CPython:
+
+    * real ``tp_init`` registration (all three slot-table spellings), and
+    * the Argument Clinic name, which *encodes* the slot.  Clinic emits
+      ``<Type>___init___impl`` for ``Type.__init__``; the registered slot
+      function is the generated ``<Type>___init__`` in ``clinic/*.c.h``, and
+      real code often puts a further hand-written wrapper in between
+      (``Modules/_struct.c`` registers ``s_init``, which calls
+      ``Struct___init__``, which calls ``Struct___init___impl``).  Requiring
+      registration of the *impl* therefore resolved nothing: the rule fired
+      zero times over ``Objects/``, ``Modules/`` and ``Python/``.
     """
-    if not _registered_as(func, slots, "tp_init"):
+    return bool(
+        _registered_as(func, slots, "tp_init")
+        or _CLINIC_INIT_IMPL_RE.match(func["name"])
+    )
+
+
+_CALL_HEAD_RE = re.compile(r"\b([A-Za-z_]\w*)\s*\(")
+
+
+def _close_paren(text: str, open_idx: int) -> int | None:
+    """Index of the ``)`` matching the ``(`` at ``open_idx``."""
+    depth = 0
+    for k in range(open_idx, min(len(text), open_idx + 4000)):
+        if text[k] == "(":
+            depth += 1
+        elif text[k] == ")":
+            depth -= 1
+            if depth == 0:
+                return k
+    return None
+
+
+def _split_top_level(text: str) -> list[str]:
+    """Split on commas at paren/bracket depth 0."""
+    out: list[str] = []
+    depth = 0
+    start = 0
+    for i, ch in enumerate(text):
+        if ch in "([":
+            depth += 1
+        elif ch in ")]":
+            depth -= 1
+        elif ch == "," and depth == 0:
+            out.append(text[start:i])
+            start = i + 1
+    out.append(text[start:])
+    return out
+
+
+def _argument_index(args_text: str, name: str) -> int | None:
+    """Position at which ``name`` is passed, ignoring casts and ``&``."""
+    for i, arg in enumerate(_split_top_level(args_text)):
+        expr = re.sub(r"^\s*(?:\(\s*[\w\s*]+\)\s*)*&?\s*", "", arg).strip()
+        if expr == name:
+            return i
+    return None
+
+
+def _param_name_at(params_text: str, index: int) -> str | None:
+    """Name of the declared parameter at ``index`` in a signature."""
+    parts = _split_top_level(params_text)
+    if index >= len(parts):
+        return None
+    m = re.search(r"([A-Za-z_]\w*)\s*(?:\[\s*\])?\s*$", parts[index].strip())
+    return m.group(1) if m else None
+
+
+def _init_chain(
+    func: dict,
+    param: str,
+    functions: list[dict],
+) -> list[tuple[dict, str]]:
+    """``(function, receiver-name)`` pairs reachable from an init, ≤2 hops.
+
+    CPython routinely splits the real mutation two calls away from the slot
+    body: ``Struct___init___impl`` -> ``set_format(self, ...)`` ->
+    ``prepare_s(self, ...)``, and only ``prepare_s`` frees and replaces
+    ``self->s_codes``.  Only file-local callees that are handed the receiver
+    are followed, and the receiver is re-derived in the callee's own scope.
+    """
+    by_name = {f["name"]: f for f in functions}
+    chain = [(func, param)]
+    seen = {func["name"]}
+    frontier = [(func, param)]
+    for _ in range(2):
+        nxt: list[tuple[dict, str]] = []
+        for caller, recv in frontier:
+            body = strip_comments_and_strings(caller["body"])
+            for m in _CALL_HEAD_RE.finditer(body):
+                callee = by_name.get(m.group(1))
+                if callee is None or callee["name"] in seen:
+                    continue
+                close = _close_paren(body, m.end() - 1)
+                if close is None:
+                    continue
+                idx = _argument_index(body[m.end() : close], recv)
+                if idx is None:
+                    continue
+                seen.add(callee["name"])
+                # The callee's own name for the receiver is its parameter at
+                # the position the receiver was passed in — `set_format` never
+                # dereferences its `self`, so deriving the name from the body
+                # would drop the hop entirely.
+                callee_recv = _param_name_at(callee.get("params", ""), idx)
+                if callee_recv is None:
+                    callee_recv = _extract_self_param(callee)
+                if callee_recv is None:
+                    continue
+                nxt.append((callee, callee_recv))
+                chain.append((callee, callee_recv))
+        frontier = nxt
+    return chain
+
+
+def _replaced_and_assigned(
+    chain: list[tuple[dict, str]],
+) -> tuple[set[str], set[str]]:
+    """Members the init chain *destroys and replaces*, and all it assigns."""
+    replaced: set[str] = set()
+    assigned: set[str] = set()
+    for fn, recv in chain:
+        clean = strip_comments_and_strings(fn["body"])
+        assigned.update(_build_member_assign_re(recv).findall(clean))
+        r = re.escape(recv)
+        for pat in (
+            (
+                rf"\b(?:PyMem_Free|PyMem_RawFree|PyObject_Free|free)\s*\("
+                rf"\s*{r}\s*->\s*(\w+)"
+            ),
+            rf"\bPy_(?:CLEAR|X?DECREF)\s*\(\s*{r}\s*->\s*(\w+)",
+            rf"\bPy_X?SETREF\s*\(\s*{r}\s*->\s*(\w+)",
+        ):
+            replaced.update(re.findall(pat, clean))
+    # A member is only *replaced* if the same body also assigns it; a bare
+    # release with no re-assignment is a destructor, not a re-init.
+    return replaced & assigned, assigned
+
+
+def _two_level_readers(
+    chain_names: set[str],
+    members: set[str],
+    functions: list[dict],
+) -> list[dict]:
+    """Functions reading ``x->owner->member`` — the outstanding-view signature.
+
+    A one-level ``self->member`` read is the owner's own method and sees the
+    new state, which is correct.  A *two*-level read means some other object
+    stored a pointer to the owner and is still reading through it: an
+    iterator, a view, a cached-state consumer.
+    """
+    out: list[dict] = []
+    for fn in functions:
+        if fn["name"] in chain_names:
+            continue
+        clean = strip_comments_and_strings(fn["body"])
+        for m in re.finditer(r"\b(\w+)\s*->\s*(\w+)\s*->\s*(\w+)\b", clean):
+            if m.group(3) not in members:
+                continue
+            out.append(
+                {
+                    "function": fn["name"],
+                    "line": _line_at(fn, clean, m.start()),
+                    "expression": f"{m.group(1)}->{m.group(2)}->{m.group(3)}",
+                    "member": m.group(3),
+                }
+            )
+    return out
+
+
+# Reader functions whose name marks them as an iterator/view step: a stale read
+# there is reached by ordinary iteration, not by a contrived call order.
+_VIEW_READER_RE = re.compile(
+    r"iternext|_next$|_len$|length_hint|_iter$|getitem|subscript|_size$",
+    re.IGNORECASE,
+)
+
+
+def check_init_reinit_safety(
+    func: dict,
+    slots: dict[str, set[str]],
+    functions: list[dict] | None = None,
+) -> list[dict]:
+    """A re-callable ``tp_init`` that mutates state an outstanding view reads.
+
+    The hazard is **not** the leak the rule was originally written for.
+    ``__init__`` is an ordinary method: Python code may call it again on a live
+    object.  When the second call frees and replaces state that another object
+    already captured a pointer to, every invariant that other object validated
+    at construction time is silently void.
+
+    ``Modules/_struct.c`` is the exemplar and is live at 3.16.0a0::
+
+        s = struct.Struct("i")
+        it = s.iter_unpack(b"\\0" * 8)   # validates 8 %% s_size == 0
+        next(it)
+        s.__init__("100i")               # prepare_s frees s_codes, resets s_size
+        next(it)                         # reads 400 bytes out of an 8-byte buffer
+
+    ``unpackiter_iternext`` bounds itself with ``assert(self->index +
+    self->so->s_size <= self->buf.len)`` — an assert, so a release build just
+    reads past the end; ``unpackiter_len`` divides by ``self->so->s_size`` and
+    takes SIGFPE when it becomes 0.
+
+    Note the polarity flip this cost: ``Py_XSETREF(self->m, ...)`` /
+    ``Py_CLEAR(self->m)`` / ``if (self->m) PyMem_Free(self->m)`` used to
+    *suppress* the finding as evidence of re-init safety.  Under the real
+    hazard they are the opposite — they are the proof that the second call
+    destroys what the first one published.
+    """
+    if not _is_tp_init(func, slots):
         return []
-
-    clean = strip_comments_and_strings(func["body"])
-
-    param = _extract_self_param(func)
+    # For a tp_init the receiver is the first parameter by contract, so fall
+    # back to it: an init whose body only *forwards* the receiver to a helper
+    # (`return set_format(self, fmt);`) dereferences nothing of its own.
+    param = _extract_self_param(func) or _param_name_at(func.get("params", ""), 0)
     if param is None:
         return []
 
-    alloc_calls = _INIT_ALLOC_RE.findall(clean)
-    if not alloc_calls:
-        return []
-
-    member_re = _build_member_assign_re(param)
-    member_assigns = member_re.findall(clean)
-    if not member_assigns:
-        return []
-
-    # Guards are checked against the *raw* body: the "already initialized"
-    # sentinel lives in a string literal, which strip_comments_and_strings()
-    # blanks out.  `_ctypes`' StgInfo guard is exactly that shape.
-    for pattern in _build_reinit_guards(param):
-        if pattern.search(func["body"]) or pattern.search(clean):
+    # A guard that *rejects* the second call is a genuine exemption. Checked
+    # against the raw body: the "already initialized" sentinel lives in a
+    # string literal that strip_comments_and_strings() blanks out.
+    for pattern in _REINIT_GUARD_STATIC + [
+        re.compile(rf"\b{re.escape(param)}\s*->\s*initialized\b"),
+        re.compile(rf"{re.escape(param)}\s*=\s*\w*_Init\w*\s*\("),
+    ]:
+        if pattern.search(func["body"]):
             return []
 
-    return [{
-        "type": "init_not_reinit_safe",
-        "line": func["start_line"],
-        "detail": (
-            f"tp_init '{func['name']}' allocates "
-            f"({', '.join(sorted(set(alloc_calls)))}) "
-            f"and assigns to {param}->"
-            f"{f', {param}->'.join(sorted(set(member_assigns)))} "
-            f"without a re-init guard — a second __init__() call "
-            f"will leak the first call's resources"
-        ),
-        "confidence": "high",
-    }]
+    chain = _init_chain(func, param, functions or [func])
+    replaced, assigned = _replaced_and_assigned(chain)
+    if not replaced:
+        return []
+
+    readers = _two_level_readers(
+        {fn["name"] for fn, _ in chain},
+        assigned,
+        functions or [],
+    )
+    if not readers:
+        return []
+
+    stale = sorted({r["member"] for r in readers})
+    view_readers = [r for r in readers if _VIEW_READER_RE.search(r["function"])]
+    cited = view_readers or readers
+    return [
+        {
+            "type": "init_not_reinit_safe",
+            "line": func["start_line"],
+            "replaced_members": sorted(replaced),
+            "stale_members": stale,
+            "readers": cited[:8],
+            "detail": (
+                f"__init__ '{func['name']}' is re-callable on a live object and "
+                f"its second call destroys and replaces {param}->"
+                f"{f', {param}->'.join(sorted(replaced))}. "
+                f"{cited[0]['function']} (line {cited[0]['line']}) still reads "
+                f"that state through a stored owner pointer "
+                f"({cited[0]['expression']}), so every invariant it validated at "
+                f"construction time — buffer bounds, element size, cached counts "
+                f"— is void after the re-init. Fix: reject the second call, or "
+                f"give the view its own snapshot of "
+                f"{', '.join(stale)}"
+            ),
+            "confidence": "high" if view_readers else "medium",
+        }
+    ]
 
 
 def check_new_member_init(
-    func: dict, slots: dict[str, set[str]],
+    func: dict,
+    slots: dict[str, set[str]],
 ) -> list[dict]:
     """A registered ``tp_new`` that can leave members uninitialised.
 
@@ -1524,18 +2583,20 @@ def check_new_member_init(
     if not window:
         return []
 
-    return [{
-        "type": "new_missing_member_init",
-        "line": _line_at(func, clean, non_zero_m.start()),
-        "detail": (
-            f"tp_new '{func['name']}' allocates with the non-zeroing "
-            f"{non_zero_m.group(1)}() and then makes a fallible, "
-            f"Python-reaching call before initialising {param}'s pointer "
-            f"members — an early error path hands a half-built object to "
-            f"tp_dealloc"
-        ),
-        "confidence": "medium",
-    }]
+    return [
+        {
+            "type": "new_missing_member_init",
+            "line": _line_at(func, clean, non_zero_m.start()),
+            "detail": (
+                f"tp_new '{func['name']}' allocates with the non-zeroing "
+                f"{non_zero_m.group(1)}() and then makes a fallible, "
+                f"Python-reaching call before initialising {param}'s pointer "
+                f"members — an early error path hands a half-built object to "
+                f"tp_dealloc"
+            ),
+            "confidence": "medium",
+        }
+    ]
 
 
 # ---------------------------------------------------------------------------
@@ -1574,18 +2635,30 @@ def analyze(target: str, *, max_files: int = 0) -> dict:
         # PyTypeObject form hides the slot name in a comment.
         slots = collect_slot_registrations(source)
 
-        for func in find_functions(source):
+        functions = find_functions(source)
+        ctx = FileRefContext(source, functions)
+
+        for func in functions:
             functions_analyzed += 1
             func_findings = analyze_function_refcounts(func)
             stale = check_stale_slot_decref(func)
             func_findings.extend(stale)
             func_findings.extend(check_owner_freed_before_use(func))
+            borrowed = check_borrowed_ref_across_call(
+                func,
+                skip_lines={f["line"] for f in stale},
+            )
+            func_findings.extend(borrowed)
+            func_findings.extend(check_slot_transfer_across_call(func, ctx))
             func_findings.extend(
-                check_borrowed_ref_across_call(
-                    func, skip_lines={f["line"] for f in stale},
+                check_stale_slot_use(
+                    func,
+                    ctx,
+                    skip_lines={f["line"] for f in stale}
+                    | {f["line"] for f in borrowed},
                 )
             )
-            func_findings.extend(check_init_reinit_safety(func, slots))
+            func_findings.extend(check_init_reinit_safety(func, slots, functions))
             func_findings.extend(check_new_member_init(func, slots))
             for finding in func_findings:
                 finding["file"] = rel
@@ -1607,6 +2680,8 @@ def analyze(target: str, *, max_files: int = 0) -> dict:
             "stale_slot_decref": count("stale_slot_decref"),
             "owner_freed_before_use": count("owner_freed_before_use"),
             "borrowed_ref_across_call": count("borrowed_ref_across_call"),
+            "slot_transfer_across_call": count("slot_transfer_across_call"),
+            "stale_slot_use": count("stale_slot_use"),
             "init_not_reinit_safe": count("init_not_reinit_safe"),
             "new_missing_member_init": count("new_missing_member_init"),
             "total_findings": len(all_findings),

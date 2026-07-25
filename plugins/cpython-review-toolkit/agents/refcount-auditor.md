@@ -23,7 +23,29 @@ where `<plugin_root>` is the root of the cpython-review-toolkit plugin directory
 
 Parse the JSON output.
 
-**Calibrate your expectations: this scanner is tuned for precision, not recall.** On CPython main @ 3.16.0a0 it emits **7 findings across all of `Objects/` + `Modules/` + `Python/`** (768 files, 16,582 functions). Two of those seven are ASan-confirmed heap-use-after-frees. If you get a handful of findings, that is the design working — not a broken run. Conversely, **absence of findings is not a clean bill of health**: the borrowed-ref rules only fire on a narrow, well-gated shape, so you must still read code.
+**Calibrate your expectations: this scanner is tuned for precision, not recall.** On CPython main @ 3.16.0a0 it emits **11 findings across all of `Objects/` + `Modules/` + `Python/`** (768 files, 16,582 functions). **Six of those eleven are ASan-confirmed heap-use-after-frees.** If you get a handful of findings, that is the design working — not a broken run. Conversely, **absence of findings is not a clean bill of health**: the borrowed-ref rules only fire on narrow, well-gated shapes, so you must still read code.
+
+### What the borrowed-ref rules do and do not model
+
+Three hazards can befall a borrowed pointer after a Python-reaching call. The scanner models all three now, but as **three separate rules with different shapes** — know which one is talking to you:
+
+| hazard | rule | example |
+|---|---|---|
+| ownership **released** through the borrowed pointer | `borrowed_ref_across_call` / `stale_slot_decref` | `zip_longest_next_lock_held`, `iter_iternext` |
+| the borrowed pointer **escapes** (returned / stored) after the slot was overwritten | `slot_transfer_across_call` | `count_nextlong` |
+| the borrowed pointer is **dereferenced or called** after the slot was cleared | `stale_slot_use` | `batched_next`, `islice_next` |
+
+**A fourth sub-shape is still unmodelled and must be found by reading: a borrowed
+*function parameter*.** `Modules/_pickle.c` `_pickle_Unpickler_find_class_impl:7414`
+and `load_extension:6586` are both reproduced heap-use-after-frees where the
+dangling value arrives as a parameter, borrowed from a Python-reachable dict by
+the *caller*, and the Python-reaching call (`PySys_Audit`, `PyImport_Import`)
+happens inside the callee. No intra-function rule can see that; it needs an
+interprocedural pass the scanner does not have. Likewise, a **raw
+`PyMem_Malloc` buffer hanging off a live object** (`_struct.c` `s_codes`,
+`_zoneinfo.c`'s `StrongCacheNode` chain) is walked with pointer arithmetic
+rather than cached into a single local, so every one of these rules' gates
+suppresses it. Both classes are real and reproduced; both are reading work.
 
 Key fields:
 - `findings[].type`: see the rule table below
@@ -39,9 +61,12 @@ Key fields:
 | `stale_slot_decref` | `x = obj->fld` … Python-reaching call … `obj->fld = NULL; Py_DECREF(x);` | **FIX** at high confidence |
 | `owner_freed_before_use` | `Py_DECREF(V)` then a dereferencing read of `V` or an alias of it in the same block | **FIX** at high confidence (alias), CONSIDER at medium |
 | `borrowed_ref_across_call` | a borrowed pointer is *released* after a Python-reaching call, with no `Py_INCREF` | CONSIDER — verify re-entrancy is reachable |
+| `slot_transfer_across_call` | `local = obj->fld` … Python-reaching call … `obj->fld = <new>` … `return local` — the "we'll either return it or keep it in the slot" transfer idiom performed across a re-entrancy window | **FIX** once you confirm the protocol call can reach user code — see below |
+| `stale_slot_use` | `local = obj->fld` … Python-reaching call … `Py_CLEAR(obj->fld)` reachable … `local` dereferenced or **called** | **FIX** at high confidence — this is worse than a double-DECREF: `slot_tp_iternext` reads `Py_TYPE(self)` out of the freed block |
 | `potential_leak` / `potential_leak_on_error` | new-reference balance | CONSIDER |
 | `potential_double_free` | stolen then DECREF'd at the same brace depth | CONSIDER |
-| `init_not_reinit_safe` / `new_missing_member_init` | `tp_init` / `tp_new` safety, gated on **real slot registration** | CONSIDER, low prior — see the footnote in Phase 3 |
+| `init_not_reinit_safe` | a re-callable `__init__` destroys and replaces state an outstanding iterator/view still reads through a stored owner pointer | **FIX** at high confidence — see Phase 3 |
+| `new_missing_member_init` | `tp_new` hands a half-built object to `tp_dealloc`, gated on **real slot registration** | CONSIDER, low prior — see Phase 3 |
 
 ## Analysis Strategy
 
@@ -70,16 +95,109 @@ For each candidate finding from the script:
    - Likely bug but uncertain due to complex flow → CONSIDER
    - False positive → skip (don't report)
 
-### Phase 3: tp_init / tp_new Safety Review (low prior — a footnote, not a focus)
+### Phase 2b: the two escape/deref rules — what to check before you write FIX
 
-**These two rules have a near-empty true-positive class in CPython's own code.** Measured on main @ 3.16.0a0 they produce **zero** findings tree-wide. Spend your time on Phase 2 and Phase 4 instead; handle any hit here in a sentence unless you can demonstrate reachability.
+**`slot_transfer_across_call`.** The whole finding turns on whether the
+protocol call in the window can reach user code. The suppressed twin is
+`Objects/enumobject.c:196` `increment_longindex_lock_held`, which is a
+*structural clone* of the reproduced `Modules/itertoolsmodule.c`
+`count_nextlong` — comment text and all — and is safe only because `en->one` is
+`_PyLong_GetOne()` and `en_longindex` is only ever a `PyLong`, so `PyNumber_Add`
+resolves to `long_add`. The scanner encodes exactly that gate (a parameter
+counts as type-pinned only when the function coerces it through an int-producing
+conversion **of itself**, `start = PyNumber_Index(start)`; a mere default
+`long_step = _PyLong_GetOne()` does not). When a finding survives, your job is
+to confirm the *other* operand really is attacker-controlled — for `count` it is
+`itertools.count(0, EvilStep())` landing an arbitrary `__radd__` in the slow
+path. The finding's `line` is the borrowed **load**; `escape_line` is where the
+stale local leaves.
 
-Two facts, both verified on an ASan+debug build, that the older version of this prompt got wrong:
+**`stale_slot_use`.** Confirm three things, in this order:
+1. the clear (`Py_CLEAR(obj->fld)` / `obj->fld = NULL`) is reachable
+   *re-entrantly* — i.e. after, not before, the Python-reaching call. A clear
+   that precedes it is a completed ownership transfer and the scanner already
+   suppresses it (`_tkinter.c` `TimerHandler`, `_elementtree.c`
+   `elementiter_next`);
+2. the local is not re-read from the slot after the call — that is the guarded
+   twin (`pairwise_next:364` re-reads `it = po->it` and bails on NULL);
+3. `#ifdef Py_GIL_DISABLED` **asymmetry is a promotion signal, not a
+   suppression.** `batched_next`'s three `Py_CLEAR(bo->it)` calls are wrapped
+   in `#ifndef Py_GIL_DISABLED`: the free-threaded arm is *the fix*, the
+   default GIL arm is the bug, and both the clear and the dangerous
+   `iternext(it)` compile into the same build. Report it as GIL-build-only,
+   never as "mutually exclusive preprocessor branches".
+
+The `api_call` for these rules may read `iternext() [= Py_TYPE(...)->tp_iternext]`
+or `*Py_TYPE(...)->tp_iternext()`: a slot dispatched off a **runtime** object is
+arbitrary Python. A statically named type (`PyUnicode_Type.tp_hash`) is not, and
+is deliberately not matched.
+
+### Phase 3: tp_init / tp_new Safety Review
+
+> **Standing note — check the denominator, not the finding count, before reporting a clean negative.**
+> This is the same canary `scan_init_bypass.py` carries, and this rule is the
+> reason it exists. A previous release rewrote `_is_tp_init`/`_is_tp_new` to
+> require real slot registration, observed the rule go to zero, and recorded
+> that as *"empty on CPython — demoted to a footnote"*. **That was wrong.** The
+> rule was **inert**, not clean: Argument Clinic emits `<Type>___init___impl`
+> while the registered slot is the generated `<Type>___init__` in
+> `clinic/*.c.h`, often with a further hand-written wrapper in between
+> (`Modules/_struct.c` registers `s_init` → `Struct___init__` →
+> `Struct___init___impl`), so requiring registration of the *impl* resolved
+> **0 of the 80** `__init__` bodies in `Objects/` + `Modules/` + `Python/`. A
+> live heap disclosure sat behind that zero for a whole release.
+> Before writing "no findings", state how many `tp_init` bodies the rule
+> actually resolved. Zero findings over a zero denominator is silence.
+
+#### `init_not_reinit_safe` — a re-callable `__init__` invalidating a live view
+
+**The hazard is not a leak.** `__init__` is an ordinary method: Python may call
+it again on a live object. When the second call frees and replaces state that
+*another* object already captured a pointer to, every invariant that other
+object validated at construction time is silently void. Six lines of stdlib
+Python, silent on a release build (`Modules/_struct.c`, live at 3.16.0a0):
+
+```python
+s = struct.Struct("i"); it = s.iter_unpack(b"\0" * 8); next(it)
+s.__init__("100i"); next(it)      # reads 400 bytes from an 8-byte buffer
+```
+
+`prepare_s` frees `s_codes` and resets `s_size`; `unpackiter_iternext` keeps
+reading through its stored `self->so`. On release that returned a 100-tuple of
+which 73 words were live heap; on debug the
+`assert(self->index + self->so->s_size <= self->buf.len)` at `_struct.c:2274`
+fires. `unpackiter_len` divides by `self->so->s_size` and takes SIGFPE when it
+becomes 0.
+
+**Note the polarity flip.** `Py_XSETREF(self->m, ...)` / `Py_CLEAR(self->m)` /
+`if (self->m) PyMem_Free(self->m)` used to *suppress* this rule as evidence of
+re-init safety. Under the real hazard they are the opposite: they are the proof
+that the second call destroys what the first one published. What genuinely
+exempts a type is a guard that **rejects** the second call.
+
+Confirm a finding by answering three questions:
+1. Can Python reach `__init__` a second time on a live instance? (No
+   `already initialized` raise, no `PyStgInfo_Init`-style callee guard.)
+2. Does the cited `readers[]` entry really hold the owner across the re-init —
+   an iterator, a view, a cached-state consumer?
+3. What breaks: a bound (`assert`, so a release build reads out of range), a
+   divisor (SIGFPE), or a freed block (UAF)?
+
+Measured on main @ 3.16.0a0: **80 `__init__` bodies resolved, 9 with a
+destroy-and-replace member, 1 finding, 1 true positive, 0 false positives.**
+The 7 that have a destroy-and-replace but no reported reader are all `_io`
+(`BufferedReader`/`TextIOWrapper`/`StringIO`) plus `_elementtree`, where the
+consumer lives in another translation unit — the scanner cannot see across
+files, so treat `_io` as *unaudited*, not clean.
+
+#### `new_missing_member_init` (low prior — a footnote, not a focus)
+
+Two facts, both verified on an ASan+debug build, that an older version of this prompt got wrong:
 
 1. **`object.__new__(T)` never routes through `T`'s `tp_new`.** It allocates via `type->tp_alloc`, which zeroes — and when `tp_new` is overridden it refuses outright (`TypeError: object.__new__(X) is not safe, use X.__new__()`). The "garbage pointers after `object.__new__`" rationale does not apply to this interpreter.
 2. **A name is not a slot.** `PyCell_New`, `PyDictProxy_New`, `PyWrapper_New` are C-API constructors, not `tp_new` slots; `unionbuilder_init` initialises a plain C struct on the stack. The scanner now requires real registration (`.tp_new =`, `{Py_tp_new, X}`, or the positional `X, /* tp_new */` form, which is how `Objects/` declares slots 42 times versus 2 designated).
 
-If a finding does survive: check for a guard in a *callee* (`_ctypes` raises "StgInfo … is already initialized" from inside `PyStgInfo_Init`, which the scanner cannot see through), and for the save-old-then-release idiom (`old = self->f; self->f = new; Py_XDECREF(old);`), which is re-init safe. The genuine "half-built object reaches `tp_dealloc`" bug is `scan_uninit_dealloc.py`'s job.
+If a finding does survive: check for a guard in a *callee* (`_ctypes` raises "StgInfo … is already initialized" from inside `PyStgInfo_Init`, which the scanner cannot see through — it is the one suppression the scanner still applies by pattern). The genuine "half-built object reaches `tp_dealloc`" bug is `scan_uninit_dealloc.py`'s job.
 
 ### Phase 4: Pattern-Based Review — the highest-yield phase
 

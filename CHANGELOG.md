@@ -3,6 +3,227 @@
 All notable changes to this project will be documented in this file.
 Format loosely follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [Unreleased]
+
+### Fixed — six defects measured by the informed `Modules/` review
+
+Every number below was measured on CPython main @ `4f3be1b5777` (3.16.0a0) over
+all of `Objects/` + `Modules/` + `Python/`, before and after.
+
+- **`scan_refcounts.py`: `init_not_reinit_safe` was inert, and the v0.8 notes
+  wrongly certified it as clean.** v0.8 rewrote `_is_tp_init` to require real
+  slot registration, saw the rule go to zero, and recorded *"empty on CPython —
+  demoted to a footnote"*. The rule was **silent, not clean**: Argument Clinic
+  emits `<Type>___init___impl` while the registered slot is the generated
+  `<Type>___init__` in `clinic/*.c.h`, often with a further hand-written wrapper
+  in between (`Modules/_struct.c` registers `s_init` → `Struct___init__` →
+  `Struct___init___impl`), so requiring registration of the *impl* resolved
+  **0 of the 80** `__init__` bodies in the tree. Detection now accepts the
+  clinic name as proof of tp_init-hood, and the rule expresses the real hazard:
+  a re-callable `__init__` that **destroys and replaces state an outstanding
+  iterator/view still reads through a stored owner pointer** (≤2 hops into
+  file-local helpers, since the mutation is usually two calls away). Note the
+  polarity flip — `Py_XSETREF`/`Py_CLEAR`/free-then-assign used to *suppress*
+  the rule as evidence of re-init safety; they are the proof of the hazard.
+  **0 → 1 finding tree-wide, 1 true positive, 0 false positives**, denominator
+  80 bodies / 9 with a destroy-and-replace. The true positive is a **reproduced
+  heap disclosure** in `Modules/_struct.c`: `s = struct.Struct("i");
+  it = s.iter_unpack(b"\0"*8); next(it); s.__init__("100i"); next(it)` returns a
+  100-tuple of which 73 words were live heap on a release build, and trips
+  `assert(self->index + self->so->s_size <= self->buf.len)` (`_struct.c:2274`)
+  on a debug build.
+- **`scan_error_paths.py`: `PyErr_Occurred()` was counted as a narrowing.** It
+  is the *failure test*, not a narrowing, so listing it in
+  `_PYERR_CLEAR_GUARD_RE` suppressed every
+  `if (x == -1 && PyErr_Occurred()) PyErr_Clear();` — the most common written
+  form of the bug. `unconditional_pyerr_clear`: `Objects/` 23 → 27, `Modules/`
+  39 → 44, `Python/` 68 → 70. Hand-checked: **11 net-new candidates, 5 true
+  positives** (all four `Modules/itertoolsmodule.c` `islice_new` clears, plus
+  `Objects/bytes_methods.c:608` `_Py_bytes_contains`). The dominant new FP class
+  — a `PyLong_As*` on an operand the function already `PyLong_Check`-ed, where
+  only `OverflowError` can be pending — is suppressed, removing 6 of 9 hand-found
+  FPs without losing a true positive.
+- **`scan_error_paths.py`: new rule `pylong_sentinel_no_errcheck`.** `PyLong_As*`
+  compared `== -1` with no `PyErr_Occurred()` narrowing: `-1` is both the error
+  sentinel and the honest conversion of the integer `-1`, so an ordinary input
+  takes the failure branch with **no exception set**. **4 candidates tree-wide,
+  4 true positives, 0 false positives** — `Modules/_zoneinfo.c:1073, :2314,
+  :2324, :2334`, with the guarded twin ten lines above one of them at `:2304`.
+  Two of the four abort a debug build through five public `zoneinfo` entry
+  points.
+- **`scan_pyerr_clear.py`: the re-raise gate was inverted for rule 3, and a bare
+  errstate probe dropped the site.** Suppressing on *any* following `PyErr_Set*`
+  treated "substitute a fixed `ValueError` for whatever the user's `__index__`
+  raised" as a mitigation, when that substitution **is** the bug; rule 3 now
+  requires an information-preserving re-raise (restore / chain / errno-derived),
+  while rule 2 keeps the broad test (a function like `_PyErr_SetKeyError` clears
+  first *because* the API building the replacement must not run with an
+  exception set). Separately, an innermost `if (PyErr_Occurred())` names no
+  failing call — it is a nested re-test of the same failure — so rule 3 now
+  walks one condition outward through that shape only. `islice_new` **1/4 →
+  4/4**; `Modules/` `pyerr_clear_unfiltered_after_python_call` 16 → 20;
+  `Objects/` and `Python/` **bit-identical**, and `on_success_path` unchanged
+  everywhere (the naive full-disable probe added 3 known-FP clears there).
+- **`scan_init_bypass.py`: the `PyType_Spec` kill switch silenced 36% of slot
+  tables.** The whole-file switch fired on the *token* `Py_tp_new` even though
+  `{Py_tp_new, PyType_GenericNew}` is the canonical **bypassable** wiring and is
+  in the scanner's own `_INHERITED_NEW`; `Py_TPFLAGS_DISALLOW_INSTANTIATION` on
+  one type also killed every sibling in the file. **21 of the 58 slot tables
+  carrying a `Py_tp_init` tree-wide** were silenced. Replaced with per-slot-table
+  pairing (`_spec_bypassable_inits`, mirroring the positional form, and
+  inspecting the whole enclosing initializer because a `PyType_Slot[]` may list
+  `Py_tp_new` before `Py_tp_init`), consulting the referencing `PyType_Spec` for
+  the disallow flag. `Modules/` **24 → 26** findings / 103 → 123 nullable fields
+  / 10 → 13 files; `Objects/` and `Python/` **bit-identical**. The two new
+  findings are `Modules/_asynciomodule.c:2788` — a reproduced SIGSEGV
+  (`_asyncio.Task.__new__(_asyncio.Task).get_context()`, exit 139 on all four
+  build variants, guarded twins `get_coro:2774` and `get_name:2808` immediately
+  around it) — and one known-class interprocedural FP at `_pickle.c:1103`.
+- **`scan_recursion_guards.py`: the `PyObject_Hash` alias was invisible, and the
+  `*_getstate` idiom was mis-rated.** `_PyObject_HashDictKey`
+  (`pycore_object.h:840`) is a `Py_ALWAYS_INLINE` wrapper whose tail is
+  `return PyObject_Hash(op);` — **27 call sites tree-wide** were unreachable,
+  8+ in `Objects/dictobject.c` plus `Modules/_collectionsmodule.c:2592`
+  (`collections.Counter`, a confirmed ASan stack overflow). Added to the
+  vocabulary; `Objects/` `missing_recursion_guard` 27 → 43, every new site
+  correctly self-rated `low` `hash_entry_point`. A `bound_zero_excluded` set
+  (`PyObject_GenericHash` / `Py_HashPointer` / `Py_HashBuffer`) now records the
+  deliberate exclusions in the envelope. Separately, `_TEMP_CTOR_RE` now
+  survives one hop into a file-local `return <ctor>(...)` helper, and a
+  `Py_BuildValue` whose format holds no object codes is bound-**0** — which
+  retires the `delta_hash` false positive (`delta_getstate` is
+  `Py_BuildValue("iii", ...)`) without touching the correctly-bounded
+  `time_hash` / `datetime_hash` / `deque_richcompare` dismissals or the one true
+  positive, `Modules/_sqlite/row.c` (SIGSEGV at depth 400 000, sites `:235` and
+  the load-bearing `:239`).
+- **`scan_uninit_dealloc.py`: `tp_alloc` was assumed to zero.** It only does when
+  it *resolves* to a zeroing allocator. `Modules/_datetimemodule.c` installs
+  `time_alloc` (`:879`) and `datetime_alloc` (`:891`) — `PyObject_Malloc` +
+  `_PyObject_Init`, no `memset` — and the file's own comment says "All data
+  members remain uninitialized trash". The scanner now resolves the slot
+  (`_nonzeroing_tp_allocs`) and treats `->tp_alloc(...)` as non-zeroing in a file
+  that installs one. Those two are the only in-tree instances; there is no live
+  bug behind them today and finding counts are **unchanged** on `Objects/`,
+  `Modules/` and `Python/`.
+
+### Added — two recall gaps closed in `scan_refcounts.py`
+
+The `borrowed_ref_across_call` hazard model counted **releases only**
+(`if not releases: continue`), so a borrowed value that *escapes via `return`*
+or is *dereferenced/called* was never a hazard. Three ASan-confirmed
+heap-use-after-frees sat behind that one line. Measured over `Objects/` +
+`Modules/` + `Python/` at CPython main `4f3be1b5777`; existing rules unchanged
+(`borrowed_ref_across_call` still fires exactly on `itertoolsmodule.c:3988` and
+`:4018`).
+
+- **`slot_transfer_across_call`** — `local = obj->fld` … Python-reaching call …
+  `obj->fld = <new>` … `return local`. The "we'll either return it or keep it in
+  the slot" transfer idiom performed across a re-entrancy window, so a
+  re-entrant call performing the same transfer leaves two owners for one
+  reference. **1 finding tree-wide, 1 true positive**:
+  `Modules/itertoolsmodule.c:3633` `count_nextlong` (reproduced: ASan
+  heap-use-after-free, the freed counter recycled as a `dict`). The ordering
+  gate — the slot overwrite must come *after* the call — suppresses
+  `Modules/_tkinter.c` `TimerHandler`.
+- **`stale_slot_use`** — `local = obj->fld` … Python-reaching call …
+  `Py_CLEAR(obj->fld)` reachable … `local` **dereferenced or called**. Worse
+  than a double-DECREF: `slot_tp_iternext` reads `Py_TYPE(self)` out of the
+  freed block. **2 findings tree-wide, both reproduced ASan
+  heap-use-after-frees**: `Modules/itertoolsmodule.c:210` `batched_next` and
+  `:1711` `islice_next`. (`Objects/iterobject.c:80` also matches but is
+  suppressed as a duplicate of the narrower `stale_slot_decref`, which names the
+  exact fix.) Three gates carry the precision: a clear that *precedes* the first
+  Python-reaching call is a completed ownership transfer
+  (`Modules/_elementtree.c` `elementiter_next`); a local re-read from the slot
+  after the call is the guarded twin (`pairwise_next:364`); and
+  `_reassigned_before`.
+- Both rules required two new primitives. **Runtime type-slot dispatch is
+  Python-reaching**: `iternext = *Py_TYPE(x)->tp_iternext; … iternext(x)` and
+  the inline `(*Py_TYPE(x)->tp_iternext)(x)` form are invisible to a name table,
+  and without them `batched_next`/`islice_next` stay invisible even after the
+  hazard set is widened. A *statically named* type (`PyUnicode_Type.tp_hash`) is
+  deliberately not matched. **Loop-carried exposure**: in `batched_next` the
+  borrowed local appears once textually, and the danger is that iteration N+1's
+  use follows iteration N's call, so the search window widens to the end of the
+  enclosing loop.
+- **New false-positive class, encoded and documented: type-constrained
+  operand.** `Objects/enumobject.c:196` `increment_longindex_lock_held` is a
+  structural clone of `count_nextlong` — comment text and all — and is *safe*,
+  because `en->one` is `_PyLong_GetOne()` and `en_longindex` is only ever a
+  `PyLong`, so `PyNumber_Add` resolves to `long_add` and no user code runs. The
+  discriminator: a parameter counts as type-pinned only when the function
+  coerces it through an int-producing conversion **of itself**
+  (`start = PyNumber_Index(start)`), not when it merely receives a default
+  (`long_step = _PyLong_GetOne()`) — which is exactly why `count`'s untyped
+  slow-path step is *not* pinned.
+- `data/cpython_non_bugs.md` gains that class plus a carve-out from "borrowed
+  ref under a known-live owner": **a raw `PyMem_Malloc` buffer hanging off a
+  live object is not protected by its owner** (`_struct.c` `s_codes`,
+  `_zoneinfo.c`'s `StrongCacheNode` chain, `_elementtree.c`'s `extra` — three
+  reproduced crashes the taxonomy previously argued for dismissing).
+
+### Fixed — `scan_ft_races.py` T1 dropped real findings and is retargeted
+
+- **T1 emitted one finding per *field name* per file, not per site**
+  (`reported: set[str]` in `_check_t1`), and paired accesses by bare member name
+  with no struct resolution. Measured cost, twice in one run: `itertoolsmodule.c`
+  reported `isliceobject.cnt` and **discarded `count_repr:3680`** — TSAN-0006,
+  the run's own calibration entry — and `_collectionsmodule.c` collapsed 13
+  `counter` accesses to the single provably-safe constructor write. *(The shared
+  `deduplicate_findings` was not the cause: its key is already
+  `(type, file, line)`.)* T1 now emits **one finding per unsynchronised site**
+  and pairs by the receiver's declared struct type, so `member` reads
+  `Type.field`.
+- **Retargeted at "guarded writer / unguarded reader of the same field"**, which
+  is the actual shape of every catalogued instance — gh-153298 (`ga_parameters`
+  / CPY-0025), gh-128714 (`func.__annotations__` / CPY-0029), gh-153908
+  (`count_repr`). New type `guarded_writer_unguarded_reader`; a plain **pointer**
+  read is ranked above a scalar one (`medium` vs `low`) because a stale pointer
+  handed to `PyObject_Repr` is a use-after-free an atomic load cannot fix.
+  `atomic_plain_asymmetry` is kept for the atomic-twin case and gains the
+  **mixed-discipline** polarity: an atomic *reader* outside any lock racing a
+  plain *writer* under a critical section (`_collectionsmodule.c`
+  `dequeiter_len:2049` vs `dequeiter_next_lock_held:1986`, reproduced under
+  TSan).
+- **The pre-publication suppression is wired into T1** and widened: the
+  `_INITIALIZER_NAME_RE` name test, a receiver assigned from `tp_alloc` /
+  `PyType_GenericAlloc` (the `_ALLOCATOR_CALL_RE` did not match
+  `type->tp_alloc(...)`, so every constructor's stores looked shared),
+  module-exec / `PyInit_*`, `initialize`-spelled constructors, the
+  destructor/teardown family, `PyType_Ready` slot inheritance, fork-child and
+  assert-only checkers, and sentinel stores with no prior read. A guarded write
+  into a freshly allocated object no longer counts as a guarded *twin* either
+  (`deque_copy_impl`, `deque_iter`).
+- **Three new lock-recognition paths**, each a measured false-positive class:
+  Argument Clinic `@critical_section` (the lock is emitted into
+  `clinic/<file>.c.h`, so the `_impl` looked entirely unsynchronised — the
+  single largest FP class), SCREAMING_CASE lock macros (`LOCK_WEAKREFS`), and a
+  **transitive** one-hop-and-beyond caller check: `count_nextlong` takes no lock
+  and is not named `*_lock_held`, but its only free-threaded caller wraps it in
+  `Py_BEGIN_CRITICAL_SECTION(lz)`. Chains matter — `_io/textio.c` reaches
+  `_textiowrapper_writeflush` only through clinic-guarded impls.
+- **An asymmetry cap** (≤4 unsynchronised sites across ≤2 functions per field)
+  keeps the rule on the incomplete-fix shape it exists to find. Without it the
+  retarget emits ~1,100 findings tree-wide; a field with a dozen unguarded
+  accessors is an un-hardened module (the `_pickle.c` case) and belongs in one
+  POLICY finding, not N FIXes.
+- Net effect on `Objects/` + `Modules/` + `Python/`: **180 → 206 findings**
+  (T1 113 → 141, per-site instead of per-field), line accuracy **92.8% → 98.1%**,
+  runtime 27s → 12s. All eight must-catch sites are present, including the two
+  the collapse had been discarding (`itertoolsmodule.c:3678`/`:3680`,
+  `_collectionsmodule.c:1986`).
+
+### Changed
+- `data/cpython_non_bugs.md`: the "Zeroing allocator" entry amended — `tp_alloc`
+  removed from the unconditionally-zeroing list, with the `_datetimemodule.c`
+  counterexample recorded, and a cross-reference added to the allocator section
+  noting that *raising* and *zeroing* are separate questions.
+- Agent prompts updated for each rule above. `refcount-auditor.md` gains a
+  standing note mirroring `scan_init_bypass`'s canary: **check the denominator,
+  not the finding count, before reporting a clean negative.**
+
+Tests: **556 → 633.**
+
 ## [0.8.0] - 2026-07-24
 
 The **correctness release**. A full `informed-explore` run over a 14-file

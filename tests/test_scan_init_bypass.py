@@ -690,5 +690,130 @@ class TestScanInitBypass(unittest.TestCase):
         self.assertEqual(earned["findings"], [])
 
 
+class TestSpecSlotTablePairing(unittest.TestCase):
+    """The PyType_Spec form pairs tp_init with the tp_new of its OWN table.
+
+    Regression for the whole-file kill switch: `_TP_NEW_TOKENS_RE` disabled the
+    new_bypass signal for an entire file as soon as the token `Py_tp_new`
+    appeared anywhere in it — even though `{Py_tp_new, PyType_GenericNew}` is
+    the canonical *bypassable* wiring. 21 of the 58 slot tables carrying a
+    Py_tp_init tree-wide (36%) were silenced, including
+    Modules/_asynciomodule.c Task_slots, whose
+    `_asyncio.Task.__new__(_asyncio.Task).get_context()` is a reproduced
+    SIGSEGV (exit 139 on all four build variants).
+    """
+
+    def setUp(self):
+        self.mod = import_script("scan_init_bypass")
+
+    def _findings(self, files):
+        with TempProject(files) as root:
+            return self.mod.analyze(str(root))
+
+    # The _asynciomodule.c Task shape, reduced.
+    _TASK = """\
+#include "Python.h"
+
+typedef struct {
+    PyObject_HEAD
+    PyObject *task_context;
+    PyObject *task_coro;
+} TaskObj;
+
+static int
+_asyncio_Task___init___impl(TaskObj *self, PyObject *ctx, PyObject *coro)
+{
+    self->task_context = Py_NewRef(ctx);
+    self->task_coro = Py_NewRef(coro);
+    return 0;
+}
+
+static PyObject *
+_asyncio_Task_get_context_impl(TaskObj *self)
+{
+    return Py_NewRef(self->task_context);
+}
+
+static PyObject *
+_asyncio_Task_get_coro_impl(TaskObj *self)
+{
+    if (self->task_coro) {
+        return Py_NewRef(self->task_coro);
+    }
+    Py_RETURN_NONE;
+}
+
+static PyType_Slot Task_slots[] = {
+    {Py_tp_doc, (void *)_asyncio_Task___init____doc__},
+    {Py_tp_init, _asyncio_Task___init__},
+    {Py_tp_new, PyType_GenericNew},
+    {0, 0},
+};
+
+static PyType_Spec Task_spec = {
+    .name = "_asyncio.Task",
+    .basicsize = sizeof(TaskObj),
+    .flags = (Py_TPFLAGS_DEFAULT | Py_TPFLAGS_BASETYPE),
+    .slots = Task_slots,
+};
+"""
+
+    def test_true_positive_generic_new_does_not_protect(self):
+        result = self._findings({"Modules/_asynciomodule.c": self._TASK})
+        got = [
+            (f["function"], f["field"], f["reason"]) for f in result["findings"]
+        ]
+        self.assertIn(
+            ("_asyncio_Task_get_context_impl", "task_context", "new_bypass"), got
+        )
+        # The guarded twin two functions away must NOT be reported.
+        self.assertNotIn(
+            "_asyncio_Task_get_coro_impl", [f["function"] for f in result["findings"]]
+        )
+
+    def test_true_negative_real_tp_new_in_the_same_table(self):
+        src = self._TASK.replace(
+            "{Py_tp_new, PyType_GenericNew},", "{Py_tp_new, Task_new},"
+        )
+        result = self._findings({"Modules/_asynciomodule.c": src})
+        self.assertEqual(
+            [f for f in result["findings"] if f["reason"] == "new_bypass"], []
+        )
+
+    def test_sibling_type_with_a_real_tp_new_does_not_silence_this_one(self):
+        """CPython edge: one file, two types. The kill switch keyed on the
+        token, so a sibling's `{Py_tp_new, Other_new}` hid every other type in
+        the file — descrobject.c's mappingproxy hid property, and the seven
+        _ctypes metatypes hid each other."""
+        sibling = """
+static PyType_Slot Other_slots[] = {
+    {Py_tp_new, Other_new},
+    {0, 0},
+};
+
+static PyType_Spec Other_spec = {
+    .name = "_asyncio.Other",
+    .slots = Other_slots,
+};
+"""
+        result = self._findings(
+            {"Modules/_asynciomodule.c": self._TASK + sibling}
+        )
+        self.assertIn(
+            "_asyncio_Task_get_context_impl",
+            [f["function"] for f in result["findings"]],
+        )
+
+    def test_disallow_instantiation_on_the_referencing_spec_protects(self):
+        src = self._TASK.replace(
+            "Py_TPFLAGS_DEFAULT | Py_TPFLAGS_BASETYPE",
+            "Py_TPFLAGS_DEFAULT | Py_TPFLAGS_DISALLOW_INSTANTIATION",
+        )
+        result = self._findings({"Modules/_asynciomodule.c": src})
+        self.assertEqual(
+            [f for f in result["findings"] if f["reason"] == "new_bypass"], []
+        )
+
+
 if __name__ == "__main__":
     unittest.main()

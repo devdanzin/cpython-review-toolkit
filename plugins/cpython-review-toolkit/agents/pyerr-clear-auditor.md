@@ -41,6 +41,13 @@ Three finding types:
 
 Other fields: `slot` (destructor rule only), `failing_call` (rule 3), `enclosing_conditions` (rule 2 — the conditions the scanner proved do *not* test an error).
 
+**The re-raise gate means opposite things for rule 2 and rule 3, and that is deliberate.**
+
+* **Rule 2** (nothing dominating the clear tests an error): a following `PyErr_Set*` / `PyErr_Format` suppresses. The function is a deliberate *replacer* — `Python/errors.c` `_PyErr_SetKeyError` (:264) and `_PyErr_FormatV` (:1216), and `Modules/_io/bufferedio.c` `_set_BlockingIOError` (:759) all clear first precisely because the API that builds the replacement must not run with an exception set, and each says so in a comment.
+* **Rule 3** (the clear sits in the failure branch of a call that ran arbitrary Python): a bare `PyErr_SetString(PyExc_ValueError, "...")` **does not** suppress. Substituting a fixed, less specific exception for whatever the user's `__index__`/`__hash__` raised — and dropping the context chain with it — *is* the bug. Only an information-preserving re-raise (restore / chain / `PyErr_SetFromErrno*`) exonerates. Treating any `PyErr_Set*` as a mitigation inverted the rule and lost 3 of the 4 true positives in `Modules/itertoolsmodule.c` `islice_new`.
+
+**A bare `PyErr_Occurred()` probe is not a branch of its own.** `if (stop == -1) { if (PyErr_Occurred()) PyErr_Clear(); }` — the innermost condition names no failing call because it is a nested re-test of the *same* failure the next condition out tested, so rule 3 walks one level outward. It stops as soon as a condition tests something different (`if (module) { ... }`), which is what keeps the wrong-polarity-attribution FP class suppressed. Without this, `islice_new:1613` and `:1629` were dropped even with the re-raise gate fixed.
+
 Envelope extras: `destructor_functions`, `total_pyerr_clear_calls`, `total_pyerr_clear_calls_in_destructors`. Use them to state coverage: "N clears examined, M flagged".
 
 **Overlap with `scan_error_paths.py`.** That scanner carries an `unconditional_pyerr_clear` rule that can also fire on a non-destructor clear. The gates differ, so both may report the same line. Dedupe across scanners by `(file, line)` and report the site once.

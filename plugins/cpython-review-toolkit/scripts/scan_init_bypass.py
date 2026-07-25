@@ -146,12 +146,16 @@ _TP_INIT_SLOT_RE = re.compile(r"\bPy_tp_init\s*,\s*(?:&\s*)?(\w+)")
 _TP_INIT_DESIG_RE = re.compile(
     r"\.tp_init\s*=\s*(?:\(\s*[\w\s\*]+\)\s*)?(?:&\s*)?(\w+)"
 )
-# Any of these tokens means the type controls instantiation itself (a real
-# tp_new, or an explicit disallow) — the __new__-bypass reasoning does not apply,
-# so we conservatively disable the *spec/designated* bypass signal for the whole
-# file. The positional form below does per-type-block pairing instead and is not
-# subject to this whole-file kill switch.
-_TP_NEW_TOKENS_RE = re.compile(r"\bPy_tp_new\b|\.tp_new\s*=|\bDISALLOW_INSTANTIATION\b")
+# tp_new wiring, PyType_Slot form. Paired with Py_tp_init *within one slot
+# table*; a whole-file token search is not a substitute, because
+# ``{Py_tp_new, PyType_GenericNew}`` is itself bypassable and
+# ``Py_TPFLAGS_DISALLOW_INSTANTIATION`` on one type in a file says nothing about
+# its siblings.
+_TP_NEW_SLOT_RE = re.compile(r"\bPy_tp_new\s*,\s*(?:&\s*)?\(?\s*(\w+)")
+# The PyType_Spec that a slot array belongs to carries the type's flags.
+_TYPE_SPEC_DECL_RE = re.compile(r"\bPyType_Spec\s+\w+\s*(?:\[[^\]]*\])?\s*=\s*\{")
+# Name of the slot array a table declaration introduces.
+_SLOT_ARRAY_DECL_RE = re.compile(r"\bPyType_Slot\s+(\w+)\s*\[")
 
 # Positional static-``PyTypeObject`` slot table — the dominant form in Objects/
 # and Python/. The trailing slot comment is the *only* marker, so these must be
@@ -346,6 +350,80 @@ def _positional_bypassable_inits(source: str) -> list[str]:
     return result
 
 
+def _enclosing_initializer(clean: str, pos: int) -> tuple[int, int]:
+    """Bounds of the top-level ``... = { ... };`` block containing ``pos``.
+
+    CPython formats file-scope initializers with the closing ``};`` in column 0
+    (the convention ``_BLOCK_END_RE`` already relies on), so the previous and
+    next such markers bracket exactly one slot table / PyTypeObject.
+    """
+    start = 0
+    for m in _BLOCK_END_RE.finditer(clean, 0, pos):
+        start = m.end()
+    end_m = _BLOCK_END_RE.search(clean, pos)
+    return start, end_m.end() if end_m is not None else len(clean)
+
+
+def _disallowing_slot_arrays(clean: str) -> set[str]:
+    """Slot arrays whose ``PyType_Spec`` sets ``DISALLOW_INSTANTIATION``.
+
+    The flag lives on the spec, not on the slot table, so a table that looks
+    bypassable in isolation may still be protected.
+    """
+    protected: set[str] = set()
+    for m in _TYPE_SPEC_DECL_RE.finditer(clean):
+        start, end = _enclosing_initializer(clean, m.start())
+        block = clean[start:end]
+        if "DISALLOW_INSTANTIATION" not in block:
+            continue
+        for name in re.findall(r"\.\s*slots\s*=\s*(?:&\s*)?(\w+)", block):
+            protected.add(name)
+    return protected
+
+
+def _spec_bypassable_inits(clean: str) -> list[str]:
+    """``Py_tp_init`` / ``.tp_init`` values whose own slot table has no real tp_new.
+
+    Mirrors :func:`_positional_bypassable_inits` for the ``PyType_Spec`` and
+    designated-``PyTypeObject`` forms.  This replaced a whole-file kill switch
+    (``_TP_NEW_TOKENS_RE``) that disabled the ``new_bypass`` signal for an
+    entire file as soon as the token ``Py_tp_new`` appeared anywhere in it —
+    even though ``{Py_tp_new, PyType_GenericNew}`` is the *canonical bypassable*
+    wiring and is already in ``_INHERITED_NEW``.  Measured at 3.16.0a0: 21 of
+    the 58 slot tables carrying a ``Py_tp_init`` tree-wide (36%) were silenced
+    by it, including ``_asynciomodule.c`` ``Task_slots``, whose
+    ``_asyncio_Task_get_context_impl`` is a reproduced SIGSEGV.
+
+    Unlike the positional form, a ``PyType_Slot[]`` may list ``Py_tp_new``
+    *before* ``Py_tp_init``, so the whole enclosing initializer is inspected
+    rather than a forward window.
+    """
+    protected_arrays = _disallowing_slot_arrays(clean)
+    result: list[str] = []
+    inits = list(_TP_INIT_SLOT_RE.finditer(clean)) + list(
+        _TP_INIT_DESIG_RE.finditer(clean)
+    )
+    for m in inits:
+        init_value = m.group(1)
+        if init_value in ("0", "NULL"):
+            continue
+        start, end = _enclosing_initializer(clean, m.start())
+        block = clean[start:end]
+        if "DISALLOW_INSTANTIATION" in block:
+            continue
+        decl = _SLOT_ARRAY_DECL_RE.search(block)
+        if decl is not None and decl.group(1) in protected_arrays:
+            continue
+        new_values = (
+            _TP_NEW_SLOT_RE.findall(block)
+            + _TP_NEW_DESIG_VAL_RE.findall(block)
+        )
+        if any(v not in _INHERITED_NEW for v in new_values):
+            continue
+        result.append(init_value)
+    return result
+
+
 def _nullable_getset_fields(clean: str, functions: list[dict]) -> set[str]:
     """Return fields written by a ``PyGetSetDef`` setter that accepts deletion.
 
@@ -447,13 +525,9 @@ def _collect_nullable_fields(source: str, functions: list[dict]) -> dict[str, se
     for field in _nullable_getset_fields(clean, functions):
         nullable[field].add("deletable_getset")
 
-    # (3) __new__ / subclass bypass. The spec/designated forms keep the coarse
-    # whole-file kill switch (a tp_new token anywhere disables them); the
-    # positional form does precise per-type-block pairing instead.
-    init_names: set[str] = set()
-    if not _TP_NEW_TOKENS_RE.search(clean):
-        init_names |= set(_TP_INIT_SLOT_RE.findall(clean))
-        init_names |= set(_TP_INIT_DESIG_RE.findall(clean))
+    # (3) __new__ / subclass bypass. All three slot-table forms now pair
+    # tp_init with the tp_new of the *same* table.
+    init_names: set[str] = set(_spec_bypassable_inits(clean))
     init_names |= set(_positional_bypassable_inits(source))
     if not init_names:
         return nullable

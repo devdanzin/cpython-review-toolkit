@@ -650,5 +650,130 @@ class TestScanUninitDealloc(unittest.TestCase):
             self.assertIn(key, result)
 
 
+class TestResolvedTpAlloc(unittest.TestCase):
+    """`type->tp_alloc(...)` is only zeroing when it *resolves* to a zeroing
+    allocator. Modules/_datetimemodule.c installs `time_alloc` (:879) and
+    `datetime_alloc` (:891) — PyObject_Malloc + _PyObject_Init, no memset —
+    and says so itself: "All data members remain uninitialized trash"."""
+
+    def setUp(self):
+        self.mod = import_script("scan_uninit_dealloc")
+
+    def _findings(self, files):
+        with TempProject(files) as root:
+            return self.mod.analyze(str(root))
+
+    def _uninit(self, files):
+        return [
+            f
+            for f in self._findings(files)["findings"]
+            if f["type"] == "dealloc_of_uninitialized_object"
+        ]
+
+    _DEALLOC = (
+        "static void\n"
+        "time_dealloc(PyObject *op)\n"
+        "{\n"
+        "    PyDateTime_Time *self = (PyDateTime_Time *)op;\n"
+        "    Py_XDECREF(self->tzinfo);\n"
+        "    Py_TYPE(self)->tp_free(op);\n"
+        "}\n"
+    )
+
+    _NON_ZEROING_ALLOC = (
+        "static PyObject *\n"
+        "time_alloc(PyTypeObject *type, Py_ssize_t aware)\n"
+        "{\n"
+        "    size_t size = aware ? sizeof(PyDateTime_Time) : 8;\n"
+        "    PyObject *self = (PyObject *)PyObject_Malloc(size);\n"
+        "    if (self == NULL) {\n"
+        "        return PyErr_NoMemory();\n"
+        "    }\n"
+        "    _PyObject_Init(self, type);\n"
+        "    return self;\n"
+        "}\n"
+        "\n"
+        "static PyTypeObject Time_Type = {\n"
+        "    PyVarObject_HEAD_INIT(NULL, 0)\n"
+        '    "time",\n'
+        "    0,                                  /* tp_dealloc */\n"
+        "    time_alloc,                         /* tp_alloc */\n"
+        "};\n"
+    )
+
+    _CTOR = (
+        "static PyObject *\n"
+        "new_time(PyTypeObject *type, PyObject *tzinfo)\n"
+        "{\n"
+        "    PyDateTime_Time *self;\n"
+        "    self = (PyDateTime_Time *)(type->tp_alloc(type, 1));\n"
+        "    if (self == NULL) {\n"
+        "        return NULL;\n"
+        "    }\n"
+        "    if (check_tzinfo(tzinfo) < 0) {\n"
+        "        Py_DECREF(self);\n"
+        "        return NULL;\n"
+        "    }\n"
+        "    self->tzinfo = Py_NewRef(tzinfo);\n"
+        "    return (PyObject *)self;\n"
+        "}\n"
+    )
+
+    def test_local_non_zeroing_tp_alloc_is_resolved(self):
+        findings = self._uninit(
+            {
+                "Modules/_datetimemodule.c": self._NON_ZEROING_ALLOC
+                + "\n"
+                + self._CTOR
+                + "\n"
+                + self._DEALLOC
+            }
+        )
+        self.assertEqual(len(findings), 1)
+        self.assertEqual(findings[0]["function"], "new_time")
+        self.assertEqual(findings[0]["allocator"], "tp_alloc")
+        self.assertEqual(findings[0]["unset_members"], ["tzinfo"])
+
+    def test_zeroing_tp_alloc_stays_silent(self):
+        """The guarded twin: the same constructor in a file whose tp_alloc is
+        PyType_GenericAlloc. `type->tp_alloc` then really does zero."""
+        generic = (
+            "static PyTypeObject Time_Type = {\n"
+            "    PyVarObject_HEAD_INIT(NULL, 0)\n"
+            '    "time",\n'
+            "    0,                                  /* tp_dealloc */\n"
+            "    PyType_GenericAlloc,                /* tp_alloc */\n"
+            "};\n"
+        )
+        findings = self._uninit(
+            {"Modules/t.c": generic + "\n" + self._CTOR + "\n" + self._DEALLOC}
+        )
+        self.assertEqual(findings, [])
+
+    def test_memsetting_allocfunc_is_not_treated_as_non_zeroing(self):
+        """CPython edge: a hand-written allocfunc that *does* zero. Only the
+        shape 'raw storage, never memset' counts."""
+        zeroing = self._NON_ZEROING_ALLOC.replace(
+            "    _PyObject_Init(self, type);\n",
+            "    memset(self, 0, size);\n    _PyObject_Init(self, type);\n",
+        )
+        findings = self._uninit(
+            {"Modules/t.c": zeroing + "\n" + self._CTOR + "\n" + self._DEALLOC}
+        )
+        self.assertEqual(findings, [])
+
+    def test_unregistered_helper_named_alloc_is_not_a_tp_alloc(self):
+        """Resolve the slot, do not trust the name: a file-local helper called
+        `*_alloc` that no type installs is not a tp_alloc."""
+        unregistered = self._NON_ZEROING_ALLOC.replace(
+            "    time_alloc,                         /* tp_alloc */\n",
+            "    PyType_GenericAlloc,                /* tp_alloc */\n",
+        )
+        findings = self._uninit(
+            {"Modules/t.c": unregistered + "\n" + self._CTOR + "\n" + self._DEALLOC}
+        )
+        self.assertEqual(findings, [])
+
+
 if __name__ == "__main__":
     unittest.main()

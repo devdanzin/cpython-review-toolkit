@@ -59,9 +59,26 @@ is different. Add to this file whenever a review confirms a new FP class.
 
 ## Uninitialized dealloc
 
-- **Zeroing allocator.** `type->tp_alloc(type, n)` / `PyType_GenericAlloc` /
+- **Zeroing allocator.** `PyType_GenericAlloc` / `_PyType_AllocNoTrack` /
   `*_GC_Calloc` zero the object; a following early free is safe. The scanner
   excludes these, but a wrapper macro may hide one.
+- **`type->tp_alloc(type, n)` is NOT unconditionally zeroing** — *amended
+  2026-07-25*. An earlier draft of this entry listed `tp_alloc` alongside
+  `PyType_GenericAlloc` as if the slot always zeroed. It does not: a type may
+  install its own `allocfunc`. `Modules/_datetimemodule.c` installs two —
+  `time_alloc` (`:879`, wired positionally at `:5382`) and `datetime_alloc`
+  (`:891`, at `:7349`) — both `PyObject_Malloc` + `_PyObject_Init` with no
+  `memset`, and the file's own comment (`:861-862`) says so: *"All data members
+  remain uninitialized trash."* `time_dealloc`/`datetime_dealloc` then `switch`
+  on the scalar `hastzinfo` to decide whether to `Py_XDECREF(self->tzinfo)` —
+  the blake2 `impl` shape (gh-152851) exactly. **There is no live bug there
+  today**: all nine `tp_alloc` call sites in that file set `hastzinfo` in the
+  statement immediately after the allocation. But *resolve the slot* before
+  dismissing on this ground; do not dismiss on the spelling. Tree-wide at
+  3.16.0a0 these are the only two non-zeroing `tp_alloc`s (`bytes_alloc`,
+  `_PyType_AllocNoTrack` and `PyType_GenericAlloc` all zero), and
+  `scan_uninit_dealloc.py` now detects them mechanically
+  (`_nonzeroing_tp_allocs`).
 - **`tp_dealloc` guards each member with `Py_XDECREF`** *and* the members were
   NULL-initialized before the failing step — Py_XDECREF(NULL) is a no-op, so no
   crash. Only a member left as *garbage* (not NULL) at the free point is a bug.
@@ -159,7 +176,10 @@ hand meets the same shapes.
 ## Allocators — who owes the `MemoryError`
 
 - **Allocators that raise for you.** `PyObject_New` / `PyObject_NewVar` /
-  `PyObject_GC_New` / `PyObject_GC_NewVar` / `PyType_GenericAlloc` / `tp_alloc`,
+  `PyObject_GC_New` / `PyObject_GC_NewVar` / `PyType_GenericAlloc` / `tp_alloc`
+  (which raises even in the hand-written non-zeroing form — `time_alloc`
+  returns `PyErr_NoMemory()`; *raising* and *zeroing* are separate questions,
+  see the Uninitialized-dealloc section),
   and the object constructors (`PyList_New`, `PyTuple_New`, `PyDict_New`, ...)
   set `MemoryError` themselves. A failure branch that just returns the sentinel
   after one of these is correct.
@@ -397,3 +417,103 @@ listed here because the same shapes will fool a human reading code.
 - **Some markers only exist in string literals.** `_ctypes`' re-init guard is
   the message `"StgInfo of '%s' is already initialized."`. A guard check run
   against comment-and-string-stripped source cannot see it.
+
+## Refcounts — the escape / deref hazards (v0.9, `slot_transfer_across_call` and `stale_slot_use`)
+
+- **Type-constrained operand makes a protocol call non-Python-reaching.**
+  `PyNumber_Add` / `PyObject_RichCompare` / `PyObject_Hash` are all in
+  `PYTHON_REACHING_APIS`, but if *every* operand is provably of a concrete
+  builtin type for the lifetime of the field, the dispatch resolves to a C slot
+  and no user code runs. `Objects/enumobject.c:196`
+  `increment_longindex_lock_held` is the exemplar: `en->one` is
+  `_PyLong_GetOne()` and `en_longindex` is only ever a `PyLong` (it arrives via
+  `start = PyNumber_Index(start)`), so borrowing across `PyNumber_Add` is safe.
+  This is the numeric-protocol analogue of the existing "statically-known type
+  slot" entry.
+  **Do not generalise it.** The sibling `Modules/itertoolsmodule.c`
+  `count_nextlong` is textually identical — same transfer idiom, same comment
+  wording — and *is* a reproduced heap-use-after-free, because `lz->long_step`
+  comes from a constructor parameter that is only `PyLong_Check`-ed on the
+  `fast_mode` path while `count_nextlong` is the *slow* path. The discriminator
+  the scanner encodes: a parameter counts as type-pinned only when the function
+  coerces it through an int-producing conversion **of itself**
+  (`start = PyNumber_Index(start)`); receiving a default
+  (`long_step = _PyLong_GetOne()`) proves nothing about what the caller passed.
+
+- **A completed ownership transfer is not a stale borrow.** `func = v->func;
+  v->func = NULL; PyObject_CallNoArgs(func);` (`Modules/_tkinter.c`
+  `TimerHandler`) and `elem = it->root_element; /* steals a reference */
+  it->root_element = NULL;` (`Modules/_elementtree.c` `elementiter_next`) clear
+  the slot *before* anything can run Python, so the local is the legitimate
+  sole owner. Only a clear a re-entrant call could reach — one at or after the
+  first Python-reaching call — is dangerous.
+
+- **A re-read of the slot after the call is the guarded twin.**
+  `Modules/itertoolsmodule.c` `pairwise_next:364` calls
+  `(*Py_TYPE(it)->tp_iternext)(it)`, then re-reads `it = po->it` and returns on
+  NULL. A local that is re-loaded from its slot cannot be stale.
+
+- **`#ifdef Py_GIL_DISABLED` asymmetry is a promotion signal, not a
+  suppression.** The "never reason across a `#if`/`#else`" rule is about
+  reasoning *across* arms. In `batched_next` the `Py_CLEAR(bo->it)` calls and
+  the dangerous `iternext(it)` compile into the *same* (default, GIL) build;
+  the `#ifndef Py_GIL_DISABLED` only tells you the bug is GIL-build-only — and
+  the free-threaded arm is the fix. Report per-configuration, and treat "one
+  arm guards, the other does not" as evidence *for* the finding.
+
+- **A raw `PyMem_Malloc` buffer hanging off a live object is NOT protected by
+  its owner** — a carve-out from the "borrowed ref under a known-live owner"
+  entry above. That rule says "a *strong reference* is provably held for the
+  duration"; a strong reference to the *container* says nothing about a
+  refcount-less block hanging off it, which an ordinary method on the live
+  receiver is free to `PyMem_Free`. Three reproduced instances:
+  `Modules/_struct.c` `s_codes` (freed by `Struct.__init__` → `prepare_s`
+  under an in-flight `pack`/`unpack`), `Modules/_zoneinfo.c`'s
+  `StrongCacheNode` chain (freed by `ZoneInfo.clear_cache()` from inside a
+  user `__eq__`), and `Modules/_elementtree.c`'s `extra`. None of the three is
+  reachable by the scanner's rules — they walk the buffer with pointer
+  arithmetic rather than caching it into one local — so this entry exists to
+  stop a reader dismissing them.
+
+## Free-threading — field synchronisation asymmetry (v0.9, T1 retarget)
+
+Every entry was a measured false positive of the per-site T1 rule on CPython
+main @ 3.16.0a0 and is now gated in the scanner.
+
+- **The lock is in the Argument Clinic wrapper.** `@critical_section` in a
+  `/*[clinic input]*/` block emits `Py_BEGIN_CRITICAL_SECTION` into
+  `<dir>/clinic/<file>.c.h`, so the `_impl` body looks completely
+  unsynchronised while every access in it runs under a per-object lock. This
+  was the single largest FP class of the retargeted rule (`Modules/_io/`,
+  `Modules/_collectionsmodule.c`).
+- **The caller holds the section, transitively.** `count_nextlong`
+  (`Modules/itertoolsmodule.c`) is not named `*_lock_held` and takes no lock,
+  but its only free-threaded caller wraps it in `Py_BEGIN_CRITICAL_SECTION(lz)`.
+  Chains are longer than one hop: `Modules/_io/textio.c` reaches
+  `_textiowrapper_writeflush` from `textiowrapper_read_chunk`, itself reached
+  only from clinic-guarded impls.
+- **The lock is a macro.** `LOCK_WEAKREFS(obj)` / `UNLOCK_WEAKREFS_FOR_WR(self)`
+  (`Include/internal/pycore_weakref.h`) expand to a critical section, and the
+  `#define` is not in the `.c` file being scanned.
+- **A by-value aggregate is never shared.** `WFILE wf;` in `Python/marshal.c`,
+  `struct worklist` and `gc_mark_args_t` in `Python/gc_free_threading.c`: the
+  caller owns it on its stack and passes `&wf`, so `p->buf` cannot race.
+- **Teardown, fork-child and assert-only paths.** `_Py_qsbr_after_fork` runs in
+  the single-threaded child; `_PyObject_ManagedDictValidityCheck` and the
+  `*CheckConsistency` family compile out or run from a debugger;
+  `*_dealloc`/`*_traverse`/`*_clear`/`*Finalize*`/`*destroy*` run when nothing
+  else can observe the object.
+- **`PyType_Ready` construction.** `inherit_slots` / `type_ready_*` populate
+  slots before the type object is reachable, so a plain read of `tp_free`
+  elsewhere is not racing them.
+- **A guarded write into a freshly allocated object is not evidence.**
+  `deque_copy_impl` stores `new_deque->maxlen` while holding the *source*
+  deque's lock, and `deque_iter` fills a brand-new iterator. Neither makes a
+  plain read of that field elsewhere a race — such writes are excluded from the
+  guarded-twin set, not just from the finding set.
+- **A field with many unguarded accessors is an un-hardened module, not a
+  missed guard.** `Modules/_pickle.c` has three critical sections in 8,298
+  lines and no per-object locking on `Pickler`/`Unpickler` state at all;
+  reporting each site as a separate FIX misstates the problem. The scanner caps
+  T1 at 4 unsynchronised sites across 2 functions per field for exactly this
+  reason — report the wholesale case as one POLICY finding instead.

@@ -166,8 +166,11 @@ _NARROWING_APIS = frozenset(
 # Non-API error sentinels that still constitute an error test.
 _ERROR_SIGNAL_TOKENS = ("DKIX_ERROR",)
 
-# Clearing and immediately re-raising is the correct convert-the-exception
-# idiom, not a swallow.
+# Leaving *some* exception pending after the clear. For rule 2 — a clear that
+# no error test dominates — this is enough to suppress: the function is a
+# deliberate replacer (`_PyErr_SetKeyError`, `_PyErr_FormatV`,
+# `_set_BlockingIOError` all clear first precisely because the API that builds
+# the replacement must not run with an exception set).
 _RERAISE_PREFIXES = (
     "PyErr_Set",
     "_PyErr_Set",
@@ -178,6 +181,31 @@ _RERAISE_PREFIXES = (
     "PyErr_BadInternalCall",
     "_PyErr_BadInternalCall",
     "PyErr_BadArgument",
+)
+
+# For rule 3 the same test is *inverted*. There the clear sits in the failure
+# branch of a call that ran arbitrary Python, so a bare
+# `PyErr_SetString(PyExc_ValueError, "...")` substitutes a fixed, less specific
+# exception for whatever the user's `__index__` / `__hash__` raised — and drops
+# the context chain with it. That substitution IS the bug; treating it as a
+# mitigation suppressed 3 of the 4 true positives in
+# Modules/itertoolsmodule.c islice_new. Only a re-raise that *carries the
+# discarded information forward* — restore, chain, or derive from an
+# out-of-band channel (errno / GetLastError) the Python exception was masking
+# — suppresses there.
+_PRESERVING_RERAISE_PREFIXES = (
+    "PyErr_SetFromErrno",
+    "_PyErr_SetFromErrno",
+    "PyErr_SetExcFromWindowsErr",
+    "PyErr_SetFromWindowsErr",
+    "PyErr_SetImportError",
+    "PyErr_SetRaisedException",
+    "_PyErr_SetRaisedException",
+    "PyErr_SetExcInfo",
+    "PyErr_Restore",
+    "_PyErr_Restore",
+    "PyErr_ChainExceptions",
+    "_PyErr_ChainExceptions",
 )
 
 # Calls that can dispatch into arbitrary Python. A failure from one of these
@@ -874,15 +902,25 @@ def _reports_exception_nearby(call: dict, body_node, source_bytes: bytes) -> boo
     return False
 
 
-def _reraises_after(call: dict, body_node, source_bytes: bytes) -> bool:
-    """True if the clear is immediately followed by a re-raise in its block."""
+def _reraises_after(
+    call: dict, body_node, source_bytes: bytes, *, preserving_only: bool = False
+) -> bool:
+    """True if the clear is followed by a re-raise in its block.
+
+    ``preserving_only`` selects the rule-3 semantics: only a re-raise that
+    carries the discarded exception forward counts.  See the two prefix tuples
+    for why the same test has to mean different things for the two rules.
+    """
+    prefixes = (
+        _PRESERVING_RERAISE_PREFIXES if preserving_only else _RERAISE_PREFIXES
+    )
     block = _enclosing_block(call["node"], body_node)
     for site in _call_sites(block, source_bytes):
         if site["kind"] != "name":
             continue
         if site["start_byte"] <= call["node"].end_byte:
             continue
-        if site["name"].startswith(_RERAISE_PREFIXES):
+        if site["name"].startswith(prefixes):
             return True
     return False
 
@@ -982,7 +1020,24 @@ def _check_non_destructor(
         # instances of this shape put the failing call in the innermost branch.
         if not signals:
             continue
-        cond, sig = signals[0]
+        # A *bare* errstate probe (`if (PyErr_Occurred())`) names no failing
+        # call of its own: it is a nested re-test of the same failure the next
+        # condition out already tested, so `if (stop == -1) { if
+        # (PyErr_Occurred()) PyErr_Clear(); }` must be attributed to the
+        # `stop == -1` test, not dropped. Walk outward only while the condition
+        # is that shape — an enclosing branch testing something *different*
+        # (`if (module) { ... }`) still stops the walk, which is what keeps the
+        # wrong-polarity-attribution FP class suppressed.
+        pick = 0
+        while (
+            pick < len(signals)
+            and not signals[pick][1]["calls"]
+            and signals[pick][1]["errstate"]
+        ):
+            pick += 1
+        if pick >= len(signals):
+            continue
+        cond, sig = signals[pick]
         if not sig["calls"]:
             continue
         in_else = cond["branch"] == "else"
@@ -998,7 +1053,9 @@ def _check_non_destructor(
             func, cond["start_byte"], call["node"].start_byte, source_bytes
         ):
             continue
-        if _reraises_after(call, body_node, source_bytes):
+        if _reraises_after(
+            call, body_node, source_bytes, preserving_only=True
+        ):
             continue
 
         culprit = reaching[0]["name"]

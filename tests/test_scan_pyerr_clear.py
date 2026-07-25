@@ -603,7 +603,11 @@ class TestUnfilteredAfterPythonCallRule(unittest.TestCase):
         )
         self.assertEqual(result["findings"], [])
 
-    def test_clear_then_reraise_is_not_flagged(self):
+    def test_clear_then_bare_substitute_is_flagged(self):
+        # Regression for the inverted `_reraises_after` gate: substituting a
+        # fixed, less specific exception for whatever the user's __getitem__
+        # raised IS the bug, not a mitigation. Suppressing on any PyErr_Set*
+        # lost 3 of the 4 true positives in itertoolsmodule.c islice_new.
         result = self._findings(
             {
                 "Objects/funcobject.c": (
@@ -614,6 +618,32 @@ class TestUnfilteredAfterPythonCallRule(unittest.TestCase):
                     "    if (r == NULL) {\n"
                     "        PyErr_Clear();\n"
                     '        PyErr_Format(PyExc_AttributeError, "%R", k);\n'
+                    "        return -1;\n"
+                    "    }\n"
+                    "    return 0;\n"
+                    "}\n"
+                )
+            }
+        )
+        self.assertEqual(
+            [f["type"] for f in result["findings"]],
+            ["pyerr_clear_unfiltered_after_python_call"],
+        )
+
+    def test_clear_then_information_preserving_reraise_is_not_flagged(self):
+        # The other half of the same gate: a re-raise that carries the
+        # discarded exception forward (errno-derived, chained, restored) is the
+        # genuine convert-the-exception idiom and must stay suppressed.
+        result = self._findings(
+            {
+                "Objects/funcobject.c": (
+                    "static int\n"
+                    "descriptor_set_wrapped_attribute(PyObject *o, PyObject *k)\n"
+                    "{\n"
+                    "    PyObject *r = PyObject_GetItem(o, k);\n"
+                    "    if (r == NULL) {\n"
+                    "        PyErr_Clear();\n"
+                    "        PyErr_SetFromErrno(PyExc_OSError);\n"
                     "        return -1;\n"
                     "    }\n"
                     "    return 0;\n"

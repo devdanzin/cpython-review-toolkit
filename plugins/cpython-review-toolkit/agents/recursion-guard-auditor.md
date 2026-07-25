@@ -22,6 +22,11 @@ Of the four element-descent dispatchers, **exactly one has no recursion guard** 
 | `PyObject_RichCompare` | :1099 | yes |
 | `PyObject_RichCompareBool` | :1121 | yes (delegates to `PyObject_RichCompare`) |
 | **`PyObject_Hash`** | **:1158** | **NO** — dispatches straight to `tp_hash` |
+| **`_PyObject_HashDictKey`** | `pycore_object.h:840` | **NO** — a `Py_ALWAYS_INLINE` alias whose tail is `return PyObject_Hash(op);` |
+
+**The alias matters.** CPython spells the same unguarded operation two ways, and the second is the one used in the hottest code: 27 call sites tree-wide, 8+ in `Objects/dictobject.c`, plus `Objects/typeobject.c:6147` `find_name_in_mro` and `Modules/_collectionsmodule.c:2592` `_count_elements` (i.e. `collections.Counter` — reproduced as an ASan stack-overflow at N=400 000). Both spellings are now in the scanner's vocabulary; when reading by hand, grep for both.
+
+Deliberately **excluded**, with a reason rather than by omission (the envelope lists them under `dispatcher_guard_model.bound_zero_excluded`): `PyObject_GenericHash` (identity), `Py_HashPointer` (raw address), `Py_HashBuffer` (flat byte range). Their descent bound is exactly 0.
 
 Consequences, and they decide both precision and recall:
 
@@ -49,10 +54,10 @@ Key fields:
   - `container_element_descent` — `PyObject_Hash` per element of a container the function owns (`tuple_hash`).
   - `field_element_descent` — fixed-arity `PyObject_Hash` on a receiver field (`ga_hash`, `weakref_hash_lock_held`, `mappingproxy_hash`). **Arity has nothing to do with depth**: one field is enough, because the field is an arbitrary Python object.
   - `slot_helper_descent` — hashes a parameter, but a recursion-prone slot in the same file drives it (`frozendict_hash` → `frozendict_pair_hash`). Additive after all.
-  - `temporary_container_descent` — hashes a container the function packs locally from receiver fields (`range_hash`). One level; the bound is the nestability of those fields.
+  - `temporary_container_descent` — hashes a container the function packs locally from receiver fields (`range_hash`). One level; the bound is the nestability of those fields. The scanner follows **one hop** into a file-local `return <ctor>(...)` helper, so the `*_getstate` idiom is classified by its constructor rather than degrading to `field_element_descent`; and a `Py_BuildValue` whose format holds no object codes (`O S N U V`) is treated as bound-**0** and dropped outright. That is what retired the `delta_hash` false positive (`delta_getstate` is `Py_BuildValue("iii", ...)` — a tuple of three C ints).
   - `hash_entry_point` — hashes a caller-supplied value. Adds exactly **one** C frame. See triage below.
   - `guarded_dispatcher_descent` — the repr/str/richcompare class.
-- `findings[].sites[]` — every unguarded `PyObject_Hash` call in the function, with its `argument_kind`. Cite the load-bearing one, which is not always `findings[].line`.
+- `findings[].sites[]` — every unguarded hash call in the function, with its `argument_kind` and its `dispatcher` (`PyObject_Hash` or `_PyObject_HashDictKey`). Cite the load-bearing one, which is not always `findings[].line` — `Modules/_sqlite/row.c` reports at `:235` (`description`, bounded in practice) while the reproduced SIGSEGV is `:239` (`data`, an unvalidated tuple that can contain another `Row`).
 - `findings[].tail_call` — the only descent is a bare `return PyObject_Hash(...)`.
 - `report.dispatcher_guard_model` — the table above, as data.
 
