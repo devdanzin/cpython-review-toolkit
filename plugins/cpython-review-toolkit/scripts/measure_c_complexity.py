@@ -381,6 +381,29 @@ def measure_cleanup_ladder(clean_body: str) -> dict:
     }
 
 
+def _count_top_level_params(params: str) -> int:
+    """Number of parameters, counting only commas at paren depth 0.
+
+    A naive ``params.count(',') + 1`` counts the commas *inside* a
+    function-pointer parameter's own argument list. ``do_lookup``
+    (Objects/dictobject.c) takes 5 parameters and was reported as having 10 —
+    4 scalars plus the 6 types inside ``int (*compare)(PyDictObject *,
+    PyDictKeysObject *, void *, Py_ssize_t, PyObject *, Py_hash_t)`` — which
+    pushed it over the ``param_count > 6`` scoring threshold and put it in the
+    hotspot list on an artifact. Corrected, it scores 1.0 and drops off.
+    """
+    depth = 0
+    count = 1
+    for ch in params:
+        if ch in "([":
+            depth += 1
+        elif ch in ")]":
+            depth -= 1
+        elif ch == "," and depth == 0:
+            count += 1
+    return count
+
+
 def measure_function(func: dict) -> dict:
     """Compute complexity metrics for a single C function."""
     body = func["body"]
@@ -391,7 +414,7 @@ def measure_function(func: dict) -> dict:
     # Parameter count.
     params = func["params"].strip()
     if params and params != "void":
-        param_count = params.count(',') + 1
+        param_count = _count_top_level_params(params)
     else:
         param_count = 0
 
@@ -580,6 +603,25 @@ def analyze(
         key=lambda x: -x["manual_cleanup_ladder"],
     )
 
+    # The percentile is computed over the MERGED corpus, so in a multi-file run
+    # a smaller file can be squeezed out entirely and report nothing — which
+    # reads as "clean here" when it means "outranked elsewhere". Running over
+    # Objects/dictobject.c + setobject.c together gave setobject.c zero
+    # hotspots. Silent truncation is the same failure mode as a zero
+    # denominator, so name the files that contributed none.
+    # Only meaningful when something DID make the cut: if the whole corpus
+    # produced no hotspots, no file was outranked by another.
+    hotspot_files = {h.get("file") for h in hotspots}
+    starved = (
+        sorted(
+            f["file"]
+            for f in files_data
+            if f.get("functions") and f["file"] not in hotspot_files
+        )
+        if hotspots
+        else []
+    )
+
     seen = cov_totals["brace_blocks_seen"]
     coverage = {
         **cov_totals,
@@ -605,6 +647,15 @@ def analyze(
                 f"top {top_percent}% by score"
                 + (f", floor {min_score}" if min_score else "")
             ),
+            "files_without_hotspots": starved,
+            "files_without_hotspots_note": (
+                "The percentile is computed over the merged corpus, so these "
+                "files have functions but contributed no hotspot: they were "
+                "outranked, NOT shown to be simple. Re-run per file before "
+                "reading any of them as clean."
+            )
+            if starved
+            else "",
             "max_score": all_funcs[0]["score"] if all_funcs else 0.0,
             "max_cleanup_ladder": (
                 ladder_ranked[0]["manual_cleanup_ladder"] if ladder_ranked else 0

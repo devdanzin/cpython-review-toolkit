@@ -1,0 +1,7 @@
+rc=-6
+--- stdout ---
+armed; triggering _odict_resize (action=grow)
+SURVIVED len=2006
+
+--- stderr ---
+python: Python/gc.c:378: void validate_list(PyGC_Head *, enum flagstates): Assertion `trueprev == prev' failed.

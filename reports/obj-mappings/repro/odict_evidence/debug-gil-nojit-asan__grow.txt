@@ -1,0 +1,95 @@
+rc=1
+--- stdout ---
+armed; triggering _odict_resize (action=grow)
+
+--- stderr ---
+=================================================================
+==2775518==ERROR: AddressSanitizer: heap-buffer-overflow on address 0x75a2ff1f9438 at pc 0x613e065bc1ec bp 0x7ffd7f880530 sp 0x7ffd7f880528
+WRITE of size 8 at 0x75a2ff1f9438 thread T0
+    #0 0x613e065bc1eb in _odict_resize /home/danzin/projects/python_build_matrix/builds/debug-gil-nojit-asan/Objects/odictobject.c:585:23
+    #1 0x613e065bc1eb in _odict_get_index /home/danzin/projects/python_build_matrix/builds/debug-gil-nojit-asan/Objects/odictobject.c:609:26
+    #2 0x613e065bc602 in _odict_add_new_node /home/danzin/projects/python_build_matrix/builds/debug-gil-nojit-asan/Objects/odictobject.c:689:9
+    #3 0x613e065bc602 in _PyODict_SetItem_KnownHash_LockHeld /home/danzin/projects/python_build_matrix/builds/debug-gil-nojit-asan/Objects/odictobject.c:1643:15
+    #4 0x613e064508ee in PyObject_SetItem /home/danzin/projects/python_build_matrix/builds/debug-gil-nojit-asan/Objects/abstract.c:245:19
+    #5 0x613e0687c6f2 in _PyEval_EvalFrameDefault /home/danzin/projects/python_build_matrix/builds/debug-gil-nojit-asan/Python/generated_cases.c.h:12634:27
+    #6 0x613e06851f57 in _PyEval_EvalFrame /home/danzin/projects/python_build_matrix/builds/debug-gil-nojit-asan/./Include/internal/pycore_ceval.h:122:16
+    #7 0x613e06851f57 in _PyEval_Vector /home/danzin/projects/python_build_matrix/builds/debug-gil-nojit-asan/Python/ceval.c:2172:12
+    #8 0x613e06851974 in PyEval_EvalCode /home/danzin/projects/python_build_matrix/builds/debug-gil-nojit-asan/Python/ceval.c:679:21
+    #9 0x613e06a693af in run_eval_code_obj /home/danzin/projects/python_build_matrix/builds/debug-gil-nojit-asan/Python/pythonrun.c:1406:12
+    #10 0x613e06a6857b in run_mod /home/danzin/projects/python_build_matrix/builds/debug-gil-nojit-asan/Python/pythonrun.c:1509:19
+    #11 0x613e06a62b04 in _PyRun_File /home/danzin/projects/python_build_matrix/builds/debug-gil-nojit-asan/Python/pythonrun.c:1332:15
+    #12 0x613e06a6052b in _PyRun_SimpleFile /home/danzin/projects/python_build_matrix/builds/debug-gil-nojit-asan/Python/pythonrun.c:544:15
+    #13 0x613e06a5f987 in _PyRun_AnyFile /home/danzin/projects/python_build_matrix/builds/debug-gil-nojit-asan/Python/pythonrun.c:92:18
+    #14 0x613e06ae3105 in pymain_run_file_obj /home/danzin/projects/python_build_matrix/builds/debug-gil-nojit-asan/Modules/main.c:478:24
+    #15 0x613e06ae3105 in pymain_run_file /home/danzin/projects/python_build_matrix/builds/debug-gil-nojit-asan/Modules/main.c:494:20
+    #16 0x613e06ae17b9 in pymain_run_python /home/danzin/projects/python_build_matrix/builds/debug-gil-nojit-asan/Modules/main.c:804:21
+    #17 0x613e06ae17b9 in Py_RunMain /home/danzin/projects/python_build_matrix/builds/debug-gil-nojit-asan/Modules/main.c:891:5
+    #18 0x613e06ae2686 in pymain_main /home/danzin/projects/python_build_matrix/builds/debug-gil-nojit-asan/Modules/main.c:921:12
+    #19 0x613e06ae27f7 in Py_BytesMain /home/danzin/projects/python_build_matrix/builds/debug-gil-nojit-asan/Modules/main.c:945:12
+    #20 0x78c2ffe2a600 in __libc_start_call_main csu/../sysdeps/nptl/libc_start_call_main.h:59:16
+    #21 0x78c2ffe2a717 in __libc_start_main csu/../csu/libc-start.c:360:3
+    #22 0x613e061ed514 in _start (/home/danzin/projects/python_build_matrix/builds/debug-gil-nojit-asan/python+0x2b3514) (BuildId: 6db16533f8437e3b8789e6e562df360e2db329cb)
+
+0x75a2ff1f9438 is located 0 bytes after 152-byte region [0x75a2ff1f93a0,0x75a2ff1f9438)
+allocated by thread T0 here:
+    #0 0x613e06292ab8 in malloc (/home/danzin/projects/python_build_matrix/builds/debug-gil-nojit-asan/python+0x358ab8) (BuildId: 6db16533f8437e3b8789e6e562df360e2db329cb)
+    #1 0x613e06623bc1 in _PyMem_DebugRawAlloc /home/danzin/projects/python_build_matrix/builds/debug-gil-nojit-asan/Objects/obmalloc.c:3103:24
+    #2 0x613e06623bc1 in _PyMem_DebugRawMalloc /home/danzin/projects/python_build_matrix/builds/debug-gil-nojit-asan/Objects/obmalloc.c:3136:12
+    #3 0x613e06623bc1 in _PyMem_DebugMalloc /home/danzin/projects/python_build_matrix/builds/debug-gil-nojit-asan/Objects/obmalloc.c:3301:12
+    #4 0x613e065bc0cd in _odict_resize /home/danzin/projects/python_build_matrix/builds/debug-gil-nojit-asan/Objects/odictobject.c:569:18
+    #5 0x613e065bc0cd in _odict_get_index /home/danzin/projects/python_build_matrix/builds/debug-gil-nojit-asan/Objects/odictobject.c:609:26
+    #6 0x613e065bc602 in _odict_add_new_node /home/danzin/projects/python_build_matrix/builds/debug-gil-nojit-asan/Objects/odictobject.c:689:9
+    #7 0x613e065bc602 in _PyODict_SetItem_KnownHash_LockHeld /home/danzin/projects/python_build_matrix/builds/debug-gil-nojit-asan/Objects/odictobject.c:1643:15
+    #8 0x613e064508ee in PyObject_SetItem /home/danzin/projects/python_build_matrix/builds/debug-gil-nojit-asan/Objects/abstract.c:245:19
+    #9 0x613e0687c6f2 in _PyEval_EvalFrameDefault /home/danzin/projects/python_build_matrix/builds/debug-gil-nojit-asan/Python/generated_cases.c.h:12634:27
+    #10 0x613e06851f57 in _PyEval_EvalFrame /home/danzin/projects/python_build_matrix/builds/debug-gil-nojit-asan/./Include/internal/pycore_ceval.h:122:16
+    #11 0x613e06851f57 in _PyEval_Vector /home/danzin/projects/python_build_matrix/builds/debug-gil-nojit-asan/Python/ceval.c:2172:12
+    #12 0x613e06851974 in PyEval_EvalCode /home/danzin/projects/python_build_matrix/builds/debug-gil-nojit-asan/Python/ceval.c:679:21
+    #13 0x613e06a693af in run_eval_code_obj /home/danzin/projects/python_build_matrix/builds/debug-gil-nojit-asan/Python/pythonrun.c:1406:12
+    #14 0x613e06a6857b in run_mod /home/danzin/projects/python_build_matrix/builds/debug-gil-nojit-asan/Python/pythonrun.c:1509:19
+    #15 0x613e06a62b04 in _PyRun_File /home/danzin/projects/python_build_matrix/builds/debug-gil-nojit-asan/Python/pythonrun.c:1332:15
+    #16 0x613e06a6052b in _PyRun_SimpleFile /home/danzin/projects/python_build_matrix/builds/debug-gil-nojit-asan/Python/pythonrun.c:544:15
+    #17 0x613e06a5f987 in _PyRun_AnyFile /home/danzin/projects/python_build_matrix/builds/debug-gil-nojit-asan/Python/pythonrun.c:92:18
+    #18 0x613e06ae3105 in pymain_run_file_obj /home/danzin/projects/python_build_matrix/builds/debug-gil-nojit-asan/Modules/main.c:478:24
+    #19 0x613e06ae3105 in pymain_run_file /home/danzin/projects/python_build_matrix/builds/debug-gil-nojit-asan/Modules/main.c:494:20
+    #20 0x613e06ae17b9 in pymain_run_python /home/danzin/projects/python_build_matrix/builds/debug-gil-nojit-asan/Modules/main.c:804:21
+    #21 0x613e06ae17b9 in Py_RunMain /home/danzin/projects/python_build_matrix/builds/debug-gil-nojit-asan/Modules/main.c:891:5
+    #22 0x613e06ae2686 in pymain_main /home/danzin/projects/python_build_matrix/builds/debug-gil-nojit-asan/Modules/main.c:921:12
+    #23 0x613e06ae27f7 in Py_BytesMain /home/danzin/projects/python_build_matrix/builds/debug-gil-nojit-asan/Modules/main.c:945:12
+    #24 0x78c2ffe2a600 in __libc_start_call_main csu/../sysdeps/nptl/libc_start_call_main.h:59:16
+    #25 0x78c2ffe2a717 in __libc_start_main csu/../csu/libc-start.c:360:3
+    #26 0x613e061ed514 in _start (/home/danzin/projects/python_build_matrix/builds/debug-gil-nojit-asan/python+0x2b3514) (BuildId: 6db16533f8437e3b8789e6e562df360e2db329cb)
+
+SUMMARY: AddressSanitizer: heap-buffer-overflow /home/danzin/projects/python_build_matrix/builds/debug-gil-nojit-asan/Objects/odictobject.c:585:23 in _odict_resize
+Shadow bytes around the buggy address:
+  0x75a2ff1f9180: 00 00 00 fa fa fa fa fa fa fa fa fa 00 00 00 00
+  0x75a2ff1f9200: 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 04
+  0x75a2ff1f9280: fa fa fa fa fa fa fa fa fd fd fd fd fd fd fd fd
+  0x75a2ff1f9300: fd fd fd fd fd fd fd fd fd fd fd fa fa fa fa fa
+  0x75a2ff1f9380: fa fa fa fa 00 00 00 00 00 00 00 00 00 00 00 00
+=>0x75a2ff1f9400: 00 00 00 00 00 00 00[fa]fa fa fa fa fa fa fa fa
+  0x75a2ff1f9480: fd fd fd fd fd fd fd fd fd fd fd fd fd fd fd fd
+  0x75a2ff1f9500: fd fd fd fa fa fa fa fa fa fa fa fa fa fa fa fa
+  0x75a2ff1f9580: fa fa fa fa fa fa fa fa fa fa fa fa fa fa fa fa
+  0x75a2ff1f9600: fa fa fa fa fa fa fa fa fa fa fa fa fa fa fa fa
+  0x75a2ff1f9680: fa fa fa fa fa fa fa fa fa fa fa fa fa fa fa fa
+Shadow byte legend (one shadow byte represents 8 application bytes):
+  Addressable:           00
+  Partially addressable: 01 02 03 04 05 06 07 
+  Heap left redzone:       fa
+  Freed heap region:       fd
+  Stack left redzone:      f1
+  Stack mid redzone:       f2
+  Stack right redzone:     f3
+  Stack after return:      f5
+  Stack use after scope:   f8
+  Global redzone:          f9
+  Global init order:       f6
+  Poisoned by user:        f7
+  Container overflow:      fc
+  Array cookie:            ac
+  Intra object redzone:    bb
+  ASan internal:           fe
+  Left alloca redzone:     ca
+  Right alloca redzone:    cb
+==2775518==ABORTING

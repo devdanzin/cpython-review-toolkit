@@ -1107,3 +1107,67 @@ class TestPlainGraphFieldDescent(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class TestSlotClassificationDenominator(unittest.TestCase):
+    """`recursion_prone_slot_functions` is a DENOMINATOR field.
+
+    It used to increment on `slot is not None` — any slot classification at
+    all — while being named for the recursion-prone ones. On
+    Objects/dictobject.c + setobject.c it reported 17 against a truth of 6, and
+    tree-wide on Objects/ it reported 158 against 33. An agent following the
+    campaign's own "quote the denominator before calling a zero clean" rule was
+    therefore overstating this rule's coverage nearly fivefold, in the one
+    field that exists to prevent an unearned zero.
+    """
+
+    def setUp(self):
+        self.mod = import_script("scan_recursion_guards")
+
+    def _analyze(self, files):
+        with TempProject(files) as root:
+            return self.mod.analyze(str(root))
+
+    SRC = (
+        "static Py_hash_t\n"
+        "thing_hash(PyObject *self)\n"
+        "{\n"
+        "    return 0;\n"
+        "}\n"
+        "\n"
+        "static PyObject *\n"
+        "thing_repr(PyObject *self)\n"
+        "{\n"
+        "    return NULL;\n"
+        "}\n"
+        "\n"
+        "static PyObject *\n"
+        "thing_richcompare(PyObject *a, PyObject *b, int op)\n"
+        "{\n"
+        "    return NULL;\n"
+        "}\n"
+    )
+
+    def test_only_recursion_prone_slots_count_toward_the_denominator(self):
+        result = self._analyze({"Objects/thing.c": self.SRC})
+        # tp_repr and tp_richcompare are classified, but neither is in
+        # _RECURSION_PRONE_CALLER_SLOTS — only tp_hash is.
+        self.assertEqual(result["recursion_prone_slot_functions"], 1)
+
+    def test_the_classification_breakdown_is_published(self):
+        result = self._analyze({"Objects/thing.c": self.SRC})
+        sc = result["slot_classification"]
+        self.assertEqual(sc["classified_total"], 3)
+        self.assertEqual(sc["recursion_prone"], 1)
+        self.assertEqual(
+            sc["from_slot_map"] + sc["from_name_suffix"], sc["classified_total"]
+        )
+
+    def test_name_suffix_classification_is_reported_separately(self):
+        """No PyTypeObject table here, so all three are naming-convention
+        guesses — and the envelope must say so rather than present them as
+        structural evidence."""
+        result = self._analyze({"Objects/thing.c": self.SRC})
+        sc = result["slot_classification"]
+        self.assertEqual(sc["from_slot_map"], 0)
+        self.assertEqual(sc["from_name_suffix"], 3)

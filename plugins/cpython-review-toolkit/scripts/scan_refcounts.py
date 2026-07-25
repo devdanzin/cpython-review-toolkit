@@ -504,6 +504,15 @@ PYTHON_REACHING_APIS = with_private_aliases(
             "PyErr_FormatV",
             "PyErr_SetObject",
             "PyErr_WriteUnraisable",
+            # PyErr_FormatUnraisable was missing, and that single omission sat
+            # behind CPY-0084, CPY-0098, CPY-0096 and all three reproduced
+            # crashes in the obj-mappings slice. It runs sys.unraisablehook,
+            # which is settable from pure Python, and it also formats %S/%R —
+            # two independent routes into arbitrary user code. CPython's own
+            # Objects/typeobject.c:1219 carries the comment "PyErr_
+            # FormatUnraisable is potentially re-entrant".
+            "PyErr_FormatUnraisable",
+            "_PyErr_WriteUnraisableMsg",
             "PyErr_Print",
             "PySys_Audit",
             "PySys_AuditTuple",

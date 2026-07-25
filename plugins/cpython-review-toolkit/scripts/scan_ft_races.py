@@ -222,6 +222,39 @@ def _has_lock(body: str) -> bool:
     return _LOCK_MACRO_RE.search(body) is not None
 
 
+def _lock_coverage(body: str) -> tuple[list[tuple[int, int]], bool]:
+    """Where in ``body`` a lock is actually held.
+
+    Returns ``(critical_section_spans, opaque)``.
+
+    A function-level "does this body contain a lock?" test is not good enough
+    for a rule that flags one specific statement: `setiter_iternext`
+    (Objects/setobject.c) closes its critical section at :1127 and drops the
+    owning reference at :1130-1131, two lines *outside* it. Suppressing the
+    whole function because a lock appears somewhere in it hid TSAN-0053,
+    TSAN-0054 and TSAN-0062 — every instance of the class this rule exists for.
+
+    ``Py_BEGIN/END_CRITICAL_SECTION`` pairs are delimitable, so we return their
+    spans and let the caller test the specific offset. ``PyMutex_Lock``,
+    ``_PyCriticalSection*`` and the SCREAMING_CASE ``*LOCK*(`` wrappers are not
+    (their release is a separate, differently-named call, sometimes in a
+    different function), so we report ``opaque`` and the caller keeps the
+    conservative whole-function suppression for those.
+    """
+    opaque = "PyMutex_Lock" in body or "_PyCriticalSection" in body
+    if not opaque and _LOCK_MACRO_RE.search(body) is not None:
+        opaque = True
+    if opaque:
+        return [], True
+    if "Py_BEGIN_CRITICAL_SECTION" not in body:
+        return [], False
+    return _critical_section_spans(body), False
+
+
+def _offset_in_spans(offset: int, spans: list[tuple[int, int]]) -> bool:
+    return any(start <= offset < end for start, end in spans)
+
+
 def _clinic_guarded_functions(raw_source: str, functions: list[dict]) -> set[str]:
     """Names of ``_impl`` functions whose clinic block asks for a lock.
 
@@ -370,7 +403,11 @@ def _check_t3(
     if not is_iter or _caller_holds_lock(func["name"]):
         return None
     body = strip_comments(func["body"])
-    if _has_lock(body):
+    cs_spans, lock_is_opaque = _lock_coverage(body)
+    if lock_is_opaque:
+        # A PyMutex/`_PyCriticalSection`/SCREAMING_CASE-macro lock whose region
+        # we cannot delimit — stay with whole-function suppression rather than
+        # guess.
         return None
     base = _body_start_line(func)
 
@@ -381,6 +418,9 @@ def _check_t3(
         if _in_ranges(line, gil_only):
             # The drop is elided on the free-threaded build — this is the
             # tupleiter/listiter/reversed fix strategy, already applied.
+            continue
+        if _offset_in_spans(match.start(), cs_spans):
+            # This particular drop really is inside a critical section.
             continue
         if is_suppressed_by_comment(source_bytes, tree, line):
             continue

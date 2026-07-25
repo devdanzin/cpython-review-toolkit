@@ -1285,6 +1285,9 @@ def analyze(target: str, *, max_files: int = 0) -> dict:
     findings: list[dict] = []
     total_functions = 0
     slot_functions = 0
+    slot_classified = 0
+    slot_from_map = 0
+    slot_from_suffix = 0
     files_analyzed = 0
     skipped: list[dict] = []
     oversized_cycles: list[dict] = []
@@ -1332,7 +1335,13 @@ def analyze(target: str, *, max_files: int = 0) -> dict:
         for func, calls, slot in zip(functions, calls_by_func, slots):
             total_functions += 1
             if slot is not None:
-                slot_functions += 1
+                slot_classified += 1
+                if func["name"] in slot_map:
+                    slot_from_map += 1
+                else:
+                    slot_from_suffix += 1
+                if slot in _RECURSION_PRONE_CALLER_SLOTS:
+                    slot_functions += 1
             f = _analyze_function(
                 func,
                 slot,
@@ -1395,7 +1404,29 @@ def analyze(target: str, *, max_files: int = 0) -> dict:
             "by_shape": dict(by_shape),
             "by_type": dict(by_type),
         },
+        # This field used to increment on `slot is not None`, i.e. on ANY slot
+        # classification, while being named for the recursion-prone ones. On
+        # Objects/dictobject.c + setobject.c it reported 17 where the truth is
+        # 6 — a 2.8x overstatement in the one field that exists to stop an
+        # agent certifying an unearned zero. It now counts what its name says,
+        # and the components are published alongside it so the split between
+        # structural and heuristic classification is visible rather than
+        # rolled into one number.
         recursion_prone_slot_functions=slot_functions,
+        slot_classification={
+            "classified_total": slot_classified,
+            "from_slot_map": slot_from_map,
+            "from_name_suffix": slot_from_suffix,
+            "recursion_prone": slot_functions,
+            "note": (
+                "from_name_suffix is a naming-convention guess, not evidence "
+                "from a PyTypeObject slot table: a positional slot table makes "
+                "from_slot_map 0 while from_name_suffix still fires. Quote "
+                "recursion_prone as the denominator for this rule's coverage; "
+                "quote classified_total only as 'functions the slot classifier "
+                "recognised at all'."
+            ),
+        },
         dispatcher_guard_model={
             "unguarded": {
                 "PyObject_Hash": "Objects/object.c:1158 — NO guard",

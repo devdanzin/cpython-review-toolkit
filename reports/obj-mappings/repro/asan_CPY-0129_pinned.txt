@@ -1,0 +1,1 @@
+seconds=150.0 probers=6 drainers=3 gil=False

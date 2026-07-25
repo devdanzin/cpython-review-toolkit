@@ -252,8 +252,36 @@ def _matching_end(begin_name: str) -> str:
 
 
 def _norm_args(args: str) -> str:
-    """Whitespace-insensitive normalization of a macro's argument text."""
-    return re.sub(r"\s+", "", args)
+    """Whitespace-insensitive identity of the lock a call names.
+
+    Only the FIRST argument identifies the lock. The flags-taking spellings
+    pass a second one that the release side does not:
+
+        FT_MUTEX_LOCK_FLAGS(&interp->dict_state.watcher_mutex, _Py_LOCK_DONT_DETACH)
+        FT_MUTEX_UNLOCK(&interp->dict_state.watcher_mutex)
+
+    Comparing the whole argument text made those two look like different locks,
+    so a correct `goto done; ... done: FT_MUTEX_UNLOCK(...)` ladder was reported
+    as a leak. That produced 4 false positives in PyDict_AddWatcher /
+    PyDict_ClearWatcher the moment those acquires became visible to the rule,
+    and the same defect applies to PyMutex_LockFlags — including LOCK_KEYS,
+    which expands to it.
+    """
+    first = _first_top_level_arg(args)
+    return re.sub(r"\s+", "", first)
+
+
+def _first_top_level_arg(args: str) -> str:
+    """The first comma-separated argument, ignoring commas nested in parens."""
+    depth = 0
+    for i, ch in enumerate(args):
+        if ch in "([":
+            depth += 1
+        elif ch in ")]":
+            depth -= 1
+        elif ch == "," and depth == 0:
+            return args[:i]
+    return args
 
 
 # ---------------------------------------------------------------------------

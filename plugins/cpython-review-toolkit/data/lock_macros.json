@@ -70,12 +70,15 @@
       "name": "PyMutex",
       "acquire": [
         "PyMutex_Lock",
-        "PyMutex_LockFlags"
+        "PyMutex_LockFlags",
+        "FT_MUTEX_LOCK_FLAGS"
       ],
       "release": [
-        "PyMutex_Unlock"
+        "PyMutex_Unlock",
+        "FT_MUTEX_UNLOCK"
       ],
-      "type": "python_mutex"
+      "type": "python_mutex",
+      "note": "FT_MUTEX_LOCK_FLAGS/FT_MUTEX_UNLOCK are the free-threading wrappers (Include/internal/pycore_pyatomic_ft_wrappers.h:141, expanding to PyMutex_LockFlags under Py_GIL_DISABLED and to `do {} while (0)` at :205 otherwise). Their absence hid two _Py_LOCK_DONT_DETACH acquires in Objects/dictobject.c (PyDict_AddWatcher:8252, PyDict_ClearWatcher:8272), so the obj-mappings slice's DONT_DETACH population read as seven when it is nine. DONT_DETACH parks the waiter WITHOUT detaching, so a self-re-entry is a permanent hang, not a wait -- which is why this population must be exact."
     },
     {
       "name": "LOCK/UNLOCK_WEAKREFS",

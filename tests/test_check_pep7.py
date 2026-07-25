@@ -377,3 +377,101 @@ class TestAnalyze(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class TestMissingBracesElseAndComments(unittest.TestCase):
+    """D-21: the rule had no `else` alternative and matched the raw line.
+
+    Measured against a tree-sitter-c ground truth over Objects/dictobject.c +
+    setobject.c: 185 of 196 real brace-less bodies found (recall 94.4%). Nine
+    of the eleven misses were bare `else` / `else if`; the other two came from
+    anchoring on `raw_line` where every sibling rule in the same loop matches
+    the comment-stripped `clean` text, so a trailing `/* comment */` after the
+    closing paren defeated the `\\)\\s*$` anchor. After the fix: 195.
+    """
+
+    def _braces(self, source):
+        n = len(source.split("\n"))
+        return [
+            v
+            for v in mod.check_file(
+                source, rules=mod.ALL_RULES, changed_lines=set(range(1, n + 1))
+            )
+            if v["rule"] == "missing-braces"
+        ]
+
+    def test_bare_else_without_braces_is_flagged(self):
+        # Objects/setobject.c:1930 and dictobject.c:6939 are this exact shape.
+        src = (
+            "static int\n"
+            "f(int x)\n"
+            "{\n"
+            "    if (x) {\n"
+            "        return 1;\n"
+            "    }\n"
+            "    else\n"
+            "        return 0;\n"
+            "}\n"
+        )
+        self.assertEqual([v["line"] for v in self._braces(src)], [7])
+
+    def test_else_if_without_braces_is_flagged(self):
+        # Objects/dictobject.c:3819.
+        src = (
+            "static int\n"
+            "f(int x)\n"
+            "{\n"
+            "    if (x == 1) {\n"
+            "        return 1;\n"
+            "    }\n"
+            "    else if (x == 2)\n"
+            "        return 2;\n"
+            "    return 0;\n"
+            "}\n"
+        )
+        self.assertEqual([v["line"] for v in self._braces(src)], [7])
+
+    def test_braced_else_is_silent(self):
+        src = (
+            "static int\n"
+            "f(int x)\n"
+            "{\n"
+            "    if (x) {\n"
+            "        return 1;\n"
+            "    }\n"
+            "    else {\n"
+            "        return 0;\n"
+            "    }\n"
+            "}\n"
+        )
+        self.assertEqual(self._braces(src), [])
+
+    def test_braced_else_allman_is_silent(self):
+        src = (
+            "static int\n"
+            "f(int x)\n"
+            "{\n"
+            "    if (x)\n"
+            "    {\n"
+            "        return 1;\n"
+            "    }\n"
+            "    else\n"
+            "    {\n"
+            "        return 0;\n"
+            "    }\n"
+            "}\n"
+        )
+        self.assertEqual(self._braces(src), [])
+
+    def test_trailing_comment_after_the_condition_does_not_hide_it(self):
+        # Objects/dictobject.c:4717.
+        src = (
+            "static int\n"
+            "f(int cmp)\n"
+            "{\n"
+            "    if (cmp <= 0)  /* error or not equal */\n"
+            "        return cmp;\n"
+            "    return 0;\n"
+            "}\n"
+        )
+        self.assertEqual([v["line"] for v in self._braces(src)], [4])

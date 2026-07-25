@@ -222,7 +222,12 @@ _TRAILING_WS = re.compile(r"[ \t]+$")
 
 # Missing braces: if/for/while followed by a single statement
 # (heuristic: next non-blank line is not { and not blank).
-_CONTROL_NO_BRACE = re.compile(r"^\s+(?:if|for|while)\s*\(.*\)\s*$")
+# `else if (...)` is included: the rule had no `else` alternative at all, and
+# that single omission was 9 of the 11 false negatives measured against a
+# tree-sitter-c ground truth over Objects/dictobject.c + setobject.c (recall
+# 94.4%). Bare `else` needs its own pattern — it has no condition to walk.
+_CONTROL_NO_BRACE = re.compile(r"^\s+(?:else\s+if|if|for|while)\s*\(.*\)\s*$")
+_ELSE_NO_BRACE = re.compile(r"^\s+else\s*$")
 
 DEFAULT_LINE_LIMIT = 79
 
@@ -316,7 +321,34 @@ def check_file(
         if (
             "missing-braces" in rules
             and in_diff_scope(lineno)
-            and _CONTROL_NO_BRACE.match(raw_line)
+            and _ELSE_NO_BRACE.match(clean)
+        ):
+            # Bare `else` on its own line: no condition to walk, so just find
+            # the next non-blank line. `else if` is handled by the main branch.
+            for k in range(i + 1, len(lines)):
+                next_stripped = lines[k].strip()
+                if not next_stripped:
+                    continue
+                if next_stripped.startswith("{") or next_stripped.endswith("{"):
+                    break
+                violations.append(
+                    {
+                        "line": lineno,
+                        "rule": "missing-braces",
+                        "message": "Control statement without braces",
+                    }
+                )
+                break
+            continue
+
+        if (
+            "missing-braces" in rules
+            and in_diff_scope(lineno)
+            # `clean`, not `raw_line`: every sibling rule in this loop matches
+            # the comment-stripped text, and matching the raw line means a
+            # trailing `/* comment */` after the `)` defeats the anchor
+            # (Objects/dictobject.c:4717).
+            and _CONTROL_NO_BRACE.match(clean)
         ):
             # Walk to the true end of the condition before testing for a brace.
             #

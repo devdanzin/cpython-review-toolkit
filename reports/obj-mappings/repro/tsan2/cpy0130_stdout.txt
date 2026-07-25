@@ -1,0 +1,3 @@
+rounds=400 readers=4 mode=both gil=False
+round 0
+survived 400 rounds

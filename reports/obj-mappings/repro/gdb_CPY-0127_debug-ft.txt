@@ -1,0 +1,48 @@
+Python initialization failed: Disabling the GIL is not supported by this build
+warning: File "/home/danzin/projects/python_build_matrix/builds/debug-ft-nojit/python-gdb.py" auto-loading has been declined by your `auto-load safe-path' set to "$debugdir:$datadir/auto-load".
+To enable execution of this file add
+	add-auto-load-safe-path /home/danzin/projects/python_build_matrix/builds/debug-ft-nojit/python-gdb.py
+line to your configuration file "/home/danzin/.config/gdb/gdbinit".
+To completely disable this security protection add
+	set auto-load safe-path /
+line to your configuration file "/home/danzin/.config/gdb/gdbinit".
+For more information about this security protection see the
+"Auto-loading safe path" section in the GDB manual.  E.g., run from the shell:
+	info "(gdb)Auto-loading safe path"
+
+This GDB supports auto-downloading debuginfo from the following URLs:
+  <https://debuginfod.ubuntu.com>
+Enable debuginfod for this session? (y or [n]) [answered N; input not from terminal]
+Debuginfod has been disabled.
+To make this setting permanent, add 'set debuginfod enabled off' to .gdbinit.
+[Thread debugging using libthread_db enabled]
+Using host libthread_db library "/usr/lib/x86_64-linux-gnu/libthread_db.so.1".
+rounds=60 hammers=4 nelem=3000 gil=False
+[New Thread 0x7ffff75ff6c0 (LWP 2764065)]
+[New Thread 0x7ffff65fe6c0 (LWP 2764066)]
+[New Thread 0x7ffff55fd6c0 (LWP 2764067)]
+[New Thread 0x7fffe7fff6c0 (LWP 2764068)]
+round 0 staged=1 acquired=4
+
+Thread 2 "Thread-1 (hamme" received signal SIGSEGV, Segmentation fault.
+[Switching to Thread 0x7ffff75ff6c0 (LWP 2764065)]
+set_add_entry_takeref (so=0x200028302a0, key=0x2000280aa10, hash=137441577633) at Objects/setobject.c:275
+275	            if (entry->hash == 0 && entry->key == NULL)
+#0  set_add_entry_takeref (so=0x200028302a0, key=0x2000280aa10, hash=137441577633) at Objects/setobject.c:275
+#1  0x0000555555777190 in set_add_key (so=0x200028302a0, key=0x2000280aa10) at Objects/setobject.c:608
+#2  set_update_iterable_lock_held (so=so@entry=0x200028302a0, other=other@entry=0x20002685d10) at Objects/setobject.c:1233
+#3  0x0000555555772d3e in set_update_internal (so=so@entry=0x200028302a0, other=0x20002685d10) at Objects/setobject.c:1313
+#4  0x000055555577a33c in set_update_impl (so=0x200028302a0, others=0x7ffff75fc8b0, others_length=1) at Objects/setobject.c:1336
+#5  set_update (so=0x200028302a0, args=0x7ffff75fc8b0, nargs=1) at Objects/clinic/setobject.c.h:55
+#6  0x00005555556bbeb8 in method_vectorcall_FASTCALL (func=func@entry=0x20002218b30, args=args@entry=0x7ffff75fc8a8, nargsf=nargsf@entry=9223372036854775810, kwnames=kwnames@entry=0x0) at Objects/descrobject.c:402
+#7  0x00005555556a5c9e in _PyObject_VectorcallTstate (tstate=0x20000240010, callable=0x20002218b30, args=0x7ffff75fc8a8, nargsf=9223372036854775810, kwnames=0x0) at ./Include/internal/pycore_call.h:144
+#8  0x0000555555876dd0 in _Py_VectorCallInstrumentation_StackRefSteal (callable=callable@entry=..., arguments=arguments@entry=0x7ffff7e2d230, total_args=total_args@entry=2, kwnames=kwnames@entry=..., call_instrumentation=false, frame=frame@entry=0x7ffff7e2d1a8, this_instr=0x2000417027e, tstate=0x20000240010) at Python/ceval.c:768
+#9  0x0000555555881ebc in _PyEval_EvalFrameDefault (tstate=0x20000240010, frame=<optimized out>, throwflag=0) at Python/generated_cases.c.h:1906
+#10 0x00005555558765a9 in _PyEval_EvalFrame (tstate=0x20000240010, frame=0x7ffff7e2d128, throwflag=0) at ./Include/internal/pycore_ceval.h:122
+#11 _PyEval_Vector (tstate=0x20000240010, func=0x20002855bf0, locals=0x0, args=0x7ffff75fda80, argcount=1, kwnames=0x0) at Python/ceval.c:2172
+  Id   Target Id                                             Frame 
+  1    Thread 0x7ffff7e6d780 (LWP 2764062) "python"          __syscall_cancel_arch () at ../sysdeps/unix/sysv/linux/x86_64/syscall_cancel.S:56
+* 2    Thread 0x7ffff75ff6c0 (LWP 2764065) "Thread-1 (hamme" set_add_entry_takeref (so=0x200028302a0, key=0x2000280aa10, hash=137441577633) at Objects/setobject.c:275
+  3    Thread 0x7ffff65fe6c0 (LWP 2764066) "Thread-2 (hamme" __syscall_cancel_arch () at ../sysdeps/unix/sysv/linux/x86_64/syscall_cancel.S:56
+  4    Thread 0x7ffff55fd6c0 (LWP 2764067) "Thread-3 (hamme" __syscall_cancel_arch () at ../sysdeps/unix/sysv/linux/x86_64/syscall_cancel.S:56
+  5    Thread 0x7fffe7fff6c0 (LWP 2764068) "Thread-4 (hamme" __syscall_cancel_arch () at ../sysdeps/unix/sysv/linux/x86_64/syscall_cancel.S:56
