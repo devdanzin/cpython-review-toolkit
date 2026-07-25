@@ -12,6 +12,16 @@ Methodology (learned from real crashes — do not "optimize" these away):
 
 * **Dense sweep.** Try *every* integer in the range, never a sparse sample: a
   crash window is often exactly one allocation wide.
+* **One allocation fails per iteration** (``--width 1``, the default). This is
+  what makes the sweep index mean "the failure path of allocation n". Arming
+  ``set_nomemory(n)`` with no stop -- which this script did until measured
+  otherwise -- fails allocation n *and every one after it*, so any payload that
+  allocates more than once dies at the first index reached and the sweep reports
+  ``n=1`` with ``lost sys.stderr`` no matter where the real defect is. That is a
+  false positive that reads exactly like a crash. Measured: a payload reported
+  at ``n=1`` unbounded had its real failure at ``n=127`` once bounded.
+  ``--width 0`` restores the unbounded behaviour for the rare case where a
+  sustained allocation famine is the thing under test.
 * **One subprocess per iteration.** A segfault kills the interpreter, so an
   in-process loop would only ever see the first crash. Isolation also keeps a
   corrupted heap from poisoning later iterations.
@@ -96,7 +106,7 @@ _PAYLOAD_CODE = compile(_PAYLOAD, "<oom-payload>", "exec")
 if _SETUP_CODE is not None:
     exec(_SETUP_CODE, _NS)
 
-_testcapi.set_nomemory({start})
+_testcapi.set_nomemory({start}{stop_arg})
 try:
     exec(_PAYLOAD_CODE, _NS)
 except MemoryError:
@@ -176,6 +186,19 @@ def is_crash(outcome: str) -> bool:
     )
 
 
+def build_child_script(payload: str, n: int, *, setup: str = "", width: int = 1) -> str:
+    """Render the child harness for one sweep iteration.
+
+    ``width`` allocations fail starting at #n. ``width=1`` isolates a single
+    allocation's failure path; ``width=0`` omits the stop argument entirely, so
+    every allocation from n onward fails.
+    """
+    stop_arg = "" if width <= 0 else f", {n + width}"
+    return _HARNESS_TEMPLATE.format(
+        payload=payload, start=n, setup=setup, stop_arg=stop_arg
+    )
+
+
 def run_one(
     python: str,
     payload: str,
@@ -183,15 +206,22 @@ def run_one(
     *,
     timeout: float = 30.0,
     setup: str = "",
+    width: int = 1,
 ) -> dict:
-    """Run the payload once with allocation #n (and onward) failing.
+    """Run the payload once with ``width`` allocations failing, starting at #n.
 
     ``setup`` executes unarmed in the payload's namespace beforehand.
+
+    ``width=1`` (the default) fails exactly ONE allocation, which is what makes
+    the sweep index mean "the failure path of allocation n". ``width=0`` restores
+    the old unbounded behaviour, where every allocation from n onward fails --
+    see the module docstring for why that produces false positives.
     """
-    script = _HARNESS_TEMPLATE.format(payload=payload, start=n, setup=setup)
+    script = build_child_script(payload, n, setup=setup, width=width)
     try:
         proc = subprocess.run(
             [python, "-c", script],
+            check=False,
             capture_output=True,
             text=True,
             timeout=timeout,
@@ -222,7 +252,11 @@ def check_interpreter(python: str) -> str | None:
     )
     try:
         proc = subprocess.run(
-            [python, "-c", probe], capture_output=True, text=True, timeout=60
+            [python, "-c", probe],
+            check=False,
+            capture_output=True,
+            text=True,
+            timeout=60,
         )
     except (OSError, subprocess.TimeoutExpired) as e:
         return f"cannot run interpreter {python!r}: {e}"
@@ -250,12 +284,14 @@ def sweep(
     timeout: float = 30.0,
     stop_after: int = 0,
     setup: str = "",
+    width: int = 1,
 ) -> dict:
     """Densely sweep the failing-allocation index and collect the outcomes.
 
     ``stop_after`` > 0 stops once that many distinct crashes are found (0 =
     sweep the whole range). ``setup`` runs unarmed before each iteration's
-    payload.
+    payload. ``width`` is how many consecutive allocations fail per iteration
+    (1 = isolate one allocation, 0 = unbounded legacy behaviour).
     """
     err = check_interpreter(python)
     if err:
@@ -266,7 +302,7 @@ def sweep(
     outcome_counts: dict[str, int] = {}
 
     for n in range(start_n, max_n):
-        r = run_one(python, payload, n, timeout=timeout, setup=setup)
+        r = run_one(python, payload, n, timeout=timeout, setup=setup, width=width)
         results.append(r)
         outcome_counts[r["outcome"]] = outcome_counts.get(r["outcome"], 0) + 1
         if is_crash(r["outcome"]):
@@ -280,6 +316,9 @@ def sweep(
         "payload": payload,
         "setup": setup,
         "range": {"start": start_n, "stop": max_n},
+        # Recorded because it changes what a result MEANS: width=1 isolates one
+        # allocation's failure path, width=0 fails everything from n onward.
+        "width": width,
         "iterations_run": len(results),
         "outcome_counts": outcome_counts,
         "crashes": crashes,
@@ -348,6 +387,16 @@ def main() -> None:
         default=0,
         help="stop after N crashes (0 = full sweep)",
     )
+    parser.add_argument(
+        "--width",
+        type=int,
+        default=1,
+        help=(
+            "consecutive allocations to fail per iteration (default 1, which "
+            "isolates one allocation's failure path; 0 = unbounded, every "
+            "allocation from n onward fails -- see the module docstring)"
+        ),
+    )
     args = parser.parse_args()
 
     if args.script:
@@ -378,6 +427,7 @@ def main() -> None:
             timeout=args.timeout,
             stop_after=args.stop_after,
             setup=setup,
+            width=args.width,
         )
         json.dump(result, sys.stdout, indent=2)
         sys.stdout.write("\n")
