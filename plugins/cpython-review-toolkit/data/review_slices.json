@@ -1,0 +1,721 @@
+{
+  "_meta": {
+    "description": "Review-slice manifest for the cpython-review-toolkit informed-explore campaign. Partitions every reviewable .c file under Objects/ and Modules/ into slices sized so one informed-explore run can hold the whole slice in context. Regenerate/validate with tools/slice_status.py --verify <cpython>.",
+    "sizing_rule": "<= 13,000 lines and <= 12 files per slice. Measured: the 13,250-line Objects/ run dispatched 12 agents and triaged well; the 39,800-line Modules/ run dispatched only 6 and strained context. Single files above the cap cannot be split, so they carry a 'passes' count instead.",
+    "tiers": {
+      "A": "adversarial-object reachable -- every finding so far came from here",
+      "B": "library and system surface -- reachable but narrower",
+      "C": "platform-locked or low yield -- expect static-only triage"
+    },
+    "excluded": {
+      "prefixes": {
+        "Objects/mimalloc/": "vendored upstream (microsoft/mimalloc)",
+        "Modules/_hacl/": "vendored upstream (HACL*)",
+        "Modules/expat/": "vendored upstream (libexpat)",
+        "Modules/_decimal/libmpdec/": "vendored upstream (libmpdec)",
+        "Modules/_blake2/impl/": "vendored upstream (BLAKE2 reference)",
+        "Modules/cjkcodecs/mappings/": "generated codec tables",
+        "Modules/_xxtestfuzz/": "fuzz harness, not shipped",
+        "Modules/_remote_debugging/clinic/": "generated (Argument Clinic)"
+      },
+      "dir_names": [
+        "clinic"
+      ],
+      "dir_prefixes": [
+        "_test"
+      ],
+      "name_prefixes": [
+        "_test"
+      ],
+      "names": {
+        "xxmodule.c": "demo module",
+        "xxlimited.c": "demo module",
+        "xxlimited_35.c": "demo module",
+        "xxlimited_3_13.c": "demo module",
+        "xxsubtype.c": "demo module",
+        "_ctypes_test.c": "test support",
+        "_testimportmultiple.c": "test support",
+        "_testsinglephase.c": "test support",
+        "_testmultiphase.c": "test support",
+        "_testexternalinspection.c": "test support",
+        "config.c": "build glue",
+        "getbuildinfo.c": "build glue",
+        "getpath_noop.c": "build glue",
+        "tkappinit.c": "build glue"
+      }
+    },
+    "order": [
+      "mod-io",
+      "obj-sequences",
+      "mod-ctypes",
+      "obj-mappings",
+      "obj-typeobject",
+      "obj-unicode-core",
+      "obj-numerics",
+      "obj-callables",
+      "obj-protocol",
+      "mod-remote-debugging",
+      "mod-concurrency",
+      "obj-exc-alloc",
+      "mod-callback-reentrancy",
+      "mod-decimal",
+      "obj-buffers-misc",
+      "mod-interpreters",
+      "mod-array-mmap",
+      "mod-sqlite",
+      "obj-unicode-fmt",
+      "mod-codecs",
+      "mod-syscall-core",
+      "mod-hashing",
+      "mod-ssl",
+      "mod-compression",
+      "mod-runtime-support",
+      "mod-parsers-dbm",
+      "mod-socket",
+      "mod-math",
+      "mod-posix",
+      "mod-syscall-small",
+      "mod-startup-leaf",
+      "mod-curses",
+      "mod-platform-locked",
+      "mod-tty-locale",
+      "mod-tkinter"
+    ],
+    "total_files": 188,
+    "total_lines": 358035
+  },
+  "slices": {
+    "objects-sample-informed-v1": {
+      "family": "Objects: 2026-07 informed sample",
+      "tier": "A",
+      "scope": "Objects",
+      "status": "done",
+      "passes": 1,
+      "oracle": null,
+      "notes": "First informed run; drove the v0.8 23-defect toolkit cleanup.",
+      "lines": 13250,
+      "files": [
+        "Objects/tupleobject.c",
+        "Objects/genericaliasobject.c",
+        "Objects/unionobject.c",
+        "Objects/templateobject.c",
+        "Objects/descrobject.c",
+        "Objects/odictobject.c",
+        "Objects/funcobject.c",
+        "Objects/weakrefobject.c",
+        "Objects/structseq.c",
+        "Objects/iterobject.c",
+        "Objects/capsule.c",
+        "Objects/interpolationobject.c",
+        "Objects/cellobject.c",
+        "Objects/lazyimportobject.c"
+      ]
+    },
+    "modules-sample-informed-v1": {
+      "family": "Modules: 2026-07 informed sample",
+      "tier": "A",
+      "scope": "Modules",
+      "status": "done",
+      "passes": 1,
+      "oracle": null,
+      "notes": "Second informed run; drove PR #21 (six scanner defects). At 39,800 lines it exceeded the sizing rule -- only 6 agents were dispatched. This is the measurement the <=13,000-line cap comes from.",
+      "lines": 39847,
+      "files": [
+        "Modules/_collectionsmodule.c",
+        "Modules/itertoolsmodule.c",
+        "Modules/_elementtree.c",
+        "Modules/_pickle.c",
+        "Modules/_datetimemodule.c",
+        "Modules/_struct.c",
+        "Modules/_zoneinfo.c",
+        "Modules/_json.c",
+        "Modules/_csv.c",
+        "Modules/_heapqmodule.c",
+        "Modules/_randommodule.c",
+        "Modules/_queuemodule.c"
+      ]
+    },
+    "mod-io": {
+      "family": "Modules: _io package",
+      "tier": "A",
+      "scope": "Modules/_io",
+      "status": "pending",
+      "passes": 1,
+      "oracle": "Lib/_pyio.py",
+      "notes": "Shipped pure-Python twin is a free differential oracle. Buffer-protocol dense; detach/close re-entrancy and raw-buffer resize are the shapes to hunt.",
+      "lines": 11924,
+      "files": [
+        "Modules/_io/textio.c",
+        "Modules/_io/bufferedio.c",
+        "Modules/_io/bytesio.c",
+        "Modules/_io/fileio.c",
+        "Modules/_io/stringio.c",
+        "Modules/_io/iobase.c",
+        "Modules/_io/_iomodule.c"
+      ]
+    },
+    "obj-sequences": {
+      "family": "Objects: sequence types",
+      "tier": "A",
+      "scope": "Objects",
+      "status": "pending",
+      "passes": 1,
+      "oracle": null,
+      "notes": "Resize-during-buffer-export is the _struct CPY-0044 shape in another guise. User __eq__/__lt__ re-entry during list ops is the other.",
+      "lines": 12100,
+      "files": [
+        "Objects/listobject.c",
+        "Objects/bytesobject.c",
+        "Objects/bytearrayobject.c",
+        "Objects/bytes_methods.c"
+      ]
+    },
+    "mod-ctypes": {
+      "family": "Modules: _ctypes",
+      "tier": "A",
+      "scope": "Modules/_ctypes",
+      "status": "pending",
+      "passes": 1,
+      "oracle": null,
+      "notes": "The one module where a wrong pointer is a real wrong pointer. Int-narrowing to C widths and _fields_ mutation after type creation are the entry points.",
+      "lines": 11907,
+      "files": [
+        "Modules/_ctypes/_ctypes.c",
+        "Modules/_ctypes/callproc.c",
+        "Modules/_ctypes/cfield.c",
+        "Modules/_ctypes/stgdict.c",
+        "Modules/_ctypes/callbacks.c",
+        "Modules/_ctypes/malloc_closure.c"
+      ]
+    },
+    "obj-mappings": {
+      "family": "Objects: dict + set",
+      "tier": "A",
+      "scope": "Objects",
+      "status": "pending",
+      "passes": 1,
+      "oracle": null,
+      "notes": "Both already yielded on shallow sweeps (CPY-0015, CPY-0019) with 11,825 lines never read. Iterator invalidation and user __hash__ re-entry.",
+      "lines": 11825,
+      "files": [
+        "Objects/dictobject.c",
+        "Objects/setobject.c"
+      ]
+    },
+    "obj-typeobject": {
+      "family": "Objects: type machinery",
+      "tier": "A",
+      "scope": "Objects",
+      "status": "pending",
+      "passes": 2,
+      "oracle": null,
+      "notes": "TWO-PASS (13,068 lines, one file): pass 1 slot wiring / tp_new / tp_init / __new__ bypass; pass 2 MRO, super, inheritance, watchers. CPY-0007 came from here via a sweep.",
+      "lines": 13068,
+      "files": [
+        "Objects/typeobject.c"
+      ]
+    },
+    "obj-unicode-core": {
+      "family": "Objects: unicode core",
+      "tier": "A",
+      "scope": "Objects",
+      "status": "pending",
+      "passes": 2,
+      "oracle": null,
+      "notes": "TWO-PASS (15,395 lines, one file): pass 1 object core, interning, resize, writer paths; pass 2 codec encode/decode and error handlers.",
+      "lines": 15395,
+      "files": [
+        "Objects/unicodeobject.c"
+      ]
+    },
+    "obj-numerics": {
+      "family": "Objects: numeric types",
+      "tier": "A",
+      "scope": "Objects",
+      "status": "pending",
+      "passes": 1,
+      "oracle": null,
+      "notes": "__index__/__int__ returning a lying value is the reachability source; allocation-size arithmetic in longobject is the memory shape.",
+      "lines": 10890,
+      "files": [
+        "Objects/longobject.c",
+        "Objects/floatobject.c",
+        "Objects/complexobject.c",
+        "Objects/boolobject.c"
+      ]
+    },
+    "obj-callables": {
+      "family": "Objects: code / frame / generator / call",
+      "tier": "A",
+      "scope": "Objects",
+      "status": "pending",
+      "passes": 1,
+      "oracle": null,
+      "notes": "Frame lifetime vs generator close, code object versioning caches (FT-relevant), and vectorcall argument handling.",
+      "lines": 10861,
+      "files": [
+        "Objects/codeobject.c",
+        "Objects/genobject.c",
+        "Objects/frameobject.c",
+        "Objects/call.c",
+        "Objects/methodobject.c",
+        "Objects/classobject.c"
+      ]
+    },
+    "obj-protocol": {
+      "family": "Objects: core protocol, module, typevar",
+      "tier": "A",
+      "scope": "Objects",
+      "status": "pending",
+      "passes": 1,
+      "oracle": null,
+      "notes": "object.c holds the four element-descent dispatchers -- PyObject_Hash is the one with no recursion guard, the root of CPY-0019/0020/0021/0066.",
+      "lines": 10774,
+      "files": [
+        "Objects/object.c",
+        "Objects/abstract.c",
+        "Objects/typevarobject.c",
+        "Objects/moduleobject.c"
+      ]
+    },
+    "mod-remote-debugging": {
+      "family": "Modules: _remote_debugging",
+      "tier": "A",
+      "scope": "Modules/_remote_debugging",
+      "status": "pending",
+      "passes": 1,
+      "oracle": null,
+      "notes": "Newest package in the tree, near-zero prior review. Reads another process's memory by construction, so bounds handling is the whole story.",
+      "lines": 9597,
+      "files": [
+        "Modules/_remote_debugging/module.c",
+        "Modules/_remote_debugging/binary_io_reader.c",
+        "Modules/_remote_debugging/binary_io_writer.c",
+        "Modules/_remote_debugging/asyncio.c",
+        "Modules/_remote_debugging/threads.c",
+        "Modules/_remote_debugging/frames.c",
+        "Modules/_remote_debugging/code_objects.c",
+        "Modules/_remote_debugging/subprocess.c",
+        "Modules/_remote_debugging/frame_cache.c",
+        "Modules/_remote_debugging/object_reading.c",
+        "Modules/_remote_debugging/gc_stats.c",
+        "Modules/_remote_debugging/interpreters.c"
+      ]
+    },
+    "mod-concurrency": {
+      "family": "Modules: asyncio / thread / multiprocessing",
+      "tier": "A",
+      "scope": "Modules",
+      "status": "pending",
+      "passes": 1,
+      "oracle": null,
+      "notes": "CPY-0065 (Task.get_context init-bypass SIGSEGV) came from _asynciomodule via a sweep; the file has never been read.",
+      "lines": 8538,
+      "files": [
+        "Modules/_asynciomodule.c",
+        "Modules/_threadmodule.c",
+        "Modules/_multiprocessing/semaphore.c",
+        "Modules/_multiprocessing/multiprocessing.c",
+        "Modules/_multiprocessing/posixshmem.c"
+      ]
+    },
+    "obj-exc-alloc": {
+      "family": "Objects: exceptions + obmalloc",
+      "tier": "A",
+      "scope": "Objects",
+      "status": "pending",
+      "passes": 1,
+      "oracle": null,
+      "notes": "Exception group split/subgroup recursion, and obmalloc's size-class arithmetic.",
+      "lines": 8528,
+      "files": [
+        "Objects/exceptions.c",
+        "Objects/obmalloc.c"
+      ]
+    },
+    "mod-callback-reentrancy": {
+      "family": "Modules: user-callback re-entrancy",
+      "tier": "A",
+      "scope": "Modules",
+      "status": "pending",
+      "passes": 1,
+      "oracle": null,
+      "notes": "Cohesive by bug shape: every one of these calls back into user code mid-operation while holding a borrowed reference. The itertools cluster (CPY-0034..0037) is the guarded-twin reference for this family.",
+      "lines": 8252,
+      "files": [
+        "Modules/_sre/sre.c",
+        "Modules/_operator.c",
+        "Modules/_functoolsmodule.c",
+        "Modules/_bisectmodule.c"
+      ]
+    },
+    "mod-decimal": {
+      "family": "Modules: _decimal",
+      "tier": "A",
+      "scope": "Modules/_decimal",
+      "status": "pending",
+      "passes": 1,
+      "oracle": "Lib/_pydecimal.py",
+      "notes": "Shipped pure-Python twin is a free differential oracle. Context state and user __int__/__float__ re-entry.",
+      "lines": 8059,
+      "files": [
+        "Modules/_decimal/_decimal.c"
+      ]
+    },
+    "obj-buffers-misc": {
+      "family": "Objects: buffers, views, small types",
+      "tier": "A",
+      "scope": "Objects",
+      "status": "pending",
+      "passes": 1,
+      "oracle": null,
+      "notes": "memoryobject carries the export/release accounting the whole buffer protocol rests on; the seven small types are cheap coverage in the same pass.",
+      "lines": 7727,
+      "files": [
+        "Objects/memoryobject.c",
+        "Objects/rangeobject.c",
+        "Objects/sliceobject.c",
+        "Objects/enumobject.c",
+        "Objects/fileobject.c",
+        "Objects/namespaceobject.c",
+        "Objects/picklebufobject.c",
+        "Objects/sentinelobject.c"
+      ]
+    },
+    "mod-interpreters": {
+      "family": "Modules: subinterpreters, channels, queues",
+      "tier": "A",
+      "scope": "Modules",
+      "status": "pending",
+      "passes": 1,
+      "oracle": null,
+      "notes": "Cross-interpreter object handoff. _interpretersmodule.c:175/183 is the sibling pair the old deduplicate_findings key was erasing.",
+      "lines": 7302,
+      "files": [
+        "Modules/_interpchannelsmodule.c",
+        "Modules/_interpqueuesmodule.c",
+        "Modules/_interpretersmodule.c"
+      ]
+    },
+    "mod-array-mmap": {
+      "family": "Modules: array / mmap / gc / tracemalloc",
+      "tier": "A",
+      "scope": "Modules",
+      "status": "pending",
+      "passes": 1,
+      "oracle": null,
+      "notes": "CPY-0067 (arrayiter FT double-DECREF) came from arraymodule via a sweep. mmap resize-while-exported is the memoryobject shape against a real mapping.",
+      "lines": 6773,
+      "files": [
+        "Modules/arraymodule.c",
+        "Modules/mmapmodule.c",
+        "Modules/gcmodule.c",
+        "Modules/_tracemalloc.c"
+      ]
+    },
+    "mod-sqlite": {
+      "family": "Modules: _sqlite package",
+      "tier": "A",
+      "scope": "Modules/_sqlite",
+      "status": "pending",
+      "passes": 1,
+      "oracle": null,
+      "notes": "CPY-0066 (row hash recursion) came from row.c -- 307 lines of the package's 6,570. Converters and authorizer callbacks re-enter Python mid-statement.",
+      "lines": 6570,
+      "files": [
+        "Modules/_sqlite/connection.c",
+        "Modules/_sqlite/cursor.c",
+        "Modules/_sqlite/module.c",
+        "Modules/_sqlite/blob.c",
+        "Modules/_sqlite/row.c",
+        "Modules/_sqlite/statement.c",
+        "Modules/_sqlite/util.c",
+        "Modules/_sqlite/microprotocols.c",
+        "Modules/_sqlite/prepare_protocol.c"
+      ]
+    },
+    "obj-unicode-fmt": {
+      "family": "Objects: unicode formatting",
+      "tier": "A",
+      "scope": "Objects",
+      "status": "pending",
+      "passes": 1,
+      "oracle": null,
+      "notes": "Smallest Tier A slice. __format__ re-entry and writer buffer arithmetic.",
+      "lines": 4006,
+      "files": [
+        "Objects/unicode_formatter.c",
+        "Objects/unicode_format.c",
+        "Objects/unicode_writer.c",
+        "Objects/unicodectype.c"
+      ]
+    },
+    "mod-codecs": {
+      "family": "Modules: codecs + unicodedata",
+      "tier": "B",
+      "scope": "Modules",
+      "status": "pending",
+      "passes": 1,
+      "oracle": null,
+      "notes": "Error-handler callbacks return arbitrary Python objects mid-decode.",
+      "lines": 8926,
+      "files": [
+        "Modules/cjkcodecs/multibytecodec.c",
+        "Modules/cjkcodecs/_codecs_iso2022.c",
+        "Modules/cjkcodecs/_codecs_jp.c",
+        "Modules/cjkcodecs/_codecs_cn.c",
+        "Modules/cjkcodecs/_codecs_kr.c",
+        "Modules/cjkcodecs/_codecs_hk.c",
+        "Modules/cjkcodecs/_codecs_tw.c",
+        "Modules/_codecsmodule.c",
+        "Modules/unicodedata.c"
+      ]
+    },
+    "mod-syscall-core": {
+      "family": "Modules: signal / time / select / subprocess",
+      "tier": "B",
+      "scope": "Modules",
+      "status": "pending",
+      "passes": 1,
+      "oracle": null,
+      "notes": "",
+      "lines": 8778,
+      "files": [
+        "Modules/signalmodule.c",
+        "Modules/timemodule.c",
+        "Modules/selectmodule.c",
+        "Modules/_posixsubprocess.c"
+      ]
+    },
+    "mod-hashing": {
+      "family": "Modules: hash + hmac primitives",
+      "tier": "B",
+      "scope": "Modules",
+      "status": "pending",
+      "passes": 1,
+      "oracle": null,
+      "notes": "Buffer handling under GIL release; the blake2 .copy() uninit-dealloc (gh-152851) is the catalog reference here.",
+      "lines": 8104,
+      "files": [
+        "Modules/_hashopenssl.c",
+        "Modules/hmacmodule.c",
+        "Modules/blake2module.c",
+        "Modules/sha2module.c",
+        "Modules/sha3module.c",
+        "Modules/sha1module.c",
+        "Modules/md5module.c"
+      ]
+    },
+    "mod-ssl": {
+      "family": "Modules: _ssl",
+      "tier": "B",
+      "scope": "Modules",
+      "status": "pending",
+      "passes": 1,
+      "oracle": null,
+      "notes": "",
+      "lines": 7993,
+      "files": [
+        "Modules/_ssl.c",
+        "Modules/_ssl/cert.c",
+        "Modules/_ssl/debughelpers.c",
+        "Modules/_ssl/misc.c"
+      ]
+    },
+    "mod-compression": {
+      "family": "Modules: zlib / lzma / bz2 / zstd",
+      "tier": "B",
+      "scope": "Modules",
+      "status": "pending",
+      "passes": 1,
+      "oracle": null,
+      "notes": "Output-buffer growth arithmetic under GIL release.",
+      "lines": 7356,
+      "files": [
+        "Modules/zlibmodule.c",
+        "Modules/_lzmamodule.c",
+        "Modules/_bz2module.c",
+        "Modules/_zstd/compressor.c",
+        "Modules/_zstd/decompressor.c",
+        "Modules/_zstd/_zstdmodule.c",
+        "Modules/_zstd/zstddict.c"
+      ]
+    },
+    "mod-runtime-support": {
+      "family": "Modules: faulthandler / profiling / runtime hooks",
+      "tier": "B",
+      "scope": "Modules",
+      "status": "pending",
+      "passes": 1,
+      "oracle": null,
+      "notes": "Runtime instrumentation that runs at awkward moments -- a profiler callback during unwinding, atexit during finalization. _abc.c holds the ABC cache and _weakref.c the callback edge.",
+      "lines": 4831,
+      "files": [
+        "Modules/faulthandler.c",
+        "Modules/_lsprof.c",
+        "Modules/rotatingtree.c",
+        "Modules/atexitmodule.c",
+        "Modules/_weakref.c",
+        "Modules/_abc.c",
+        "Modules/_opcode.c"
+      ]
+    },
+    "mod-startup-leaf": {
+      "family": "Modules: startup, config, leaf modules",
+      "tier": "B",
+      "scope": "Modules",
+      "status": "pending",
+      "passes": 1,
+      "oracle": null,
+      "notes": "Small and mostly stateless. Cheap coverage; expect a confident negative rather than findings.",
+      "lines": 2622,
+      "files": [
+        "Modules/getpath.c",
+        "Modules/main.c",
+        "Modules/symtablemodule.c",
+        "Modules/_typingmodule.c",
+        "Modules/_typesmodule.c",
+        "Modules/_suggestions.c",
+        "Modules/_sysconfig.c",
+        "Modules/_uuidmodule.c"
+      ]
+    },
+    "mod-parsers-dbm": {
+      "family": "Modules: pyexpat / dbm / gdbm / binascii",
+      "tier": "B",
+      "scope": "Modules",
+      "status": "pending",
+      "passes": 1,
+      "oracle": null,
+      "notes": "pyexpat handler callbacks re-enter Python inside the parser.",
+      "lines": 7210,
+      "files": [
+        "Modules/pyexpat.c",
+        "Modules/_gdbmmodule.c",
+        "Modules/_dbmmodule.c",
+        "Modules/binascii.c"
+      ]
+    },
+    "mod-socket": {
+      "family": "Modules: socket",
+      "tier": "B",
+      "scope": "Modules",
+      "status": "pending",
+      "passes": 1,
+      "oracle": null,
+      "notes": "",
+      "lines": 10211,
+      "files": [
+        "Modules/socketmodule.c",
+        "Modules/getaddrinfo.c",
+        "Modules/getnameinfo.c"
+      ]
+    },
+    "mod-math": {
+      "family": "Modules: math / cmath / statistics",
+      "tier": "B",
+      "scope": "Modules",
+      "status": "pending",
+      "passes": 1,
+      "oracle": null,
+      "notes": "fsum/prod consume arbitrary iterables that can mutate mid-iteration.",
+      "lines": 6085,
+      "files": [
+        "Modules/mathmodule.c",
+        "Modules/cmathmodule.c",
+        "Modules/mathintegermodule.c",
+        "Modules/_statisticsmodule.c"
+      ]
+    },
+    "mod-posix": {
+      "family": "Modules: posixmodule",
+      "tier": "B",
+      "scope": "Modules",
+      "status": "pending",
+      "passes": 3,
+      "oracle": null,
+      "notes": "THREE-PASS (18,951 lines, one file): pass 1 path/fd conversion and path_t; pass 2 process spawn/fork/exec; pass 3 stat, dir walking, xattr, scandir.",
+      "lines": 18951,
+      "files": [
+        "Modules/posixmodule.c"
+      ]
+    },
+    "mod-syscall-small": {
+      "family": "Modules: fcntl / resource / stat / pwd / grp / errno",
+      "tier": "B",
+      "scope": "Modules",
+      "status": "pending",
+      "passes": 1,
+      "oracle": null,
+      "notes": "",
+      "lines": 4457,
+      "files": [
+        "Modules/fcntlmodule.c",
+        "Modules/resource.c",
+        "Modules/syslogmodule.c",
+        "Modules/errnomodule.c",
+        "Modules/_stat.c",
+        "Modules/pwdmodule.c",
+        "Modules/grpmodule.c"
+      ]
+    },
+    "mod-curses": {
+      "family": "Modules: curses",
+      "tier": "C",
+      "scope": "Modules",
+      "status": "pending",
+      "passes": 1,
+      "oracle": null,
+      "notes": "Needs a terminal to exercise; expect static-only triage.",
+      "lines": 10048,
+      "files": [
+        "Modules/_cursesmodule.c",
+        "Modules/_curses_panel.c"
+      ]
+    },
+    "mod-platform-locked": {
+      "family": "Modules: Windows/macOS only",
+      "tier": "C",
+      "scope": "Modules",
+      "status": "pending",
+      "passes": 1,
+      "oracle": null,
+      "notes": "STATIC ONLY on Linux -- no reproduction possible. CPY-0008 (winconsoleio) is already recorded as static-confirmed and is the model for this slice's output.",
+      "lines": 7081,
+      "files": [
+        "Modules/_winapi.c",
+        "Modules/overlapped.c",
+        "Modules/_io/winconsoleio.c",
+        "Modules/_scproxy.c"
+      ]
+    },
+    "mod-tty-locale": {
+      "family": "Modules: readline / termios / locale",
+      "tier": "C",
+      "scope": "Modules",
+      "status": "pending",
+      "passes": 1,
+      "oracle": null,
+      "notes": "",
+      "lines": 4262,
+      "files": [
+        "Modules/readline.c",
+        "Modules/termios.c",
+        "Modules/_localemodule.c"
+      ]
+    },
+    "mod-tkinter": {
+      "family": "Modules: _tkinter",
+      "tier": "C",
+      "scope": "Modules",
+      "status": "pending",
+      "passes": 1,
+      "oracle": null,
+      "notes": "Needs a display to exercise; expect static-only triage.",
+      "lines": 3927,
+      "files": [
+        "Modules/_tkinter.c"
+      ]
+    }
+  }
+}
