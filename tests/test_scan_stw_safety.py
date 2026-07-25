@@ -15,6 +15,58 @@ import unittest
 from helpers import TempProject, import_script
 
 
+class TestLockPolarityInStwVocabulary(unittest.TestCase):
+    """The counter-intuitive half of the stop-the-world contract.
+
+    Verified in CPython main @ 4f3be1b5:
+      Python/lock.c:656              PyMutex_Lock blocks with _PY_LOCK_DETACH
+      Python/pystate.c:2323          detach_thread -> _PyCriticalSection_SuspendAll
+      Python/critical_section.c:113  SuspendAll unlocks CRITICAL-SECTION mutexes only
+
+    So a critical section entered inside a stopped-world region is SAFE (the
+    detach releases it), while a RAW PyMutex_Lock is the actual hazard (nothing
+    releases it, and it can block on a mutex a stopped thread holds). Getting
+    this backwards suppresses the real defect and invents a false one, so it is
+    asserted rather than left to a comment.
+    """
+
+    def setUp(self):
+        self.mod = import_script("scan_stw_safety")
+        self.data = self.mod._load_stw_apis()
+
+    def _flatten(self, section: dict) -> set[str]:
+        names: set[str] = set()
+        for key, value in section.items():
+            if isinstance(value, list) and not key.endswith("note"):
+                names.update(value)
+        return names
+
+    def test_critical_sections_are_classified_safe(self):
+        safe = self._flatten(self.data["safe_during_stw"])
+        for macro in (
+            "Py_BEGIN_CRITICAL_SECTION",
+            "Py_BEGIN_CRITICAL_SECTION2",
+            "Py_BEGIN_CRITICAL_SECTION_MUTEX",
+            "Py_BEGIN_CRITICAL_SECTION2_MUTEX",
+        ):
+            self.assertIn(macro, safe, msg=macro)
+
+    def test_raw_mutex_acquisition_is_classified_unsafe(self):
+        unsafe = self._flatten(self.data["unsafe_during_stw"])
+        for name in ("PyMutex_Lock", "PyMutex_LockFlags", "PyThread_acquire_lock"):
+            self.assertIn(name, unsafe, msg=name)
+
+    def test_the_two_classifications_do_not_overlap(self):
+        safe = self._flatten(self.data["safe_during_stw"])
+        unsafe = self._flatten(self.data["unsafe_during_stw"])
+        overlap = safe & unsafe
+        self.assertEqual(overlap, set(), f"classified both ways: {sorted(overlap)}")
+
+    def test_both_new_categories_carry_their_reasoning(self):
+        self.assertIn("critical_sections_note", self.data["safe_during_stw"])
+        self.assertIn("raw_lock_acquisition_note", self.data["unsafe_during_stw"])
+
+
 class TestScanStwSafety(unittest.TestCase):
     def setUp(self):
         self.mod = import_script("scan_stw_safety")

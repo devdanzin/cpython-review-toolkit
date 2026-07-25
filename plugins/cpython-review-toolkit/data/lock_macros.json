@@ -2,110 +2,205 @@
   "lock_pairs": [
     {
       "name": "PyThread_acquire/release_lock",
-      "acquire": ["PyThread_acquire_lock", "PyThread_acquire_lock_timed"],
-      "release": ["PyThread_release_lock"],
+      "acquire": [
+        "PyThread_acquire_lock",
+        "PyThread_acquire_lock_timed"
+      ],
+      "release": [
+        "PyThread_release_lock"
+      ],
       "type": "python_thread"
     },
     {
       "name": "Py_BEGIN/END_ALLOW_THREADS",
-      "acquire": ["Py_END_ALLOW_THREADS"],
-      "release": ["Py_BEGIN_ALLOW_THREADS"],
+      "acquire": [
+        "Py_END_ALLOW_THREADS"
+      ],
+      "release": [
+        "Py_BEGIN_ALLOW_THREADS"
+      ],
       "type": "gil",
       "note": "Inverted: BEGIN releases GIL, END reacquires"
     },
     {
       "name": "ENTER/LEAVE_ZLIB",
-      "acquire": ["ENTER_ZLIB"],
-      "release": ["LEAVE_ZLIB"],
+      "acquire": [
+        "ENTER_ZLIB"
+      ],
+      "release": [
+        "LEAVE_ZLIB"
+      ],
       "type": "extension_lock"
     },
     {
       "name": "ENTER/LEAVE_BROTLI",
-      "acquire": ["ENTER_BROTLI"],
-      "release": ["LEAVE_BROTLI"],
+      "acquire": [
+        "ENTER_BROTLI"
+      ],
+      "release": [
+        "LEAVE_BROTLI"
+      ],
       "type": "extension_lock"
     },
     {
       "name": "pthread_mutex",
-      "acquire": ["pthread_mutex_lock", "pthread_mutex_trylock"],
-      "release": ["pthread_mutex_unlock"],
+      "acquire": [
+        "pthread_mutex_lock",
+        "pthread_mutex_trylock"
+      ],
+      "release": [
+        "pthread_mutex_unlock"
+      ],
       "type": "posix"
     },
     {
       "name": "pthread_rwlock",
-      "acquire": ["pthread_rwlock_rdlock", "pthread_rwlock_wrlock", "pthread_rwlock_tryrdlock", "pthread_rwlock_trywrlock"],
-      "release": ["pthread_rwlock_unlock"],
+      "acquire": [
+        "pthread_rwlock_rdlock",
+        "pthread_rwlock_wrlock",
+        "pthread_rwlock_tryrdlock",
+        "pthread_rwlock_trywrlock"
+      ],
+      "release": [
+        "pthread_rwlock_unlock"
+      ],
       "type": "posix"
     },
     {
       "name": "PyMutex",
-      "acquire": ["PyMutex_Lock", "PyMutex_LockFlags"],
-      "release": ["PyMutex_Unlock"],
+      "acquire": [
+        "PyMutex_Lock",
+        "PyMutex_LockFlags"
+      ],
+      "release": [
+        "PyMutex_Unlock"
+      ],
       "type": "python_mutex"
     },
     {
       "name": "LOCK/UNLOCK_WEAKREFS",
-      "acquire": ["LOCK_WEAKREFS", "LOCK_WEAKREFS_FOR_WR"],
-      "release": ["UNLOCK_WEAKREFS", "UNLOCK_WEAKREFS_FOR_WR"],
+      "acquire": [
+        "LOCK_WEAKREFS",
+        "LOCK_WEAKREFS_FOR_WR"
+      ],
+      "release": [
+        "UNLOCK_WEAKREFS",
+        "UNLOCK_WEAKREFS_FOR_WR"
+      ],
       "type": "python_mutex",
       "note": "CPython-only. PyMutex-backed striped weakref-list locks (Include/internal/pycore_weakref.h:18-30); expand to PyMutex_LockFlags/PyMutex_Unlock under Py_GIL_DISABLED and to nothing on the default build."
     },
     {
       "name": "Py_BEGIN/END_CRITICAL_SECTION",
-      "acquire": ["Py_BEGIN_CRITICAL_SECTION", "Py_BEGIN_CRITICAL_SECTION2"],
-      "release": ["Py_END_CRITICAL_SECTION", "Py_END_CRITICAL_SECTION2"],
-      "type": "critical_section"
+      "acquire": [
+        "Py_BEGIN_CRITICAL_SECTION",
+        "Py_BEGIN_CRITICAL_SECTION2",
+        "Py_BEGIN_CRITICAL_SECTION_MUTEX",
+        "Py_BEGIN_CRITICAL_SECTION2_MUTEX",
+        "Py_BEGIN_CRITICAL_SECTION_SEQUENCE_FAST"
+      ],
+      "release": [
+        "Py_END_CRITICAL_SECTION",
+        "Py_END_CRITICAL_SECTION2",
+        "Py_END_CRITICAL_SECTION_SEQUENCE_FAST"
+      ],
+      "type": "critical_section",
+      "note": "Include/cpython/critical_section.h:50-70. The _MUTEX openers take a PyMutex* instead of an object but share the NON-_MUTEX closers -- there is no Py_END_CRITICAL_SECTION_MUTEX. A pairing check that expects a matching _MUTEX closer reports a leak on every one of these regions. Py_BEGIN_CRITICAL_SECTION2 pairs only with Py_END_CRITICAL_SECTION2 and is the deadlock-safe form for locking two objects; nesting two single-object sections instead is a lock-order-inversion risk."
     },
     {
       "name": "Windows CRITICAL_SECTION",
-      "acquire": ["EnterCriticalSection", "TryEnterCriticalSection"],
-      "release": ["LeaveCriticalSection"],
+      "acquire": [
+        "EnterCriticalSection",
+        "TryEnterCriticalSection"
+      ],
+      "release": [
+        "LeaveCriticalSection"
+      ],
       "type": "windows"
     },
     {
       "name": "Windows SRWLock",
-      "acquire": ["AcquireSRWLockExclusive", "AcquireSRWLockShared"],
-      "release": ["ReleaseSRWLockExclusive", "ReleaseSRWLockShared"],
+      "acquire": [
+        "AcquireSRWLockExclusive",
+        "AcquireSRWLockShared"
+      ],
+      "release": [
+        "ReleaseSRWLockExclusive",
+        "ReleaseSRWLockShared"
+      ],
       "type": "windows"
     },
     {
       "name": "PyGILState",
-      "acquire": ["PyGILState_Ensure"],
-      "release": ["PyGILState_Release"],
+      "acquire": [
+        "PyGILState_Ensure"
+      ],
+      "release": [
+        "PyGILState_Release"
+      ],
       "type": "gilstate"
     },
     {
       "name": "StopTheWorld",
-      "acquire": ["_PyEval_StopTheWorld", "_PyEval_StopTheWorldAll"],
-      "release": ["_PyEval_StartTheWorld", "_PyEval_StartTheWorldAll"],
+      "acquire": [
+        "_PyEval_StopTheWorld",
+        "_PyEval_StopTheWorldAll"
+      ],
+      "release": [
+        "_PyEval_StartTheWorld",
+        "_PyEval_StartTheWorldAll"
+      ],
       "type": "stop_the_world",
       "note": "Stops all other threads. No Python code, GC, or exceptions allowed until StartTheWorld."
     }
   ],
   "all_acquire_macros": [
-    "PyThread_acquire_lock", "PyThread_acquire_lock_timed",
-    "ENTER_ZLIB", "ENTER_BROTLI",
-    "pthread_mutex_lock", "pthread_mutex_trylock",
-    "pthread_rwlock_rdlock", "pthread_rwlock_wrlock",
-    "PyMutex_Lock", "PyMutex_LockFlags",
-    "LOCK_WEAKREFS", "LOCK_WEAKREFS_FOR_WR",
-    "Py_BEGIN_CRITICAL_SECTION", "Py_BEGIN_CRITICAL_SECTION2",
-    "EnterCriticalSection", "TryEnterCriticalSection",
-    "AcquireSRWLockExclusive", "AcquireSRWLockShared",
+    "PyThread_acquire_lock",
+    "PyThread_acquire_lock_timed",
+    "Py_END_ALLOW_THREADS",
+    "ENTER_ZLIB",
+    "ENTER_BROTLI",
+    "pthread_mutex_lock",
+    "pthread_mutex_trylock",
+    "pthread_rwlock_rdlock",
+    "pthread_rwlock_wrlock",
+    "pthread_rwlock_tryrdlock",
+    "pthread_rwlock_trywrlock",
+    "PyMutex_Lock",
+    "PyMutex_LockFlags",
+    "LOCK_WEAKREFS",
+    "LOCK_WEAKREFS_FOR_WR",
+    "Py_BEGIN_CRITICAL_SECTION",
+    "Py_BEGIN_CRITICAL_SECTION2",
+    "Py_BEGIN_CRITICAL_SECTION_MUTEX",
+    "Py_BEGIN_CRITICAL_SECTION2_MUTEX",
+    "Py_BEGIN_CRITICAL_SECTION_SEQUENCE_FAST",
+    "EnterCriticalSection",
+    "TryEnterCriticalSection",
+    "AcquireSRWLockExclusive",
+    "AcquireSRWLockShared",
     "PyGILState_Ensure",
-    "_PyEval_StopTheWorld", "_PyEval_StopTheWorldAll"
+    "_PyEval_StopTheWorld",
+    "_PyEval_StopTheWorldAll"
   ],
   "all_release_macros": [
     "PyThread_release_lock",
-    "LEAVE_ZLIB", "LEAVE_BROTLI",
+    "Py_BEGIN_ALLOW_THREADS",
+    "LEAVE_ZLIB",
+    "LEAVE_BROTLI",
     "pthread_mutex_unlock",
     "pthread_rwlock_unlock",
     "PyMutex_Unlock",
-    "UNLOCK_WEAKREFS", "UNLOCK_WEAKREFS_FOR_WR",
-    "Py_END_CRITICAL_SECTION", "Py_END_CRITICAL_SECTION2",
+    "UNLOCK_WEAKREFS",
+    "UNLOCK_WEAKREFS_FOR_WR",
+    "Py_END_CRITICAL_SECTION",
+    "Py_END_CRITICAL_SECTION2",
+    "Py_END_CRITICAL_SECTION_SEQUENCE_FAST",
     "LeaveCriticalSection",
-    "ReleaseSRWLockExclusive", "ReleaseSRWLockShared",
+    "ReleaseSRWLockExclusive",
+    "ReleaseSRWLockShared",
     "PyGILState_Release",
-    "_PyEval_StartTheWorld", "_PyEval_StartTheWorldAll"
+    "_PyEval_StartTheWorld",
+    "_PyEval_StartTheWorldAll"
   ]
 }
