@@ -542,3 +542,30 @@ main @ 3.16.0a0 and is now gated in the scanner.
 - **Accumulate-then-return.** `res = f(); Py_DECREF(x); return res;` with only
   cleanup in between is correct and is already suppressed by the same gate
   (160 raw assignments across `Objects/` + `Modules/` + `Python/` reduce to 2).
+
+## NULL checks — the widened fallible-source set (issue #28)
+
+`scan_null_checks` used to resolve its assignment sources from a closed enum of
+45 API names, which reached **49 of 760** assignment-from-call sites (6.4%).
+The producer of the value is now also discovered from the file: any
+pointer-returning function whose body can `return NULL`, transitively through
+thin forwarders. That is what made `Objects/dictobject.c:4494` visible at all.
+Two FP classes come with it:
+
+- **A public API that is both a checked function and an unchecked macro in the
+  same translation unit.** `Objects/unicodeobject.c:15388` defines
+  `void* PyUnicode_DATA(PyObject *op)` with a real `return NULL` type-check
+  path — so discovery is correct to call it fallible — but every *internal*
+  call site expands the same-named **macro** instead, which cannot fail. The
+  finding at `:12922` is real about the name and wrong about the call. Check
+  whether the header defines a macro of the same name before triaging.
+- **The argument is provably the right type at the call site.** Most of these
+  helpers only return NULL on a type check the caller has already done. That is
+  a legitimate dismissal, but say *which* prior check establishes it.
+
+Before dismissing a whole file, read the three denominators now in the
+envelope: `assignment_sites`, `fallible_sources_resolved`, and
+`local_nullable_helpers`. Tree-wide they are 78,109 / 5,386 / 5,341.
+`summary.decref_of_nulled_outparam_call_sites` exists for the same reason: that
+rule's denominator on CPython is **effectively zero**, so its zero is
+structural and must never be reported as a clean result.

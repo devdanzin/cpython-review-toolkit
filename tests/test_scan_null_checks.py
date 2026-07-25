@@ -621,5 +621,131 @@ class TestRealTreeLineAccuracy(unittest.TestCase):
         )
 
 
+# ---------------------------------------------------------------------------
+# assert(EXPR(x)) is a dereference, not a check (issue #28 rule 8)
+# ---------------------------------------------------------------------------
+#
+# Objects/dictobject.c:4494 (CPY-0079). Three separate gaps had to close before
+# this site could be reached at all, which is why it read as clean:
+#
+#   1. the producer is a same-file `static` helper, invisible to the closed API
+#      enum (49 of 760 assignment-from-call sites resolved tree-wide, 6.4%);
+#   2. the sibling `else` arm's assignment truncated the window three lines
+#      short, before the assert;
+#   3. `_dominates` requires the use at the assignment's own brace depth, and
+#      the use is at the *join* of an if/else whose arms both assign.
+DICT_COPY_SHAPE = (
+    "static PyObject *\n"
+    "frozendict_new_untracked(PyTypeObject *type)\n"
+    "{\n"
+    "    PyObject *self = _PyType_AllocNoTrack(type, 0);\n"
+    "    if (self == NULL) {\n"
+    "        return NULL;\n"
+    "    }\n"
+    "    return self;\n"
+    "}\n"
+    "\n"
+    "static PyObject *\n"
+    "dict_new_untracked(PyTypeObject *type)\n"
+    "{\n"
+    "    return frozendict_new_untracked(type);\n"
+    "}\n"
+    "\n"
+    "static PyObject *\n"
+    "copy_lock_held_untracked(PyObject *o, int as_frozendict)\n"
+    "{\n"
+    "    PyDictObject *mp = (PyDictObject *)o;\n"
+    "    if (mp->ma_used == 0) {\n"
+    "        PyObject *d;\n"
+    "        if (as_frozendict) {\n"
+    "            d = frozendict_new_untracked(&PyFrozenDict_Type);\n"
+    "        }\n"
+    "        else {\n"
+    "            d = dict_new_untracked(&PyDict_Type);\n"
+    "        }\n"
+    "        assert(!_PyObject_GC_IS_TRACKED(d));\n"
+    "        return d;\n"
+    "    }\n"
+    "    return NULL;\n"
+    "}\n"
+)
+
+
+class TestAssertIsNotANullCheck(unittest.TestCase):
+    def _scan(self, code, path="Objects/dictobject.c"):
+        with TempProject({path: code}) as root:
+            return mod.analyze(str(root))
+
+    def test_the_reproduced_shape(self):
+        result = self._scan(DICT_COPY_SHAPE)
+        hits = [f for f in result["findings"] if f["type"] == "unchecked_alloc"]
+        self.assertEqual(len(hits), 1, hits)
+        self.assertEqual(hits[0]["variable"], "d")
+        self.assertTrue(hits[0]["deref_is_assert"])
+        self.assertIn("undefined behaviour", hits[0]["detail"])
+        self.assertGreater(hits[0]["deref_line"], hits[0]["line"])
+
+    def test_assert_on_a_bare_operand_is_still_a_check(self):
+        fixed = DICT_COPY_SHAPE.replace(
+            "        assert(!_PyObject_GC_IS_TRACKED(d));\n",
+            "        assert(d != NULL);\n"
+            "        assert(!_PyObject_GC_IS_TRACKED(d));\n",
+        )
+        self.assertEqual(
+            [f for f in self._scan(fixed)["findings"] if f["type"] == "unchecked_alloc"],
+            [],
+        )
+
+    def test_a_real_null_check_still_suppresses(self):
+        fixed = DICT_COPY_SHAPE.replace(
+            "        assert(!_PyObject_GC_IS_TRACKED(d));\n",
+            "        if (d == NULL) {\n            return NULL;\n        }\n"
+            "        assert(!_PyObject_GC_IS_TRACKED(d));\n",
+        )
+        self.assertEqual(
+            [f for f in self._scan(fixed)["findings"] if f["type"] == "unchecked_alloc"],
+            [],
+        )
+
+    def test_local_helpers_are_discovered_including_forwarders(self):
+        """dict_new_untracked has no `return NULL` of its own -- it forwards."""
+        src = mod.strip_comments_and_strings(DICT_COPY_SHAPE)
+        helpers = mod.nullable_source_calls(mod.find_functions(src))
+        self.assertIn("frozendict_new_untracked", helpers)
+        self.assertIn("dict_new_untracked", helpers)
+
+    def test_an_int_returning_helper_is_not_a_nullable_source(self):
+        src = mod.strip_comments_and_strings(
+            "static int\nsetup(PyObject *o)\n{\n    return 0;\n}\n"
+        )
+        self.assertEqual(mod.nullable_source_calls(mod.find_functions(src)), set())
+
+    def test_sibling_branch_assignment_does_not_truncate_the_window(self):
+        window = "; } else { d = other(); } assert(F(d));"
+        self.assertEqual(mod._truncate_at_reassignment(window, ["d"]), window)
+
+    def test_a_same_scope_reassignment_still_truncates(self):
+        window = "; d = other(); assert(F(d));"
+        self.assertNotIn("assert", mod._truncate_at_reassignment(window, ["d"]))
+
+    def test_denominators_are_reported(self):
+        """A zero against a large site count is a coverage statement."""
+        result = self._scan(DICT_COPY_SHAPE)
+        self.assertGreater(result["assignment_sites"], 0)
+        self.assertGreater(result["fallible_sources_resolved"], 0)
+        # Both producers plus copy_lock_held_untracked itself, which is also a
+        # pointer-returning function with a `return NULL`.
+        self.assertEqual(result["local_nullable_helpers"], 3)
+        self.assertEqual(result["summary"]["assert_only_derefs"], 1)
+
+    def test_decref_outparam_denominator_is_reported(self):
+        """This rule's denominator is literally zero on CPython -- no call
+        sites, no discovered wrappers -- so its zero is structural."""
+        result = self._scan(DICT_COPY_SHAPE)
+        self.assertIn(
+            "decref_of_nulled_outparam_call_sites", result["summary"]
+        )
+
+
 if __name__ == "__main__":
     unittest.main()
