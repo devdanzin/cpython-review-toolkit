@@ -1,0 +1,2 @@
+seconds=240.0 probers=24 drainers=4 gil=False
+survived: 3103000 exhaustion drops staged

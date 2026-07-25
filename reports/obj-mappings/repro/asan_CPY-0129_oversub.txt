@@ -1,0 +1,91 @@
+seconds=240.0 probers=40 drainers=4 gil=False
+=================================================================
+==2792174==ERROR: AddressSanitizer: use-after-poison on address 0x6f28a2130550 at pc 0x5c5cf1e8e530 bp 0x6f28881ad690 sp 0x6f28881ad688
+READ of size 8 at 0x6f28a2130550 thread T9
+    #0 0x5c5cf1e8e52f in _Py_IsOwnedByCurrentThread /home/danzin/projects/python_build_matrix/builds/release-ft-nojit-asan-mitrack/./Include/cpython/object.h:580:16
+    #1 0x5c5cf1e8e52f in _Py_TryIncrefFast /home/danzin/projects/python_build_matrix/builds/release-ft-nojit-asan-mitrack/./Include/internal/pycore_object.h:530:9
+    #2 0x5c5cf1e8e52f in _Py_TryIncrefCompare /home/danzin/projects/python_build_matrix/builds/release-ft-nojit-asan-mitrack/./Include/internal/pycore_object.h:569:9
+    #3 0x5c5cf1e8e52f in _Py_TryXGetRef /home/danzin/projects/python_build_matrix/builds/release-ft-nojit-asan-mitrack/./Include/internal/pycore_object.h:608:9
+    #4 0x5c5cf1e8e52f in list_get_item_ref /home/danzin/projects/python_build_matrix/builds/release-ft-nojit-asan-mitrack/Objects/listobject.c:373:22
+    #5 0x5c5cf217b1bc in _PyEval_EvalFrameDefault /home/danzin/projects/python_build_matrix/builds/release-ft-nojit-asan-mitrack/Python/generated_cases.c.h:862:35
+    #6 0x5c5cf2155633 in _PyEval_EvalFrame /home/danzin/projects/python_build_matrix/builds/release-ft-nojit-asan-mitrack/./Include/internal/pycore_ceval.h:122:16
+    #7 0x5c5cf2155633 in _PyEval_Vector /home/danzin/projects/python_build_matrix/builds/release-ft-nojit-asan-mitrack/Python/ceval.c:2172:12
+    #8 0x5c5cf1e05387 in _PyObject_VectorcallTstate /home/danzin/projects/python_build_matrix/builds/release-ft-nojit-asan-mitrack/./Include/internal/pycore_call.h:144:11
+    #9 0x5c5cf1e05387 in _PyObject_VectorcallPrepend /home/danzin/projects/python_build_matrix/builds/release-ft-nojit-asan-mitrack/Objects/call.c:855:20
+    #10 0x5c5cf21eb7ce in _PyObject_VectorcallTstate /home/danzin/projects/python_build_matrix/builds/release-ft-nojit-asan-mitrack/./Include/internal/pycore_call.h:144:11
+    #11 0x5c5cf21eb7ce in context_run /home/danzin/projects/python_build_matrix/builds/release-ft-nojit-asan-mitrack/Python/context.c:731:29
+    #12 0x5c5cf1e0196f in _PyObject_VectorcallTstate /home/danzin/projects/python_build_matrix/builds/release-ft-nojit-asan-mitrack/./Include/internal/pycore_call.h:144:11
+    #13 0x5c5cf1e0196f in PyObject_Vectorcall /home/danzin/projects/python_build_matrix/builds/release-ft-nojit-asan-mitrack/Objects/call.c:327:12
+    #14 0x5c5cf215684a in _Py_VectorCallInstrumentation_StackRefSteal /home/danzin/projects/python_build_matrix/builds/release-ft-nojit-asan-mitrack/Python/ceval.c:768:11
+    #15 0x5c5cf217fb2b in _PyEval_EvalFrameDefault /home/danzin/projects/python_build_matrix/builds/release-ft-nojit-asan-mitrack/Python/generated_cases.c.h:1906:35
+    #16 0x5c5cf2155633 in _PyEval_EvalFrame /home/danzin/projects/python_build_matrix/builds/release-ft-nojit-asan-mitrack/./Include/internal/pycore_ceval.h:122:16
+    #17 0x5c5cf2155633 in _PyEval_Vector /home/danzin/projects/python_build_matrix/builds/release-ft-nojit-asan-mitrack/Python/ceval.c:2172:12
+    #18 0x5c5cf1e05387 in _PyObject_VectorcallTstate /home/danzin/projects/python_build_matrix/builds/release-ft-nojit-asan-mitrack/./Include/internal/pycore_call.h:144:11
+    #19 0x5c5cf1e05387 in _PyObject_VectorcallPrepend /home/danzin/projects/python_build_matrix/builds/release-ft-nojit-asan-mitrack/Objects/call.c:855:20
+    #20 0x5c5cf2489fda in thread_run /home/danzin/projects/python_build_matrix/builds/release-ft-nojit-asan-mitrack/./Modules/_threadmodule.c:388:21
+    #21 0x5c5cf232335c in pythread_wrapper /home/danzin/projects/python_build_matrix/builds/release-ft-nojit-asan-mitrack/Python/thread_pthread.h:234:5
+    #22 0x5c5cf1ca1cea in asan_thread_start(void*) asan_interceptors.cpp.o
+    #23 0x7328d90a40d9 in start_thread nptl/pthread_create.c:454:8
+    #24 0x7328d91377ab in __GI___clone3 misc/../sysdeps/unix/sysv/linux/x86_64/clone3.S:78
+
+Address 0x6f28a2130550 is a wild pointer inside of access range of size 0x000000000008.
+SUMMARY: AddressSanitizer: use-after-poison /home/danzin/projects/python_build_matrix/builds/release-ft-nojit-asan-mitrack/./Include/cpython/object.h:580:16 in _Py_IsOwnedByCurrentThread
+Shadow bytes around the buggy address:
+  0x6f28a2130280: 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00
+  0x6f28a2130300: 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00
+  0x6f28a2130380: 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00
+  0x6f28a2130400: 00 00 f7 f7 f7 f7 f7 f7 f7 f7 f7 f7 00 00 00 00
+  0x6f28a2130480: 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00
+=>0x6f28a2130500: 00 00 00 00 00 00 00 00 00 00[00]00 00 00 00 00
+  0x6f28a2130580: 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00
+  0x6f28a2130600: 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00
+  0x6f28a2130680: 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00
+  0x6f28a2130700: 00 00 00 00 00 00 f7 f7 f7 f7 f7 f7 f7 f7 f7 f7
+  0x6f28a2130780: f7 f7 f7 f7 f7 f7 f7 f7 f7 f7 f7 f7 f7 f7 f7 f7
+Shadow byte legend (one shadow byte represents 8 application bytes):
+  Addressable:           00
+  Partially addressable: 01 02 03 04 05 06 07 
+  Heap left redzone:       fa
+  Freed heap region:       fd
+  Stack left redzone:      f1
+  Stack mid redzone:       f2
+  Stack right redzone:     f3
+  Stack after return:      f5
+  Stack use after scope:   f8
+  Global redzone:          f9
+  Global init order:       f6
+  Poisoned by user:        f7
+  Container overflow:      fc
+  Array cookie:            ac
+  Intra object redzone:    bb
+  ASan internal:           fe
+  Left alloca redzone:     ca
+  Right alloca redzone:    cb
+Thread T9 created by T0 here:
+    #0 0x5c5cf1c885b5 in pthread_create (/home/danzin/projects/python_build_matrix/builds/release-ft-nojit-asan-mitrack/python+0x2645b5) (BuildId: ed5844776c7902e1b341bdd7389e075a8509bf04)
+    #1 0x5c5cf2321bde in do_start_joinable_thread /home/danzin/projects/python_build_matrix/builds/release-ft-nojit-asan-mitrack/Python/thread_pthread.h:281:14
+    #2 0x5c5cf2321821 in PyThread_start_joinable_thread /home/danzin/projects/python_build_matrix/builds/release-ft-nojit-asan-mitrack/Python/thread_pthread.h:323:9
+    #3 0x5c5cf2489acf in ThreadHandle_start /home/danzin/projects/python_build_matrix/builds/release-ft-nojit-asan-mitrack/./Modules/_threadmodule.c:475:9
+    #4 0x5c5cf24879c3 in thread_PyThread_start_joinable_thread /home/danzin/projects/python_build_matrix/builds/release-ft-nojit-asan-mitrack/./Modules/_threadmodule.c:2042:14
+    #5 0x5c5cf1f2165b in cfunction_call /home/danzin/projects/python_build_matrix/builds/release-ft-nojit-asan-mitrack/Objects/methodobject.c:564:18
+    #6 0x5c5cf1e004c5 in _PyObject_MakeTpCall /home/danzin/projects/python_build_matrix/builds/release-ft-nojit-asan-mitrack/Objects/call.c:242:18
+    #7 0x5c5cf2155d58 in _Py_VectorCall_StackRefSteal /home/danzin/projects/python_build_matrix/builds/release-ft-nojit-asan-mitrack/Python/ceval.c:726:11
+    #8 0x5c5cf216d21d in _PyEval_EvalFrameDefault /home/danzin/projects/python_build_matrix/builds/release-ft-nojit-asan-mitrack/Python/generated_cases.c.h:3686:35
+    #9 0x5c5cf2154dd2 in _PyEval_EvalFrame /home/danzin/projects/python_build_matrix/builds/release-ft-nojit-asan-mitrack/./Include/internal/pycore_ceval.h:122:16
+    #10 0x5c5cf2154dd2 in _PyEval_Vector /home/danzin/projects/python_build_matrix/builds/release-ft-nojit-asan-mitrack/Python/ceval.c:2172:12
+    #11 0x5c5cf2154dd2 in PyEval_EvalCode /home/danzin/projects/python_build_matrix/builds/release-ft-nojit-asan-mitrack/Python/ceval.c:679:21
+    #12 0x5c5cf22e26cf in run_mod /home/danzin/projects/python_build_matrix/builds/release-ft-nojit-asan-mitrack/Python/pythonrun.c:1509:19
+    #13 0x5c5cf22dbd35 in _PyRun_File /home/danzin/projects/python_build_matrix/builds/release-ft-nojit-asan-mitrack/Python/pythonrun.c:1332:15
+    #14 0x5c5cf22dbd35 in _PyRun_SimpleFile /home/danzin/projects/python_build_matrix/builds/release-ft-nojit-asan-mitrack/Python/pythonrun.c:544:15
+    #15 0x5c5cf22db2e5 in _PyRun_AnyFile /home/danzin/projects/python_build_matrix/builds/release-ft-nojit-asan-mitrack/Python/pythonrun.c:92:18
+    #16 0x5c5cf2352978 in pymain_run_file_obj /home/danzin/projects/python_build_matrix/builds/release-ft-nojit-asan-mitrack/Modules/main.c:478:24
+    #17 0x5c5cf2352978 in pymain_run_file /home/danzin/projects/python_build_matrix/builds/release-ft-nojit-asan-mitrack/Modules/main.c:494:20
+    #18 0x5c5cf2351149 in pymain_run_python /home/danzin/projects/python_build_matrix/builds/release-ft-nojit-asan-mitrack/Modules/main.c:804:21
+    #19 0x5c5cf2351149 in Py_RunMain /home/danzin/projects/python_build_matrix/builds/release-ft-nojit-asan-mitrack/Modules/main.c:891:5
+    #20 0x5c5cf23520dd in pymain_main /home/danzin/projects/python_build_matrix/builds/release-ft-nojit-asan-mitrack/Modules/main.c:921:12
+    #21 0x5c5cf2352242 in Py_BytesMain /home/danzin/projects/python_build_matrix/builds/release-ft-nojit-asan-mitrack/Modules/main.c:945:12
+    #22 0x7328d902a600 in __libc_start_call_main csu/../sysdeps/nptl/libc_start_call_main.h:59:16
+    #23 0x7328d902a717 in __libc_start_main csu/../csu/libc-start.c:360:3
+    #24 0x5c5cf1bfeec4 in _start (/home/danzin/projects/python_build_matrix/builds/release-ft-nojit-asan-mitrack/python+0x1daec4) (BuildId: ed5844776c7902e1b341bdd7389e075a8509bf04)
+
+==2792174==ABORTING

@@ -1,0 +1,6 @@
+rc=-11
+--- stdout ---
+armed; triggering _odict_resize (action=delkey)
+SURVIVED len=2005
+
+--- stderr ---

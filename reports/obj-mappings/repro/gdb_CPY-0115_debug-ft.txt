@@ -1,0 +1,36 @@
+Python initialization failed: Disabling the GIL is not supported by this build
+warning: File "/home/danzin/projects/python_build_matrix/builds/debug-ft-nojit/python-gdb.py" auto-loading has been declined by your `auto-load safe-path' set to "$debugdir:$datadir/auto-load".
+To enable execution of this file add
+	add-auto-load-safe-path /home/danzin/projects/python_build_matrix/builds/debug-ft-nojit/python-gdb.py
+line to your configuration file "/home/danzin/.config/gdb/gdbinit".
+To completely disable this security protection add
+	set auto-load safe-path /
+line to your configuration file "/home/danzin/.config/gdb/gdbinit".
+For more information about this security protection see the
+"Auto-loading safe path" section in the GDB manual.  E.g., run from the shell:
+	info "(gdb)Auto-loading safe path"
+
+This GDB supports auto-downloading debuginfo from the following URLs:
+  <https://debuginfod.ubuntu.com>
+Enable debuginfod for this session? (y or [n]) [answered N; input not from terminal]
+Debuginfod has been disabled.
+To make this setting permanent, add 'set debuginfod enabled off' to .gdbinit.
+[Thread debugging using libthread_db enabled]
+Using host libthread_db library "/usr/lib/x86_64-linux-gnu/libthread_db.so.1".
+rounds=20000 readers=4 gil=False
+[New Thread 0x7ffff75ff6c0 (LWP 2768077)]
+[New Thread 0x7ffff65fe6c0 (LWP 2768078)]
+[New Thread 0x7ffff55fd6c0 (LWP 2768079)]
+[New Thread 0x7fffe7fff6c0 (LWP 2768080)]
+[New Thread 0x7fffe6ffe6c0 (LWP 2768081)]
+[New Thread 0x7fffe5ffd6c0 (LWP 2768082)]
+round 0
+[Thread 0x7fffe7fff6c0 (LWP 2768080) exited]
+[Thread 0x7ffff55fd6c0 (LWP 2768079) exited]
+[Thread 0x7ffff75ff6c0 (LWP 2768077) exited]
+[Thread 0x7ffff65fe6c0 (LWP 2768078) exited]
+[Thread 0x7fffe6ffe6c0 (LWP 2768081) exited]
+survived 20000 rounds
+[Thread 0x7fffe5ffd6c0 (LWP 2768082) exited]
+[Inferior 1 (process 2768074) exited normally]
+No stack.

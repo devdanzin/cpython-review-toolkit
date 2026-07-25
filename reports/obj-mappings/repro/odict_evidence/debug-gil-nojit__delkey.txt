@@ -1,0 +1,10 @@
+rc=1
+--- stdout ---
+armed; triggering _odict_resize (action=delkey)
+
+--- stderr ---
+Traceback (most recent call last):
+  File "/home/danzin/projects/cpython-review-toolkit/reports/obj-mappings/repro/odict_resize_stale_index.py", line 81, in <module>
+    od["boom"] = 1
+    ~~^^^^^^^^
+KeyError: 'boom'

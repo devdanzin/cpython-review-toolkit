@@ -1,0 +1,41 @@
+watchers: 0 1
+creating a function to emit PyFunction_EVENT_CREATE
+AddressSanitizer:DEADLYSIGNAL
+=================================================================
+==2783058==ERROR: AddressSanitizer: SEGV on unknown address 0x000000000000 (pc 0x000000000000 bp 0x7fffe21c0110 sp 0x7fffe21c0078 T0)
+==2783058==Hint: pc points to the zero page.
+==2783058==The signal is caused by a READ memory access.
+==2783058==Hint: address points to the zero page.
+    #0 0x000000000000  (<unknown module>)
+    #1 0x654486519c85 in PyEval_EvalCode /home/danzin/projects/python_build_matrix/builds/release-gil-nojit-asan/Python/ceval.c:673:30
+    #2 0x654486510378 in builtin_exec_impl /home/danzin/projects/python_build_matrix/builds/release-gil-nojit-asan/Python/bltinmodule.c:1267:17
+    #3 0x654486510378 in builtin_exec /home/danzin/projects/python_build_matrix/builds/release-gil-nojit-asan/Python/clinic/bltinmodule.c.h:676:20
+    #4 0x6544861a261f in _PyObject_VectorcallTstate /home/danzin/projects/python_build_matrix/builds/release-gil-nojit-asan/./Include/internal/pycore_call.h:144:11
+    #5 0x6544861a261f in PyObject_Vectorcall /home/danzin/projects/python_build_matrix/builds/release-gil-nojit-asan/Objects/call.c:327:12
+    #6 0x65448651b941 in _Py_VectorCallInstrumentation_StackRefSteal /home/danzin/projects/python_build_matrix/builds/release-gil-nojit-asan/Python/ceval.c:768:11
+    #7 0x65448652f0d3 in _PyEval_EvalFrameDefault /home/danzin/projects/python_build_matrix/builds/release-gil-nojit-asan/Python/generated_cases.c.h:1906:35
+    #8 0x654486519eed in _PyEval_EvalFrame /home/danzin/projects/python_build_matrix/builds/release-gil-nojit-asan/./Include/internal/pycore_ceval.h:122:16
+    #9 0x654486519eed in _PyEval_Vector /home/danzin/projects/python_build_matrix/builds/release-gil-nojit-asan/Python/ceval.c:2172:12
+    #10 0x654486519eed in PyEval_EvalCode /home/danzin/projects/python_build_matrix/builds/release-gil-nojit-asan/Python/ceval.c:679:21
+    #11 0x65448668c789 in run_mod /home/danzin/projects/python_build_matrix/builds/release-gil-nojit-asan/Python/pythonrun.c:1509:19
+    #12 0x6544866869cc in _PyRun_File /home/danzin/projects/python_build_matrix/builds/release-gil-nojit-asan/Python/pythonrun.c:1332:15
+    #13 0x6544866869cc in _PyRun_SimpleFile /home/danzin/projects/python_build_matrix/builds/release-gil-nojit-asan/Python/pythonrun.c:544:15
+    #14 0x654486685f81 in _PyRun_AnyFile /home/danzin/projects/python_build_matrix/builds/release-gil-nojit-asan/Python/pythonrun.c:92:18
+    #15 0x6544866fa0fd in pymain_run_file_obj /home/danzin/projects/python_build_matrix/builds/release-gil-nojit-asan/Modules/main.c:478:24
+    #16 0x6544866fa0fd in pymain_run_file /home/danzin/projects/python_build_matrix/builds/release-gil-nojit-asan/Modules/main.c:494:20
+    #17 0x6544866f8d30 in pymain_run_python /home/danzin/projects/python_build_matrix/builds/release-gil-nojit-asan/Modules/main.c:804:21
+    #18 0x6544866f8d30 in Py_RunMain /home/danzin/projects/python_build_matrix/builds/release-gil-nojit-asan/Modules/main.c:891:5
+    #19 0x6544866f9843 in pymain_main /home/danzin/projects/python_build_matrix/builds/release-gil-nojit-asan/Modules/main.c:921:12
+    #20 0x6544866f99a2 in Py_BytesMain /home/danzin/projects/python_build_matrix/builds/release-gil-nojit-asan/Modules/main.c:945:12
+    #21 0x74f688a2a600 in __libc_start_call_main csu/../sysdeps/nptl/libc_start_call_main.h:59:16
+    #22 0x74f688a2a717 in __libc_start_main csu/../csu/libc-start.c:360:3
+    #23 0x654485fa8eb4 in _start (/home/danzin/projects/python_build_matrix/builds/release-gil-nojit-asan/python+0x1d9eb4) (BuildId: 122a1ef0f157604175441a62bd3151f00f44a928)
+
+==2783058==Register values:
+rax = 0x00000ca890d98cff  rbx = 0x00007fffe21c0080  rcx = 0x0000000000000000  rdx = 0x0000000000000000  
+rdi = 0x0000000000000000  rsi = 0x000071e687c13770  rbp = 0x00007fffe21c0110  rsp = 0x00007fffe21c0078  
+ r8 = 0x0000000000000000   r9 = 0x00000ca890d6fc5c  r10 = 0x00007fffffffff01  r11 = 0x0000000000000000  
+r12 = 0x0000000000000001  r13 = 0x0000654486cc67f8  r14 = 0x0000654486cc67f8  r15 = 0x000071e687c13770  
+AddressSanitizer can not provide additional info.
+SUMMARY: AddressSanitizer: SEGV (<unknown module>) 
+==2783058==ABORTING

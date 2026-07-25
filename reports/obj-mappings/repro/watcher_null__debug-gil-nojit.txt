@@ -1,0 +1,3 @@
+watchers: 0 1
+creating a function to emit PyFunction_EVENT_CREATE
+python: Objects/funcobject.c:40: void notify_func_watchers(PyInterpreterState *, PyFunction_WatchEvent, PyFunctionObject *, PyObject *): Assertion `cb != NULL' failed.
