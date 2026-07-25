@@ -215,8 +215,13 @@ def report(manifest: dict, per_slice: dict[str, set[str]] | None) -> None:
             if per_slice is not None:
                 n = len(per_slice.get(sid, ()))
                 if n:
+                    # Only a PENDING slice with findings is the interesting case:
+                    # something reached into it and nobody reviewed it. An
+                    # in-progress slice has been reviewed, just not finished.
                     flag = (
-                        "" if spec["status"] == "done" else "  <- swept, not reviewed"
+                        "  <- swept, not reviewed"
+                        if spec["status"] == "pending"
+                        else ""
                     )
                     found = f"  {n} finding{'s' if n != 1 else ''}{flag}"
             passes = f" x{spec['passes']}" if spec.get("passes", 1) > 1 else ""

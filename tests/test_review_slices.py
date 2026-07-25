@@ -160,6 +160,52 @@ class TestSliceStatus(unittest.TestCase):
             }
             self.assertEqual(self.tool.sync_lines(manifest, Path(root)), [])
 
+    def test_only_a_pending_slice_with_findings_is_flagged_as_unreviewed(self):
+        """An in-progress slice HAS been reviewed; the flag would misread it."""
+        import io
+        from contextlib import redirect_stdout
+
+        manifest = {
+            "_meta": {
+                "order": ["p", "i", "d"],
+                "total_files": 3,
+                "total_lines": 300,
+            },
+            "slices": {
+                sid: {
+                    "family": f"F{sid}",
+                    "tier": "A",
+                    "scope": "Objects",
+                    "status": status,
+                    "passes": 1,
+                    "oracle": None,
+                    "notes": "",
+                    "lines": 100,
+                    "files": [f"Objects/{sid}.c"],
+                }
+                for sid, status in (
+                    ("p", "pending"),
+                    ("i", "in-progress"),
+                    ("d", "done"),
+                )
+            },
+        }
+        buf = io.StringIO()
+        with redirect_stdout(buf):
+            self.tool.report(manifest, {"p": {"CPY-1"}, "i": {"CPY-2"}, "d": {"CPY-3"}})
+        # "[ ]" splits into two tokens where "[~]" is one, so match on the id.
+        lines: dict[str, str] = {}
+        for line in buf.getvalue().splitlines():
+            if " finding" not in line:
+                continue
+            for sid in ("p", "i", "d"):
+                if f" {sid} " in line:
+                    lines[sid] = line
+        self.assertEqual(set(lines), {"p", "i", "d"}, buf.getvalue())
+        self.assertIn("swept, not reviewed", lines["p"])
+        self.assertNotIn("swept, not reviewed", lines["i"])
+        self.assertNotIn("swept, not reviewed", lines["d"])
+
     def test_owner_of_maps_a_path_back_to_its_slice(self):
         manifest = {
             "slices": {
