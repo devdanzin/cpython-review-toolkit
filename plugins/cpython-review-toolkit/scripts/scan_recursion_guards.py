@@ -33,7 +33,21 @@ Descent shapes detected:
 * **self-recursion** — the function calls itself with no guard (the
   ``_Py_make_parameters`` class, gh-154275). A guarded dispatcher does *not*
   help here: it increments the recursion counter once, then the self-call
-  chain runs unbounded.
+  chain runs unbounded. Reported for *any* function, not only a recognised
+  slot: what slot-hood stood in for -- "the recursion follows user-controlled
+  data" -- is now stated directly, by requiring the recursive argument to come
+  out of an **element operation** (a container extractor, a class-hierarchy
+  walk, or a hierarchy attribute lookup). Gating on slot-hood gave precision
+  0/1 and recall 0/7 on ``Objects/typeobject.c``, whose seven descents are all
+  non-slot ``static`` helpers -- among them a reproduced SIGSEGV reachable
+  through the builtin ``dir()``.
+* **mutual recursion** — a cycle of two or more same-file functions in which
+  *none* calls itself, so per-function analysis structurally cannot see the
+  recursion at all (``update_subclasses`` <-> ``recurse_down_subclasses``, an
+  ASan-confirmed native stack overflow). Found from the same intra-file call
+  graph ``scan_stw_safety`` builds. A guard -- or a hand-rolled depth bound
+  against a constant, as ``Python/marshal.c`` uses -- anywhere in the cycle
+  discharges all of it.
 * **container element descent** — a loop over a container calling
   ``PyObject_Hash`` on its items (the ``tuple_hash`` /
   ``frozendict_pair_hash`` class, gh-154318 — noted upstream as a copy-pasted
@@ -179,6 +193,82 @@ _GUARD_TOKENS = frozenset(
 # Slots whose descent, when unguarded, is additive per nesting level.
 _RECURSION_PRONE_CALLER_SLOTS = frozenset({"tp_hash", "parameter_walk"})
 
+# ---------------------------------------------------------------------------
+# Element operations: where a recursive call's argument comes from
+# ---------------------------------------------------------------------------
+#
+# Self-recursion used to be reported only for a function classified as a
+# recursion-prone *slot*.  All seven recursive descents in
+# ``Objects/typeobject.c`` are non-slot ``static`` helpers, so the shape was
+# computed and then discarded: precision 0/1, recall 0/7 on a file holding a
+# reproduced SIGSEGV (``merge_class_dict``, CPY-0071, reachable through the
+# builtin ``dir()``) and an ASan-confirmed overflow (CPY-0087).
+#
+# Slot-hood was standing in for "the recursion follows user-controlled data".
+# Naming that directly is both broader and tighter: the recursive argument must
+# come out of an element operation.
+
+# Container element extraction.
+_CONTAINER_ELEMENT_OPS = frozenset(
+    {
+        "PyTuple_GET_ITEM",
+        "PyTuple_GetItem",
+        "PyList_GET_ITEM",
+        "PyList_GetItem",
+        "PySequence_GetItem",
+        "PySequence_Fast_GET_ITEM",
+        "PySequence_ITEM",
+        "PyDict_Next",
+        "PyDict_GetItem",
+        "PyDict_GetItemRef",
+        "PyDict_GetItemWithError",
+        "PyObject_GetItem",
+        "PyIter_Next",
+        "PyStructSequence_GET_ITEM",
+    }
+)
+
+# Class-hierarchy walks.  None of the seven typeobject.c descents calls an
+# element-descent *dispatcher* at all -- they walk ``__bases__`` /
+# ``__mro__`` / ``tp_subclasses``, which is a Python-mutable graph of exactly
+# the same unbounded depth.  Without these the rule stays blind on the file
+# that motivated it.
+_OBJECT_GRAPH_WALK_OPS = frozenset(
+    {
+        "lookup_tp_bases",
+        "lookup_tp_mro",
+        "lookup_tp_subclasses",
+        "_PyType_GetBases",
+        "_PyType_GetMRO",
+        "_PyType_GetSubclasses",
+        "type_from_ref",
+    }
+)
+
+# Attribute lookups that fetch the hierarchy by name, for the ``dir()`` path
+# that does not have a PyTypeObject to hand.
+_ATTR_LOOKUP_OPS = frozenset(
+    {
+        "PyObject_GetAttr",
+        "PyObject_GetAttrString",
+        "PyObject_GetOptionalAttr",
+        "PyObject_GetOptionalAttrString",
+        "_PyObject_LookupAttr",
+    }
+)
+
+_ELEMENT_OPS = _CONTAINER_ELEMENT_OPS | _OBJECT_GRAPH_WALK_OPS | _ATTR_LOOKUP_OPS
+
+# ``&_Py_ID(__bases__)`` in an attribute lookup names the hierarchy explicitly.
+_GRAPH_ATTR_IDS = frozenset({"__bases__", "__mro__", "__subclasses__", "__class__"})
+_PY_ID_RE = re.compile(r"_Py_ID\s*\(\s*(\w+)\s*\)")
+
+# ``&out`` in an argument list: the callee writes the element through it, which
+# is how PyDict_Next hands back the value it just walked to.
+_ADDRESS_OF_ARG_RE = re.compile(r"^&\s*([A-Za-z_]\w*)$")
+
+_MAX_DERIVATION_ROUNDS = 6
+
 _CAST_PREFIX_RE = re.compile(
     r"^\(\s*(?:const\s+|struct\s+|unsigned\s+)*\w[\w\s\*]*\)\s*"
 )
@@ -259,6 +349,28 @@ def _slot_for(func_name: str, slot_map: dict[str, str]) -> str | None:
 def _has_guard(func: dict) -> bool:
     body = func["body"]
     return any(tok in body for tok in _GUARD_TOKENS)
+
+
+# A hand-rolled depth bound: `if (p->depth > MAX_MARSHAL_STACK_DEPTH)`.  It is
+# not `Py_EnterRecursiveCall`, but it bounds the recursion just as well, and
+# ``Python/marshal.c`` -- a genuinely user-data-driven recursive descent -- uses
+# exactly this.  Recognising it is the difference between reporting marshal's
+# cycle and reporting only the unbounded ones.
+#
+# Requires the counter to be compared against a *constant* (an uppercase macro
+# or a literal), not another variable: `if (depth > n)` inside a loop is an
+# index test, not a recursion bound.
+_DEPTH_BOUND_RE = re.compile(
+    r"\b\w*(?:depth|nesting|recursion)\w*\s*(?:>=?|<=?)\s*"
+    r"(?:[A-Z_][A-Z0-9_]{3,}|\d+)"
+    r"|(?:[A-Z_][A-Z0-9_]{3,}|\d+)\s*(?:>=?|<=?)\s*\b\w*(?:depth|nesting|recursion)\w*",
+    re.IGNORECASE | re.VERBOSE,
+)
+
+
+def _has_depth_bound(func: dict) -> bool:
+    """True when the body enforces its own depth limit against a constant."""
+    return bool(_DEPTH_BOUND_RE.search(func["body"]))
 
 
 def _has_loop(body_node) -> bool:
@@ -530,6 +642,89 @@ def self_call_descends(args_text: str, params: list[str], roots: set[str]) -> bo
     return False
 
 
+def element_derived_names(
+    calls: list[dict], assignments: dict[str, list[str]]
+) -> dict[str, str]:
+    """Map local name -> the element operation its value came out of.
+
+    Three binding forms, all present in the ``Objects/typeobject.c`` descents:
+
+    * a plain assignment -- ``PyObject *b = PyTuple_GET_ITEM(bases, i);``
+      (``assign_version_tag``);
+    * an **out-parameter** -- ``while (PyDict_Next(subclasses, &i, NULL, &ref))``
+      binds ``ref`` with no assignment node at all
+      (``_PyType_Modified_Unlocked``);
+    * one further hop -- ``subclass = type_from_ref(ref);``, where the element
+      arrives through a helper rather than directly.
+
+    Only the *hierarchy* attribute names count for an attribute lookup:
+    ``PyObject_GetOptionalAttr(aclass, &_Py_ID(__bases__), &bases)`` is a graph
+    walk, an arbitrary ``getattr`` is not.
+    """
+    derived: dict[str, str] = {}
+
+    for c in calls:
+        name = c["function_name"]
+        args = c.get("arguments_text", "")
+        if name in _ATTR_LOOKUP_OPS:
+            ids = {m.group(1) for m in _PY_ID_RE.finditer(args)}
+            if not (ids & _GRAPH_ATTR_IDS):
+                continue
+        elif name not in _ELEMENT_OPS:
+            continue
+        for arg in _split_top_level(args):
+            m = _ADDRESS_OF_ARG_RE.match(arg.strip())
+            if m:
+                derived.setdefault(m.group(1), name)
+
+    for var, rhs_list in assignments.items():
+        for rhs in rhs_list:
+            for op in _ELEMENT_OPS:
+                if re.search(rf"\b{re.escape(op)}\s*\(", rhs):
+                    derived.setdefault(var, op)
+                    break
+
+    for _ in range(_MAX_DERIVATION_ROUNDS):
+        changed = False
+        for var, rhs_list in assignments.items():
+            if var in derived:
+                continue
+            for rhs in rhs_list:
+                hit = next(
+                    (
+                        derived[i]
+                        for i in _IDENT_RE.findall(rhs)
+                        if i in derived and i != var
+                    ),
+                    None,
+                )
+                if hit is not None:
+                    derived[var] = hit
+                    changed = True
+                    break
+        if not changed:
+            break
+    return derived
+
+
+def descent_element_op(args_text: str, derived: dict[str, str]) -> str | None:
+    """The element op a recursive call's arguments come from, if any.
+
+    Every identifier in each argument is considered, not just the base one:
+    the descents spell it ``_PyType_CAST(b)`` and ``(PyTypeObject *)child`` as
+    often as they spell it ``subclass``.
+    """
+    for arg in _split_top_level(args_text):
+        expr = _strip_casts(arg).lstrip("&").strip()
+        for ident in _IDENT_RE.findall(expr):
+            if ident in derived:
+                return derived[ident]
+        for op in _ELEMENT_OPS:
+            if re.search(rf"\b{re.escape(op)}\s*\(", arg):
+                return op
+    return None
+
+
 _LOOP_NODE_TYPES = frozenset({"for_statement", "while_statement", "do_statement"})
 
 
@@ -591,23 +786,47 @@ def _analyze_function(
         if c["function_name"] == func["name"]
         and self_call_descends(c["arguments_text"], params, roots)
     ]
-    if slot is not None and descending_self_calls:
+    # Slot-hood is no longer required.  What it stood in for -- "the recursion
+    # follows user-controlled data" -- is now stated directly: the recursive
+    # argument must come out of an element operation.  Gating on slot-hood gave
+    # precision 0/1 and recall 0/7 on Objects/typeobject.c, whose seven
+    # descents are all non-slot static helpers.
+    derived = element_derived_names(calls, assignments)
+    element_op: str | None = None
+    for c in descending_self_calls:
+        element_op = descent_element_op(c["arguments_text"], derived)
+        if element_op is not None:
+            break
+    if descending_self_calls and (slot is not None or element_op is not None):
         line = descending_self_calls[0]["start_line"]
         if is_suppressed_by_comment(source_bytes, tree, line):
             return None
+        graph = element_op in _OBJECT_GRAPH_WALK_OPS or element_op in _ATTR_LOOKUP_OPS
+        via = (
+            f" The recursive argument comes out of {element_op}, so the depth is "
+            + (
+                "the depth of a Python-mutable class hierarchy"
+                if graph
+                else "the nesting depth of a user-supplied container"
+            )
+            + "."
+            if element_op
+            else ""
+        )
         return {
             "type": "missing_recursion_guard",
             "function": func["name"],
-            "slot": slot,
+            "slot": slot or "not_a_slot",
             "shape": "self_recursion",
-            "element_op": func["name"],
+            "element_op": element_op or func["name"],
+            "descent_via": element_op,
             "line": line,
-            "confidence": "high",
+            "confidence": "high" if (slot is not None or element_op) else "medium",
             "detail": (
                 f"'{func['name']}' recurses into itself with no "
                 "Py_EnterRecursiveCall guard — a deeply-nested or cyclic object "
                 "overflows the C stack (SIGSEGV) instead of raising "
-                "RecursionError. A guarded dispatcher does not help: it "
+                f"RecursionError.{via} A guarded dispatcher does not help: it "
                 "increments the recursion counter once, then the self-call "
                 "chain runs unbounded. Bracket the descent with "
                 "Py_EnterRecursiveCall()/Py_LeaveRecursiveCall()."
@@ -795,6 +1014,224 @@ def _analyze_function(
     }
 
 
+# ---------------------------------------------------------------------------
+# Shape 4: mutual recursion (issue #28 rule 3)
+# ---------------------------------------------------------------------------
+#
+# ``update_subclasses:12359 <-> recurse_down_subclasses:12397`` is a
+# two-function cycle that per-function analysis structurally cannot see: neither
+# function calls itself.  It is an ASan-confirmed native stack overflow
+# (CPY-0087).  The cycle is found from the same intra-file call graph
+# ``scan_stw_safety`` builds.
+
+
+def _strongly_connected(graph: dict[str, set[str]]) -> list[list[str]]:
+    """Tarjan SCCs, iterative.  Only components of size >= 2 are returned.
+
+    A size-1 component with a self-edge is ordinary self-recursion and is
+    already shape 1, so it is excluded here rather than reported twice.
+    """
+    index: dict[str, int] = {}
+    low: dict[str, int] = {}
+    on_stack: set[str] = set()
+    stack: list[str] = []
+    counter = 0
+    out: list[list[str]] = []
+
+    for root in graph:
+        if root in index:
+            continue
+        work: list[tuple[str, int]] = [(root, 0)]
+        while work:
+            node, child_i = work[-1]
+            if child_i == 0:
+                index[node] = low[node] = counter
+                counter += 1
+                stack.append(node)
+                on_stack.add(node)
+            recursed = False
+            children = sorted(graph.get(node, ()))
+            for i in range(child_i, len(children)):
+                nxt = children[i]
+                if nxt not in graph:
+                    continue
+                if nxt not in index:
+                    work[-1] = (node, i + 1)
+                    work.append((nxt, 0))
+                    recursed = True
+                    break
+                if nxt in on_stack:
+                    low[node] = min(low[node], index[nxt])
+            if recursed:
+                continue
+            if low[node] == index[node]:
+                component: list[str] = []
+                while True:
+                    w = stack.pop()
+                    on_stack.discard(w)
+                    component.append(w)
+                    if w == node:
+                        break
+                if len(component) > 1:
+                    out.append(component)
+            work.pop()
+            if work:
+                parent = work[-1][0]
+                low[parent] = min(low[parent], low[node])
+    return out
+
+
+# Measured on Objects/ + Modules/ + Python/: every cycle in the tree is size 2
+# or 3 except exactly one -- a 14-member component in Objects/typeobject.c that
+# is the PyType_Ready / MRO machinery's normal connectivity, where each trip is
+# bounded by MRO length rather than by user nesting. An SCC that large is not a
+# recursion a reviewer can check; it is the call graph. Larger components are
+# **counted in the envelope** (``large_cycles_not_reported``) rather than
+# dropped silently, so the denominator stays visible.
+_MAX_REPORTED_CYCLE = 3
+
+
+def find_mutual_recursion(
+    functions: list[dict],
+    calls_by_func: list[list[dict]],
+    slots: list[str | None],
+    source_bytes: bytes,
+    tree,
+    oversized: list[dict] | None = None,
+    already_reported: set[str] | None = None,
+) -> list[dict]:
+    """Cycles of two or more same-file functions with no guard anywhere in them.
+
+    Three gates:
+
+    * **no guard in any member** -- including a hand-rolled depth bound. A
+      guard anywhere in the cycle bounds every trip round it, so the whole
+      component is discharged by one macro.
+    * **size <= _MAX_REPORTED_CYCLE.**
+    * **some edge carries an element-derived argument.** CPython files are full
+      of mutually recursive helper clusters that recurse over *fixed* structure
+      (a parser, a marshaller); without this the rule would report every one of
+      them. In the motivating cycle the evidence sits on
+      ``recurse_down_subclasses``'s edge (``subclass`` comes from
+      ``type_from_ref(ref)``, and ``ref`` out of ``PyDict_Next``), not on the
+      edge the finding is reported at -- so the gate is a property of the
+      cycle, not of the reported site.
+    """
+    by_name: dict[str, int] = {}
+    for i, func in enumerate(functions):
+        by_name.setdefault(func["name"], i)
+
+    graph: dict[str, set[str]] = {}
+    for func, calls in zip(functions, calls_by_func):
+        graph.setdefault(func["name"], set())
+        for c in calls:
+            callee = c["function_name"]
+            if callee in by_name and callee != func["name"]:
+                graph[func["name"]].add(callee)
+
+    findings: list[dict] = []
+    for component in _strongly_connected(graph):
+        members = sorted(component, key=lambda n: functions[by_name[n]]["start_line"])
+        if any(
+            _has_guard(functions[by_name[n]]) or _has_depth_bound(functions[by_name[n]])
+            for n in members
+        ):
+            continue
+        if already_reported and set(members) & already_reported:
+            # A member is already reported as plainly self-recursive. One guard
+            # discharges both, and the simpler statement is the useful one --
+            # `_Py_uop_sym_set_const` is both self-recursive and in a 3-cycle.
+            continue
+        if len(members) > _MAX_REPORTED_CYCLE:
+            if oversized is not None:
+                oversized.append(
+                    {
+                        "head": members[0],
+                        "line": functions[by_name[members[0]]]["start_line"],
+                        "size": len(members),
+                        "members": members,
+                    }
+                )
+            continue
+
+        descent_op: str | None = None
+        descent_site: tuple[str, str, int] | None = None
+        member_set = set(members)
+        for name in members:
+            idx = by_name[name]
+            func = functions[idx]
+            calls = calls_by_func[idx]
+            assignments: dict[str, list[str]] = defaultdict(list)
+            for a in find_assignments_in_scope(func["body_node"], source_bytes):
+                if _IDENT_RE.fullmatch(a["variable"]):
+                    assignments[a["variable"]].append(a["value_text"])
+            derived = element_derived_names(calls, assignments)
+            for c in calls:
+                if c["function_name"] not in member_set:
+                    continue
+                op = descent_element_op(c["arguments_text"], derived)
+                if op is not None:
+                    descent_op = op
+                    descent_site = (name, c["function_name"], c["start_line"])
+                    break
+            if descent_op is not None:
+                break
+        if descent_op is None:
+            continue
+
+        # Report at the first member in file order, on its edge into the cycle,
+        # so the finding lands where a reader starts reading.
+        head = members[0]
+        head_idx = by_name[head]
+        line = next(
+            (
+                c["start_line"]
+                for c in calls_by_func[head_idx]
+                if c["function_name"] in member_set
+            ),
+            functions[head_idx]["start_line"],
+        )
+        if is_suppressed_by_comment(source_bytes, tree, line):
+            continue
+        cycle_text = " -> ".join(members + [members[0]])
+        assert descent_site is not None
+        findings.append(
+            {
+                "type": "missing_recursion_guard",
+                "function": head,
+                "slot": slots[head_idx] or "not_a_slot",
+                "shape": "mutual_recursion",
+                "element_op": descent_op,
+                "descent_via": descent_op,
+                "cycle": members,
+                "cycle_size": len(members),
+                "descent_edge": {
+                    "caller": descent_site[0],
+                    "callee": descent_site[1],
+                    "line": descent_site[2],
+                },
+                "line": line,
+                "confidence": "high",
+                "confirmed_by": "CPY-0087 (ASan-confirmed native stack overflow)"
+                if set(members) == {"update_subclasses", "recurse_down_subclasses"}
+                else None,
+                "detail": (
+                    f"{cycle_text} is a {len(members)}-function recursion cycle "
+                    "with no Py_EnterRecursiveCall guard in any member — no "
+                    "function in it calls itself, so per-function analysis "
+                    "cannot see the recursion at all. "
+                    f"{descent_site[0]} passes {descent_site[1]} a value from "
+                    f"{descent_op} at line {descent_site[2]}, so the depth is "
+                    "supplied by a Python-controlled graph and a deep or cyclic "
+                    "one overflows the C stack (SIGSEGV) rather than raising "
+                    "RecursionError. One guard anywhere in the cycle bounds "
+                    "every trip round it."
+                ),
+            }
+        )
+    return findings
+
+
 def _dedupe(findings: list[dict]) -> list[dict]:
     """Drop exact repeats keyed by (type, file, function, line).
 
@@ -824,6 +1261,7 @@ def analyze(target: str, *, max_files: int = 0) -> dict:
     slot_functions = 0
     files_analyzed = 0
     skipped: list[dict] = []
+    oversized_cycles: list[dict] = []
 
     for filepath in discover_c_files(scan_root, max_files=max_files):
         try:
@@ -882,6 +1320,29 @@ def analyze(target: str, *, max_files: int = 0) -> dict:
                 f["file"] = rel
                 findings.append(f)
 
+        # Pass 3: cycles. Cross-function by construction, so it cannot live in
+        # the per-function pass.
+        file_oversized: list[dict] = []
+        self_recursive = {
+            f["function"]
+            for f in findings
+            if f.get("shape") == "self_recursion" and f.get("file") == rel
+        }
+        for f in find_mutual_recursion(
+            functions,
+            calls_by_func,
+            slots,
+            source_bytes,
+            tree,
+            file_oversized,
+            self_recursive,
+        ):
+            f["file"] = rel
+            findings.append(f)
+        for entry in file_oversized:
+            entry["file"] = rel
+            oversized_cycles.append(entry)
+
     findings = _dedupe(findings)
 
     by_confidence: dict[str, int] = defaultdict(int)
@@ -929,6 +1390,8 @@ def analyze(target: str, *, max_files: int = 0) -> dict:
                 "raw pointer, flat byte range)."
             ),
         },
+        large_cycles_not_reported=oversized_cycles,
+        cycle_reporting_cap=_MAX_REPORTED_CYCLE,
         skipped_files=skipped,
     )
 
