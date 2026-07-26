@@ -14,13 +14,7 @@ class TestFindFunctions(unittest.TestCase):
     """Test C function detection."""
 
     def test_simple_function(self):
-        source = (
-            "static int\n"
-            "my_func(int x)\n"
-            "{\n"
-            "    return x + 1;\n"
-            "}\n"
-        )
+        source = "static int\nmy_func(int x)\n{\n    return x + 1;\n}\n"
         funcs, _ = mod.find_functions(source)
         self.assertEqual(len(funcs), 1)
         self.assertEqual(funcs[0]["name"], "my_func")
@@ -62,16 +56,7 @@ class TestFindFunctions(unittest.TestCase):
         self.assertEqual(names, {"foo", "bar"})
 
     def test_skips_control_keywords(self):
-        source = (
-            "void\n"
-            "test(void)\n"
-            "{\n"
-            "    if (x)\n"
-            "    {\n"
-            "        return;\n"
-            "    }\n"
-            "}\n"
-        )
+        source = "void\ntest(void)\n{\n    if (x)\n    {\n        return;\n    }\n}\n"
         funcs, _ = mod.find_functions(source)
         # Should find test() but not treat 'if' as a function.
         for f in funcs:
@@ -107,22 +92,24 @@ class TestMeasureFunction(unittest.TestCase):
         self.assertEqual(metrics["parameter_count"], 0)
 
     def test_complex_function(self):
-        body = "\n".join([
-            "    if (x > 0) {",
-            "        if (y > 0) {",
-            "            if (z > 0) {",
-            "                if (w > 0) {",
-            "                    if (v > 0) {",
-            "                        if (u > 0) {",
-            "                            return 1;",
-            "                        }",
-            "                    }",
-            "                }",
-            "            }",
-            "        }",
-            "    }",
-            "    return 0;",
-        ])
+        body = "\n".join(
+            [
+                "    if (x > 0) {",
+                "        if (y > 0) {",
+                "            if (z > 0) {",
+                "                if (w > 0) {",
+                "                    if (v > 0) {",
+                "                        if (u > 0) {",
+                "                            return 1;",
+                "                        }",
+                "                    }",
+                "                }",
+                "            }",
+                "        }",
+                "    }",
+                "    return 0;",
+            ]
+        )
         func = {
             "name": "deep",
             "params": "int x, int y, int z, int w, int v, int u",
@@ -157,15 +144,11 @@ class TestAnalyze(unittest.TestCase):
     """Test full complexity analysis."""
 
     def test_basic_project(self):
-        with TempProject({
-            "Objects/test.c": (
-                "static int\n"
-                "simple(int x)\n"
-                "{\n"
-                "    return x;\n"
-                "}\n"
-            ),
-        }) as root:
+        with TempProject(
+            {
+                "Objects/test.c": ("static int\nsimple(int x)\n{\n    return x;\n}\n"),
+            }
+        ) as root:
             result = mod.analyze(str(root))
             self.assertGreater(result["functions_analyzed"], 0)
             self.assertIn("files", result)
@@ -273,25 +256,14 @@ class TestMultiLineSignatures(unittest.TestCase):
         self.assertIn("bytearray_clear_impl", [f["name"] for f in funcs])
 
     def test_coverage_is_reported(self):
-        source = (
-            "static int\n"
-            "ok(void)\n"
-            "{\n"
-            "    return 0;\n"
-            "}\n"
-        )
+        source = "static int\nok(void)\n{\n    return 0;\n}\n"
         _, coverage = mod.find_functions(source)
         self.assertEqual(coverage["brace_blocks_seen"], 1)
         self.assertEqual(coverage["functions_parsed"], 1)
         self.assertEqual(coverage["coverage_pct"], 100.0)
 
     def test_initializer_is_not_a_function(self):
-        source = (
-            "static PyType_Slot slots[] =\n"
-            "{\n"
-            "    {0, NULL},\n"
-            "};\n"
-        )
+        source = "static PyType_Slot slots[] =\n{\n    {0, NULL},\n};\n"
         funcs, _ = mod.find_functions(source)
         self.assertEqual(funcs, [])
 
@@ -300,19 +272,21 @@ class TestCleanupLadder(unittest.TestCase):
     """TK-21: the goto-free manual-cleanup counter-metric."""
 
     def test_ladder_counts_repeated_cleanup(self):
-        body = "\n".join([
-            "    PyObject *a = make_a();",
-            "    PyObject *b = make_b();",
-            "    if (x) {",
-            "        Py_DECREF(a);",
-            "        return NULL;",
-            "    }",
-            "    if (y) {",
-            "        Py_DECREF(b);",
-            "        return NULL;",
-            "    }",
-            "    return a;",
-        ])
+        body = "\n".join(
+            [
+                "    PyObject *a = make_a();",
+                "    PyObject *b = make_b();",
+                "    if (x) {",
+                "        Py_DECREF(a);",
+                "        return NULL;",
+                "    }",
+                "    if (y) {",
+                "        Py_DECREF(b);",
+                "        return NULL;",
+                "    }",
+                "    return a;",
+            ]
+        )
         result = mod.measure_cleanup_ladder(body)
         self.assertEqual(result["owned_locals"], 2)
         self.assertEqual(result["returns_with_cleanup"], 2)
@@ -327,16 +301,18 @@ class TestCleanupLadder(unittest.TestCase):
         func = {
             "name": "with_goto",
             "params": "void",
-            "body": "\n".join([
-                "    PyObject *a = make_a();",
-                "    if (x)",
-                "        goto error;",
-                "    Py_DECREF(a);",
-                "    return 0;",
-                "error:",
-                "    Py_DECREF(a);",
-                "    return -1;",
-            ]),
+            "body": "\n".join(
+                [
+                    "    PyObject *a = make_a();",
+                    "    if (x)",
+                    "        goto error;",
+                    "    Py_DECREF(a);",
+                    "    return 0;",
+                    "error:",
+                    "    Py_DECREF(a);",
+                    "    return -1;",
+                ]
+            ),
             "start_line": 1,
             "end_line": 10,
         }
@@ -366,9 +342,7 @@ class TestHotspotSelection(unittest.TestCase):
 
     def test_absolute_floor_can_be_layered_on(self):
         funcs = self._funcs([2.5] + [1.0] * 99)
-        hotspots, threshold = mod.select_hotspots(
-            funcs, top_percent=2.0, min_score=5.0
-        )
+        hotspots, threshold = mod.select_hotspots(funcs, top_percent=2.0, min_score=5.0)
         self.assertEqual(threshold, 5.0)
         self.assertEqual(hotspots, [])
 
@@ -378,15 +352,11 @@ class TestHotspotSelection(unittest.TestCase):
         self.assertEqual(threshold, 0.0)
 
     def test_analyze_reports_threshold_and_coverage(self):
-        with TempProject({
-            "Objects/test.c": (
-                "static int\n"
-                "simple(int x)\n"
-                "{\n"
-                "    return x;\n"
-                "}\n"
-            ),
-        }) as root:
+        with TempProject(
+            {
+                "Objects/test.c": ("static int\nsimple(int x)\n{\n    return x;\n}\n"),
+            }
+        ) as root:
             result = mod.analyze(str(root))
             self.assertIn("coverage", result)
             self.assertIn("hotspot_threshold", result["summary"])
@@ -480,3 +450,116 @@ class TestMergedRunTruncationIsReported(unittest.TestCase):
             result = mod.analyze(str(root))
         self.assertEqual(result["summary"]["files_without_hotspots"], [])
         self.assertEqual(result["summary"]["files_without_hotspots_note"], "")
+
+
+class TestPreprocessorBraceBalance(unittest.TestCase):
+    """A #ifdef whose branches share a closing brace must not eat the function.
+
+    CPython varies a condition across platforms by opening a brace in both
+    branches of a #ifdef/#else and closing it once after the #endif --
+    Modules/_io/fileio.c:483-491 is the live instance. Counting braces
+    character-wise leaves the depth permanently above zero, the search runs off
+    the end of the file, and the old code silently kept body_end at its
+    body_start initialization: line_count 0, cyclomatic 1, score 1.00, while
+    coverage_pct still counted the function as parsed.
+
+    That hid 31 functions across Objects/ Modules/ Python/, including
+    _io_FileIO___init___impl (254 lines, cyclomatic 57, the highest-churn
+    function in _io) and dictobject.c's dictiter_iternextitem.
+    """
+
+    UNBALANCED = (
+        "static int\n"
+        "platform_forked(int a)\n"
+        "{\n"
+        "    int ret = 0;\n"
+        "#ifdef MS_WINDOWS\n"
+        "    if (GetLastError() == ERROR_INVALID_HANDLE) {\n"
+        "#else\n"
+        "    if (errno == EBADF) {\n"
+        "#endif\n"
+        "        goto error;\n"
+        "    }\n"
+        "    return ret;\n"
+        "error:\n"
+        "    return -1;\n"
+        "}\n"
+    )
+
+    def test_shared_closing_brace_does_not_truncate(self):
+        funcs, coverage = mod.find_functions(self.UNBALANCED)
+        self.assertEqual(len(funcs), 1)
+        fn = funcs[0]
+        self.assertEqual(fn["name"], "platform_forked")
+        # The real closing brace is the last line (1-indexed 15).
+        self.assertEqual(fn["end_line"], 15)
+        self.assertIn("goto error", fn["body"])
+        self.assertEqual(coverage["extents_unresolved"], 0)
+
+    def test_truncated_function_is_no_longer_zero_length(self):
+        funcs, _ = mod.find_functions(self.UNBALANCED)
+        measured = mod.measure_function(funcs[0])
+        self.assertGreater(measured["line_count"], 0)
+        self.assertGreater(measured["cyclomatic_complexity"], 1)
+
+    def test_balanced_ifdef_still_resolves(self):
+        source = (
+            "static int\n"
+            "both_balanced(int a)\n"
+            "{\n"
+            "#ifdef MS_WINDOWS\n"
+            "    if (a) { return 1; }\n"
+            "#else\n"
+            "    if (a) { return 2; }\n"
+            "#endif\n"
+            "    return 0;\n"
+            "}\n"
+        )
+        funcs, coverage = mod.find_functions(source)
+        self.assertEqual(len(funcs), 1)
+        self.assertEqual(funcs[0]["end_line"], 10)
+        self.assertEqual(coverage["extents_unresolved"], 0)
+
+    def test_nested_conditionals_track_independently(self):
+        source = (
+            "static int\n"
+            "nested(int a)\n"
+            "{\n"
+            "#ifdef OUTER\n"
+            "#  ifdef INNER\n"
+            "    if (a) {\n"
+            "#  else\n"
+            "    if (!a) {\n"
+            "#  endif\n"
+            "        return 1;\n"
+            "    }\n"
+            "#endif\n"
+            "    return 0;\n"
+            "}\n"
+        )
+        funcs, coverage = mod.find_functions(source)
+        self.assertEqual(len(funcs), 1)
+        self.assertEqual(funcs[0]["end_line"], 14)
+        self.assertEqual(coverage["extents_unresolved"], 0)
+
+    def test_genuinely_empty_function_is_still_zero_and_not_flagged(self):
+        """_Py_BreakPoint and friends really are empty -- do not manufacture a body."""
+        source = "void\n_Py_BreakPoint(void)\n{\n}\n"
+        funcs, coverage = mod.find_functions(source)
+        self.assertEqual(len(funcs), 1)
+        self.assertEqual(mod.measure_function(funcs[0])["line_count"], 0)
+        self.assertEqual(coverage["extents_unresolved"], 0)
+
+    def test_unresolvable_extent_falls_back_and_is_reported(self):
+        """No closing brace at all: fall back to a column-0 '}', never to nothing."""
+        source = "static int\nrunaway(int a)\n{\n    if (a) {\n        return 1;\n}\n"
+        funcs, coverage = mod.find_functions(source)
+        self.assertEqual(len(funcs), 1)
+        self.assertEqual(coverage["extents_unresolved"], 1)
+        # It fell back to the column-0 brace rather than collapsing to zero.
+        self.assertGreater(funcs[0]["end_line"], funcs[0]["start_line"] + 1)
+
+    def test_extents_unresolved_is_in_the_analyze_envelope(self):
+        with TempProject({"Objects/x.c": self.UNBALANCED}) as root:
+            result = mod.analyze(str(root))
+        self.assertIn("extents_unresolved", result["coverage"])

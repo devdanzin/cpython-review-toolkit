@@ -46,6 +46,7 @@ from typing import Generator
 # Shared utilities (duplicated per-script for zero cross-imports)
 # ---------------------------------------------------------------------------
 
+
 def find_cpython_root(start: Path) -> Path | None:
     current = start if start.is_dir() else start.parent
     for _ in range(20):
@@ -60,14 +61,25 @@ def find_cpython_root(start: Path) -> Path | None:
     return None
 
 
-_EXCLUDE_DIRS = frozenset({
-    ".git", ".tox", ".venv", "venv", "__pycache__",
-    "node_modules", "build", "dist", ".eggs",
-})
+_EXCLUDE_DIRS = frozenset(
+    {
+        ".git",
+        ".tox",
+        ".venv",
+        "venv",
+        "__pycache__",
+        "node_modules",
+        "build",
+        "dist",
+        ".eggs",
+    }
+)
 
 
 def discover_c_files(
-    root: Path, *, max_files: int = 0,
+    root: Path,
+    *,
+    max_files: int = 0,
 ) -> Generator[Path, None, None]:
     count = 0
     if root.is_file():
@@ -105,12 +117,12 @@ def strip_comments_and_strings(source: str) -> str:
     being consumed that way.
     """
     source = re.sub(
-        r'/\*.*?\*/',
+        r"/\*.*?\*/",
         lambda m: " " + "\n" * m.group(0).count("\n"),
         source,
         flags=re.DOTALL,
     )
-    source = re.sub(r'//[^\n]*', ' ', source)
+    source = re.sub(r"//[^\n]*", " ", source)
     source = re.sub(r'"(?:[^"\\\n]|\\.)*"', '""', source)
     source = re.sub(r"'(?:[^'\\\n]|\\.)*'", "''", source)
     return source
@@ -121,10 +133,25 @@ def strip_comments_and_strings(source: str) -> str:
 # ---------------------------------------------------------------------------
 
 # Tokens that can never name a function definition.
-_NOT_A_FUNCTION_NAME = frozenset({
-    'if', 'for', 'while', 'switch', 'do', 'else', 'sizeof', 'return',
-    'typedef', 'struct', 'union', 'enum', 'defined', 'case', 'goto',
-})
+_NOT_A_FUNCTION_NAME = frozenset(
+    {
+        "if",
+        "for",
+        "while",
+        "switch",
+        "do",
+        "else",
+        "sizeof",
+        "return",
+        "typedef",
+        "struct",
+        "union",
+        "enum",
+        "defined",
+        "case",
+        "goto",
+    }
+)
 
 # How many lines above the opening brace a signature may span. CPython's
 # widest real signatures are ~8 lines; 16 is a safe ceiling that still stops
@@ -133,7 +160,7 @@ _MAX_SIGNATURE_LINES = 16
 
 # A line that can never be part of the signature we are walking back through:
 # statement terminators, block ends, preprocessor lines, labels.
-_SIGNATURE_STOP_RE = re.compile(r'(?:[;}]|^\s*#)\s*$|^\s*#')
+_SIGNATURE_STOP_RE = re.compile(r"(?:[;}]|^\s*#)\s*$|^\s*#")
 
 
 def _split_signature(text: str) -> tuple[str, str] | None:
@@ -146,15 +173,15 @@ def _split_signature(text: str) -> tuple[str, str] | None:
     ``Py_LOCAL_INLINE``.
     """
     text = text.strip()
-    if not text.endswith(')'):
+    if not text.endswith(")"):
         return None
     depth = 0
     open_idx = -1
     for k in range(len(text) - 1, -1, -1):
         ch = text[k]
-        if ch == ')':
+        if ch == ")":
             depth += 1
-        elif ch == '(':
+        elif ch == "(":
             depth -= 1
             if depth == 0:
                 open_idx = k
@@ -162,7 +189,7 @@ def _split_signature(text: str) -> tuple[str, str] | None:
     if open_idx <= 0:
         return None
     head = text[:open_idx]
-    m = re.search(r'(\w+)\s*$', head)
+    m = re.search(r"(\w+)\s*$", head)
     if not m:
         return None
     name = m.group(1)
@@ -171,10 +198,73 @@ def _split_signature(text: str) -> tuple[str, str] | None:
     # A definition head is a declarator: type tokens, ``*``, and the name.
     # Anything else (``=``, ``,``, ``;``, ``&&`` ...) means this is an
     # expression or an initializer, not a function definition.
-    if not re.fullmatch(r'[\w\s\*\)\(]*', head):
+    if not re.fullmatch(r"[\w\s\*\)\(]*", head):
         return None
-    params = text[open_idx + 1:-1].strip()
+    params = text[open_idx + 1 : -1].strip()
     return name, params
+
+
+_PP_IF_RE = re.compile(r"^\s*#\s*(if|ifdef|ifndef)\b")
+_PP_ELSE_RE = re.compile(r"^\s*#\s*(else|elif)\b")
+_PP_ENDIF_RE = re.compile(r"^\s*#\s*endif\b")
+
+
+def _find_body_end(lines: list[str], body_start: int) -> tuple[int, bool]:
+    """Find the line index of a function's closing brace.
+
+    Returns ``(body_end, resolved)``.
+
+    Brace depth alone is not enough. A ``#ifdef``/``#else``/``#endif`` whose
+    branches each open a brace but share one closing brace -- CPython does this
+    to vary a condition across platforms, e.g. ``fileio.c:483-491`` --
+    leaves the naive counter permanently above zero, so it runs off the end of
+    the file. The previous implementation then silently kept ``body_end`` at its
+    ``body_start`` initialization, reporting the function as zero lines with
+    cyclomatic complexity 1 and score 1.00, while ``coverage_pct`` still counted
+    it as parsed. That hid 31 functions across ``Objects/`` ``Modules/``
+    ``Python/``, among them ``fileio.c:249 _io_FileIO___init___impl`` (the
+    highest-churn function in ``_io``), ``dictobject.c dictiter_iternextitem``
+    and ``ceval.c _Py_CheckRecursiveCall``.
+
+    So count braces in the *first* branch of each preprocessor conditional only
+    -- what a compiler sees for one configuration -- and skip the alternates.
+    If that still does not balance, fall back to the first ``}`` in column 0
+    (PEP 7 puts a function's closing brace there) and report the extent as
+    unresolved rather than collapsing it to nothing.
+    """
+    depth = 1
+    # Stack of bools: True while inside a branch whose braces we are counting.
+    pp_stack: list[bool] = []
+    fallback = -1
+    for j in range(body_start, len(lines)):
+        line = lines[j]
+        if _PP_IF_RE.match(line):
+            pp_stack.append(True)
+            continue
+        if _PP_ELSE_RE.match(line):
+            if pp_stack:
+                pp_stack[-1] = False
+            continue
+        if _PP_ENDIF_RE.match(line):
+            if pp_stack:
+                pp_stack.pop()
+            continue
+        if fallback < 0 and line.startswith("}"):
+            fallback = j
+        if not all(pp_stack):
+            # Inside an alternate branch of a conditional: the compiler would
+            # not see these braces, so neither do we.
+            continue
+        for ch in line:
+            if ch == "{":
+                depth += 1
+            elif ch == "}":
+                depth -= 1
+                if depth == 0:
+                    return j, True
+    if fallback >= 0:
+        return fallback, False
+    return body_start, False
 
 
 def find_functions(source: str) -> tuple[list[dict], dict]:
@@ -199,16 +289,17 @@ def find_functions(source: str) -> tuple[list[dict], dict]:
     many yielded a function, so a future regression in signature parsing is
     visible in the output envelope instead of silent.
     """
-    lines = strip_comments_and_strings(source).split('\n')
+    lines = strip_comments_and_strings(source).split("\n")
     functions: list[dict] = []
     brace_blocks = 0
     unparsed: list[int] = []
+    extents_unresolved: list[int] = []
     multiline_signatures = 0
 
     # Strategy: find opening braces at column 0, then work backwards
     # to find the function signature.
     for i, line in enumerate(lines):
-        if not line.startswith('{'):
+        if not line.startswith("{"):
             continue
         if i < 1:
             continue
@@ -227,8 +318,8 @@ def find_functions(source: str) -> tuple[list[dict], dict]:
             if chunk and _SIGNATURE_STOP_RE.search(stripped):
                 break
             chunk.insert(0, stripped)
-            joined = ' '.join(chunk)
-            if joined.count('(') == joined.count(')') and '(' in joined:
+            joined = " ".join(chunk)
+            if joined.count("(") == joined.count(")") and "(" in joined:
                 parsed = _split_signature(joined)
                 sig_first = j
                 break
@@ -242,41 +333,34 @@ def find_functions(source: str) -> tuple[list[dict], dict]:
             multiline_signatures += 1
 
         # Find the matching closing brace.
-        depth = 1
         body_start = i + 1
-        body_end = body_start
-        for j in range(body_start, len(lines)):
-            for ch in lines[j]:
-                if ch == '{':
-                    depth += 1
-                elif ch == '}':
-                    depth -= 1
-                    if depth == 0:
-                        body_end = j
-                        break
-            if depth == 0:
-                break
+        body_end, resolved = _find_body_end(lines, body_start)
+        if not resolved:
+            extents_unresolved.append(i + 1)
 
-        body = '\n'.join(lines[body_start:body_end])
+        body = "\n".join(lines[body_start:body_end])
         # Determine start line (return type might be on the line above).
         sig_start = sig_first
-        if sig_start > 0 and re.match(r'^[\w\s\*]+$', lines[sig_start - 1].strip()):
+        if sig_start > 0 and re.match(r"^[\w\s\*]+$", lines[sig_start - 1].strip()):
             # Previous line looks like a return type.
             sig_start -= 1
 
-        functions.append({
-            "name": func_name,
-            "params": params,
-            "body": body,
-            "start_line": sig_start + 1,  # 1-indexed
-            "end_line": body_end + 1,
-            "signature_lines": len(chunk),
-        })
+        functions.append(
+            {
+                "name": func_name,
+                "params": params,
+                "body": body,
+                "start_line": sig_start + 1,  # 1-indexed
+                "end_line": body_end + 1,
+                "signature_lines": len(chunk),
+            }
+        )
 
     coverage = {
         "brace_blocks_seen": brace_blocks,
         "functions_parsed": len(functions),
         "signatures_unparsed": len(unparsed),
+        "extents_unresolved": len(extents_unresolved),
         "multiline_signatures": multiline_signatures,
         "coverage_pct": (
             round(100.0 * len(functions) / brace_blocks, 1) if brace_blocks else 100.0
@@ -289,17 +373,15 @@ def find_functions(source: str) -> tuple[list[dict], dict]:
 # Complexity metrics
 # ---------------------------------------------------------------------------
 
-_BRANCH_KEYWORDS = re.compile(
-    r'\b(if|else\s+if|case|for|while|do)\b'
-)
-_LOGICAL_OPS = re.compile(r'(&&|\|\|)')
-_TERNARY = re.compile(r'\?')
-_GOTO = re.compile(r'\bgoto\b')
-_SWITCH_CASE = re.compile(r'\bcase\b')
+_BRANCH_KEYWORDS = re.compile(r"\b(if|else\s+if|case|for|while|do)\b")
+_LOGICAL_OPS = re.compile(r"(&&|\|\|)")
+_TERNARY = re.compile(r"\?")
+_GOTO = re.compile(r"\bgoto\b")
+_SWITCH_CASE = re.compile(r"\bcase\b")
 _LOCAL_VAR = re.compile(
-    r'^\s+(?:(?:static|const|volatile|unsigned|signed|long|short|register)\s+)*'
-    r'(?:int|char|float|double|void|Py_ssize_t|size_t|PyObject|'
-    r'Py_hash_t|Py_uhash_t|uint\d+_t|int\d+_t|long|short|unsigned)\s*\*?\s+\w+',
+    r"^\s+(?:(?:static|const|volatile|unsigned|signed|long|short|register)\s+)*"
+    r"(?:int|char|float|double|void|Py_ssize_t|size_t|PyObject|"
+    r"Py_hash_t|Py_uhash_t|uint\d+_t|int\d+_t|long|short|unsigned)\s*\*?\s+\w+",
     re.MULTILINE,
 )
 
@@ -310,27 +392,36 @@ _LOCAL_VAR = re.compile(
 # Calls that release an owned resource. A local that is passed to one of these
 # is an *owned* local: the function is responsible for freeing it.
 _RELEASE_APIS = (
-    'Py_DECREF', 'Py_XDECREF', 'Py_CLEAR', 'Py_SETREF', 'Py_XSETREF',
-    'PyMem_Free', 'PyMem_RawFree', 'PyMem_Del', 'PyObject_Free',
-    'PyObject_GC_Del', 'PyBuffer_Release', 'free',
+    "Py_DECREF",
+    "Py_XDECREF",
+    "Py_CLEAR",
+    "Py_SETREF",
+    "Py_XSETREF",
+    "PyMem_Free",
+    "PyMem_RawFree",
+    "PyMem_Del",
+    "PyObject_Free",
+    "PyObject_GC_Del",
+    "PyBuffer_Release",
+    "free",
 )
 _RELEASE_CALL = re.compile(
-    r'\b(?:' + '|'.join(_RELEASE_APIS) + r')\s*\(\s*&?\s*([A-Za-z_]\w*)'
+    r"\b(?:" + "|".join(_RELEASE_APIS) + r")\s*\(\s*&?\s*([A-Za-z_]\w*)"
 )
-_RELEASE_ANY = re.compile(r'\b(?:' + '|'.join(_RELEASE_APIS) + r')\s*\(')
+_RELEASE_ANY = re.compile(r"\b(?:" + "|".join(_RELEASE_APIS) + r")\s*\(")
 
 # A local pointer declaration: ``PyObject *foo``, ``char *buf = NULL``, ...
 _POINTER_LOCAL = re.compile(
-    r'^\s+(?:(?:static|const|volatile|register|unsigned|signed)\s+)*'
-    r'(?:struct\s+)?\w+\s*\*+\s*([A-Za-z_]\w*)\s*(?:[=;,)]|\[)',
+    r"^\s+(?:(?:static|const|volatile|register|unsigned|signed)\s+)*"
+    r"(?:struct\s+)?\w+\s*\*+\s*([A-Za-z_]\w*)\s*(?:[=;,)]|\[)",
     re.MULTILINE,
 )
-_RETURN_STMT = re.compile(r'^\s*return\b')
+_RETURN_STMT = re.compile(r"^\s*return\b")
 
 # Walking back from a `return`, these end the window: another exit, or a block
 # boundary. Without this the cleanup belonging to the *previous* return leaks
 # into the next one's window and inflates the count.
-_CLEANUP_WINDOW_STOP = re.compile(r'^\s*[}{]|\breturn\b|\bgoto\b|^\s*\w+\s*:\s*$')
+_CLEANUP_WINDOW_STOP = re.compile(r"^\s*[}{]|\breturn\b|\bgoto\b|^\s*\w+\s*:\s*$")
 
 # How many preceding non-blank lines count as "the cleanup before this return".
 _CLEANUP_WINDOW = 3
@@ -356,7 +447,7 @@ def measure_cleanup_ladder(clean_body: str) -> dict:
     released = set(_RELEASE_CALL.findall(clean_body))
     owned_locals = len(declared & released)
 
-    body_lines = clean_body.split('\n')
+    body_lines = clean_body.split("\n")
     returns_with_cleanup = 0
     for idx, line in enumerate(body_lines):
         if not _RETURN_STMT.match(line):
@@ -408,7 +499,7 @@ def measure_function(func: dict) -> dict:
     """Compute complexity metrics for a single C function."""
     body = func["body"]
     clean = strip_comments_and_strings(body)
-    body_lines = [l for l in clean.split('\n') if l.strip()]
+    body_lines = [l for l in clean.split("\n") if l.strip()]
     line_count = len(body_lines)
 
     # Parameter count.
@@ -428,10 +519,10 @@ def measure_function(func: dict) -> dict:
     max_depth = 0
     depth = 0
     for ch in clean:
-        if ch == '{':
+        if ch == "{":
             depth += 1
             max_depth = max(max_depth, depth)
-        elif ch == '}':
+        elif ch == "}":
             depth = max(0, depth - 1)
 
     # Goto count.
@@ -528,9 +619,7 @@ def select_hotspots(
     cut = max(1, math.ceil(len(ranked) * top_percent / 100.0))
     threshold = max(ranked[min(cut, len(ranked)) - 1]["score"], min_score)
     if threshold <= floor:
-        selected = [
-            f for f in ranked if f["score"] > floor and f["score"] >= min_score
-        ]
+        selected = [f for f in ranked if f["score"] > floor and f["score"] >= min_score]
     else:
         selected = [f for f in ranked if f["score"] >= threshold]
     effective = min((f["score"] for f in selected), default=threshold)
@@ -561,6 +650,7 @@ def analyze(
         "brace_blocks_seen": 0,
         "functions_parsed": 0,
         "signatures_unparsed": 0,
+        "extents_unresolved": 0,
         "multiline_signatures": 0,
     }
 
@@ -669,14 +759,11 @@ def analyze(
             ),
             "avg_line_count": (
                 round(
-                    sum(fn["line_count"] for fn in all_funcs)
-                    / max(len(all_funcs), 1),
+                    sum(fn["line_count"] for fn in all_funcs) / max(len(all_funcs), 1),
                     1,
                 )
             ),
-            "max_nesting": max(
-                (fn["nesting_depth"] for fn in all_funcs), default=0
-            ),
+            "max_nesting": max((fn["nesting_depth"] for fn in all_funcs), default=0),
             "signal_caveat": (
                 "score RANKS well but GATES badly: on a measured CPython sample "
                 "the top 10 held 5 of 25 defect-bearing functions (10x "
