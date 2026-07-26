@@ -1,0 +1,11 @@
+### 4234_insert : notify_site_4234_clone_combined.py insert (release-gil-nojit-asan, PYTHONMALLOC=malloc)
+  run 1: no ASan report, rc=0
+    | [main] d={'a': 1, 'b': 2, 'c': 3}
+    | [main] src={'a': 1, 'b': 2, 'c': 3}
+    | [main] *** LOST: the hook's stores vanished from d ***
+    | [main] post-insert len=53 ok=True
+    | [main] post-clear len=0
+    | [main] survived
+  run 2: no ASan report, rc=0
+  run 3: no ASan report, rc=0
+  >>> 0/3 ASan reports

@@ -1,0 +1,32 @@
+### 3083 : notify_site_3083_delitemif.py clear (release-gil-nojit-asan, PYTHONMALLOC=malloc)
+[main] armed mode=clear N=200
+AddressSanitizer:DEADLYSIGNAL
+=================================================================
+==3056444==ERROR: AddressSanitizer: SEGV on unknown address 0x000000000000 (pc 0x62fa9fc29e70 bp 0x7ffe2b403f90 sp 0x7ffe2b403f30 T0)
+==3056444==The signal is caused by a READ memory access.
+==3056444==Hint: address points to the zero page.
+    #0 0x62fa9fc29e70 in _Py_IsImmortal /home/danzin/projects/python_build_matrix/builds/release-gil-nojit-asan/./Include/refcount.h:132:12
+    #1 0x62fa9fc29e70 in Py_DECREF /home/danzin/projects/python_build_matrix/builds/release-gil-nojit-asan/./Include/refcount.h:421:9
+    #2 0x62fa9fc29e70 in delitem_common /home/danzin/projects/python_build_matrix/builds/release-gil-nojit-asan/Objects/dictobject.c:2990:9
+    #3 0x62fa9fc2a1e8 in delitemif_lock_held /home/danzin/projects/python_build_matrix/builds/release-gil-nojit-asan/Objects/dictobject.c:3084:9
+    #4 0x62fa9fc2a1e8 in _PyDict_DelItemIf /home/danzin/projects/python_build_matrix/builds/release-gil-nojit-asan/Objects/dictobject.c:3103:11
+    #5 0x62faa01f1103 in _weakref__remove_dead_weakref_impl /home/danzin/projects/python_build_matrix/builds/release-gil-nojit-asan/./Modules/_weakref.c:59:9
+    #6 0x62faa01f1103 in _weakref__remove_dead_weakref /home/danzin/projects/python_build_matrix/builds/release-gil-nojit-asan/./Modules/clinic/_weakref.c.h:64:20
+    #7 0x62fa9fb7161f in _PyObject_VectorcallTstate /home/danzin/projects/python_build_matrix/builds/release-gil-nojit-asan/./Include/internal/pycore_call.h:144:11
+    #8 0x62fa9fb7161f in PyObject_Vectorcall /home/danzin/projects/python_build_matrix/builds/release-gil-nojit-asan/Objects/call.c:327:12
+    #9 0x62fa9feea941 in _Py_VectorCallInstrumentation_StackRefSteal /home/danzin/projects/python_build_matrix/builds/release-gil-nojit-asan/Python/ceval.c:768:11
+    #10 0x62fa9fefe0d3 in _PyEval_EvalFrameDefault /home/danzin/projects/python_build_matrix/builds/release-gil-nojit-asan/Python/generated_cases.c.h:1906:35
+    #11 0x62fa9fee8eed in _PyEval_EvalFrame /home/danzin/projects/python_build_matrix/builds/release-gil-nojit-asan/./Include/internal/pycore_ceval.h:122:16
+    #12 0x62fa9fee8eed in _PyEval_Vector /home/danzin/projects/python_build_matrix/builds/release-gil-nojit-asan/Python/ceval.c:2172:12
+    #13 0x62fa9fee8eed in PyEval_EvalCode /home/danzin/projects/python_build_matrix/builds/release-gil-nojit-asan/Python/ceval.c:679:21
+    #14 0x62faa005b789 in run_mod /home/danzin/projects/python_build_matrix/builds/release-gil-nojit-asan/Python/pythonrun.c:1509:19
+    #15 0x62faa00559cc in _PyRun_File /home/danzin/projects/python_build_matrix/builds/release-gil-nojit-asan/Python/pythonrun.c:1332:15
+    #16 0x62faa00559cc in _PyRun_SimpleFile /home/danzin/projects/python_build_matrix/builds/release-gil-nojit-asan/Python/pythonrun.c:544:15
+    #17 0x62faa0054f81 in _PyRun_AnyFile /home/danzin/projects/python_build_matrix/builds/release-gil-nojit-asan/Python/pythonrun.c:92:18
+    #18 0x62faa00c90fd in pymain_run_file_obj /home/danzin/projects/python_build_matrix/builds/release-gil-nojit-asan/Modules/main.c:478:24
+    #19 0x62faa00c90fd in pymain_run_file /home/danzin/projects/python_build_matrix/builds/release-gil-nojit-asan/Modules/main.c:494:20
+    #20 0x62faa00c7d30 in pymain_run_python /home/danzin/projects/python_build_matrix/builds/release-gil-nojit-asan/Modules/main.c:804:21
+    #21 0x62faa00c7d30 in Py_RunMain /home/danzin/projects/python_build_matrix/builds/release-gil-nojit-asan/Modules/main.c:891:5
+    #22 0x62faa00c8843 in pymain_main /home/danzin/projects/python_build_matrix/builds/release-gil-nojit-asan/Modules/main.c:921:12
+    #23 0x62faa00c89a2 in Py_BytesMain /home/danzin/projects/python_build_matrix/builds/release-gil-nojit-asan/Modules/main.c:945:12
+  >>> 3/3 ASan reports

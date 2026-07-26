@@ -1,0 +1,11 @@
+### 4234_clearsrc : notify_site_4234_clone_combined.py clearsrc (release-gil-nojit-asan, PYTHONMALLOC=malloc)
+  run 1: no ASan report, rc=0
+    | [main] len(d)=0
+    | [main] d={}
+    | [main] src={}
+    | [main] post-insert len=50 ok=True
+    | [main] post-clear len=0
+    | [main] survived
+  run 2: no ASan report, rc=0
+  run 3: no ASan report, rc=0
+  >>> 0/3 ASan reports

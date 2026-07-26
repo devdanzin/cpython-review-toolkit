@@ -1,0 +1,32 @@
+### 1997_add_detached : notify_site_1997_2003_insert_split_value.py add_detached (release-gil-nojit-asan, PYTHONMALLOC=malloc)
+[main] armed mode=add_detached d={'a': ['a'], 'b': ['b']}
+AddressSanitizer:DEADLYSIGNAL
+=================================================================
+==3056446==ERROR: AddressSanitizer: SEGV on unknown address 0x000000000018 (pc 0x60536ea3eb15 bp 0x7ffd7cabc4e0 sp 0x7ffd7cabc4b0 T0)
+==3056446==The signal is caused by a WRITE memory access.
+==3056446==Hint: address points to the zero page.
+    #0 0x60536ea3eb15 in _PyDict_InsertSplitValue /home/danzin/projects/python_build_matrix/builds/release-gil-nojit-asan/Objects/dictobject.c:1998:9
+    #1 0x60536ea41cf2 in insertdict /home/danzin/projects/python_build_matrix/builds/release-gil-nojit-asan/Objects/dictobject.c:2030:13
+    #2 0x60536ed138cd in _PyEval_EvalFrameDefault /home/danzin/projects/python_build_matrix/builds/release-gil-nojit-asan/Python/generated_cases.c.h:12634:27
+    #3 0x60536ed01eed in _PyEval_EvalFrame /home/danzin/projects/python_build_matrix/builds/release-gil-nojit-asan/./Include/internal/pycore_ceval.h:122:16
+    #4 0x60536ed01eed in _PyEval_Vector /home/danzin/projects/python_build_matrix/builds/release-gil-nojit-asan/Python/ceval.c:2172:12
+    #5 0x60536ed01eed in PyEval_EvalCode /home/danzin/projects/python_build_matrix/builds/release-gil-nojit-asan/Python/ceval.c:679:21
+    #6 0x60536ee74789 in run_mod /home/danzin/projects/python_build_matrix/builds/release-gil-nojit-asan/Python/pythonrun.c:1509:19
+    #7 0x60536ee6e9cc in _PyRun_File /home/danzin/projects/python_build_matrix/builds/release-gil-nojit-asan/Python/pythonrun.c:1332:15
+    #8 0x60536ee6e9cc in _PyRun_SimpleFile /home/danzin/projects/python_build_matrix/builds/release-gil-nojit-asan/Python/pythonrun.c:544:15
+    #9 0x60536ee6df81 in _PyRun_AnyFile /home/danzin/projects/python_build_matrix/builds/release-gil-nojit-asan/Python/pythonrun.c:92:18
+    #10 0x60536eee20fd in pymain_run_file_obj /home/danzin/projects/python_build_matrix/builds/release-gil-nojit-asan/Modules/main.c:478:24
+    #11 0x60536eee20fd in pymain_run_file /home/danzin/projects/python_build_matrix/builds/release-gil-nojit-asan/Modules/main.c:494:20
+    #12 0x60536eee0d30 in pymain_run_python /home/danzin/projects/python_build_matrix/builds/release-gil-nojit-asan/Modules/main.c:804:21
+    #13 0x60536eee0d30 in Py_RunMain /home/danzin/projects/python_build_matrix/builds/release-gil-nojit-asan/Modules/main.c:891:5
+    #14 0x60536eee1843 in pymain_main /home/danzin/projects/python_build_matrix/builds/release-gil-nojit-asan/Modules/main.c:921:12
+    #15 0x60536eee19a2 in Py_BytesMain /home/danzin/projects/python_build_matrix/builds/release-gil-nojit-asan/Modules/main.c:945:12
+    #16 0x7029fce2a600 in __libc_start_call_main csu/../sysdeps/nptl/libc_start_call_main.h:59:16
+    #17 0x7029fce2a717 in __libc_start_main csu/../csu/libc-start.c:360:3
+    #18 0x60536e790eb4 in _start (/home/danzin/projects/python_build_matrix/builds/release-gil-nojit-asan/python+0x1d9eb4) (BuildId: 122a1ef0f157604175441a62bd3151f00f44a928)
+
+==3056446==Register values:
+rax = 0x0000000000000000  rbx = 0x00006c89fc079dd8  rcx = 0x0000000000000003  rdx = 0x0000000000000333  
+rdi = 0x0000000000000018  rsi = 0x00007029fd0da0d0  rbp = 0x00007ffd7cabc4e0  rsp = 0x00007ffd7cabc4b0  
+ r8 = 0x0000000000000002   r9 = 0x00006e69fbff8000  r10 = 0x00007fffffffff01  r11 = 0x0000000000000001  
+  >>> 3/3 ASan reports

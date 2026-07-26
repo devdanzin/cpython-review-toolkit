@@ -1,0 +1,32 @@
+### 2060_clear : notify_site_2060_insertdict_modified.py clear (release-gil-nojit-asan, PYTHONMALLOC=malloc)
+[main] armed mode=clear N=200
+=================================================================
+==3053369==ERROR: AddressSanitizer: heap-use-after-free on address 0x6df7d42d5b50 at pc 0x57eb1ebe7ff2 bp 0x7ffd67538c80 sp 0x7ffd67538c78
+READ of size 4 at 0x6df7d42d5b50 thread T0
+    #0 0x57eb1ebe7ff1 in _Py_IsImmortal /home/danzin/projects/python_build_matrix/builds/release-gil-nojit-asan/./Include/refcount.h:132:12
+    #1 0x57eb1ebe7ff1 in Py_DECREF /home/danzin/projects/python_build_matrix/builds/release-gil-nojit-asan/./Include/refcount.h:421:9
+    #2 0x57eb1ebe7ff1 in Py_XDECREF /home/danzin/projects/python_build_matrix/builds/release-gil-nojit-asan/./Include/refcount.h:520:9
+    #3 0x57eb1ebe7ff1 in insertdict /home/danzin/projects/python_build_matrix/builds/release-gil-nojit-asan/Objects/dictobject.c:2076:5
+    #4 0x57eb1eeb98cd in _PyEval_EvalFrameDefault /home/danzin/projects/python_build_matrix/builds/release-gil-nojit-asan/Python/generated_cases.c.h:12634:27
+    #5 0x57eb1eea7eed in _PyEval_EvalFrame /home/danzin/projects/python_build_matrix/builds/release-gil-nojit-asan/./Include/internal/pycore_ceval.h:122:16
+    #6 0x57eb1eea7eed in _PyEval_Vector /home/danzin/projects/python_build_matrix/builds/release-gil-nojit-asan/Python/ceval.c:2172:12
+    #7 0x57eb1eea7eed in PyEval_EvalCode /home/danzin/projects/python_build_matrix/builds/release-gil-nojit-asan/Python/ceval.c:679:21
+    #8 0x57eb1f01a789 in run_mod /home/danzin/projects/python_build_matrix/builds/release-gil-nojit-asan/Python/pythonrun.c:1509:19
+    #9 0x57eb1f0149cc in _PyRun_File /home/danzin/projects/python_build_matrix/builds/release-gil-nojit-asan/Python/pythonrun.c:1332:15
+    #10 0x57eb1f0149cc in _PyRun_SimpleFile /home/danzin/projects/python_build_matrix/builds/release-gil-nojit-asan/Python/pythonrun.c:544:15
+    #11 0x57eb1f013f81 in _PyRun_AnyFile /home/danzin/projects/python_build_matrix/builds/release-gil-nojit-asan/Python/pythonrun.c:92:18
+    #12 0x57eb1f0880fd in pymain_run_file_obj /home/danzin/projects/python_build_matrix/builds/release-gil-nojit-asan/Modules/main.c:478:24
+    #13 0x57eb1f0880fd in pymain_run_file /home/danzin/projects/python_build_matrix/builds/release-gil-nojit-asan/Modules/main.c:494:20
+    #14 0x57eb1f086d30 in pymain_run_python /home/danzin/projects/python_build_matrix/builds/release-gil-nojit-asan/Modules/main.c:804:21
+    #15 0x57eb1f086d30 in Py_RunMain /home/danzin/projects/python_build_matrix/builds/release-gil-nojit-asan/Modules/main.c:891:5
+    #16 0x57eb1f087843 in pymain_main /home/danzin/projects/python_build_matrix/builds/release-gil-nojit-asan/Modules/main.c:921:12
+    #17 0x57eb1f0879a2 in Py_BytesMain /home/danzin/projects/python_build_matrix/builds/release-gil-nojit-asan/Modules/main.c:945:12
+    #18 0x7197d502a600 in __libc_start_call_main csu/../sysdeps/nptl/libc_start_call_main.h:59:16
+    #19 0x7197d502a717 in __libc_start_main csu/../csu/libc-start.c:360:3
+    #20 0x57eb1e936eb4 in _start (/home/danzin/projects/python_build_matrix/builds/release-gil-nojit-asan/python+0x1d9eb4) (BuildId: 122a1ef0f157604175441a62bd3151f00f44a928)
+
+0x6df7d42d5b50 is located 16 bytes inside of 56-byte region [0x6df7d42d5b40,0x6df7d42d5b78)
+freed by thread T0 here:
+    #0 0x57eb1e9dc1ba in free (/home/danzin/projects/python_build_matrix/builds/release-gil-nojit-asan/python+0x27f1ba) (BuildId: 122a1ef0f157604175441a62bd3151f00f44a928)
+    #1 0x57eb1ec3a7d5 in _Py_Dealloc /home/danzin/projects/python_build_matrix/builds/release-gil-nojit-asan/Objects/object.c:3319:5
+  >>> 3/3 ASan reports

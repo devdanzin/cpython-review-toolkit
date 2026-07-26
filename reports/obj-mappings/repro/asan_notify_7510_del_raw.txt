@@ -1,0 +1,33 @@
+### 7510_del_raw : notify_site_7510_store_instance_attr.py del_raw (release-gil-nojit-asan, PYTHONMALLOC=malloc)
+[main] armed mode=del_raw
+[main] returned; churning allocator
+=================================================================
+==3061208==ERROR: AddressSanitizer: heap-buffer-overflow on address 0x75de7a634f7f at pc 0x607150b99a5e bp 0x7fffdae448e0 sp 0x7fffdae448d8
+WRITE of size 8 at 0x75de7a634f7f thread T0
+    #0 0x607150b99a5d in _PyGCHead_SET_NEXT /home/danzin/projects/python_build_matrix/builds/release-gil-nojit-asan/./Include/internal/pycore_gc.h:151:18
+    #1 0x607150b99a5d in _PyObject_GC_TRACK /home/danzin/projects/python_build_matrix/builds/release-gil-nojit-asan/./Include/internal/pycore_gc.h:231:5
+    #2 0x607150b99a5d in PyList_New /home/danzin/projects/python_build_matrix/builds/release-gil-nojit-asan/Objects/listobject.c:277:5
+    #3 0x607150b99a5d in _PyList_FromStackRefStealOnSuccess /home/danzin/projects/python_build_matrix/builds/release-gil-nojit-asan/Objects/listobject.c:3295:16
+    #4 0x607150e9b173 in _PyEval_EvalFrameDefault /home/danzin/projects/python_build_matrix/builds/release-gil-nojit-asan/Python/generated_cases.c.h:1576:32
+    #5 0x607150e93904 in _PyEval_EvalFrame /home/danzin/projects/python_build_matrix/builds/release-gil-nojit-asan/./Include/internal/pycore_ceval.h:122:16
+    #6 0x607150e93904 in _PyEval_Vector /home/danzin/projects/python_build_matrix/builds/release-gil-nojit-asan/Python/ceval.c:2172:12
+    #7 0x607150b20f8b in _PyObject_VectorcallTstate /home/danzin/projects/python_build_matrix/builds/release-gil-nojit-asan/./Include/internal/pycore_call.h:144:11
+    #8 0x607150b20f8b in object_vacall /home/danzin/projects/python_build_matrix/builds/release-gil-nojit-asan/Objects/call.c:823:14
+    #9 0x607150b208fd in PyObject_CallMethodObjArgs /home/danzin/projects/python_build_matrix/builds/release-gil-nojit-asan/Objects/call.c:960:24
+    #10 0x607150f87d70 in import_find_and_load_with_name /home/danzin/projects/python_build_matrix/builds/release-gil-nojit-asan/Python/import.c:4135:11
+    #11 0x607150f8693a in import_find_and_load /home/danzin/projects/python_build_matrix/builds/release-gil-nojit-asan/Python/import.c:4166:12
+    #12 0x607150f8693a in PyImport_ImportModuleLevelObject /home/danzin/projects/python_build_matrix/builds/release-gil-nojit-asan/Python/import.c
+    #13 0x607150ed33cd in _PyEval_ImportNameWithImport /home/danzin/projects/python_build_matrix/builds/release-gil-nojit-asan/Python/ceval.c:3027:16
+    #14 0x607150ed33cd in _PyEval_ImportName /home/danzin/projects/python_build_matrix/builds/release-gil-nojit-asan/Python/ceval.c:3006:21
+    #15 0x607150eabfc7 in _PyEval_EvalFrameDefault /home/danzin/projects/python_build_matrix/builds/release-gil-nojit-asan/Python/generated_cases.c.h:7039:25
+    #16 0x607150e92eed in _PyEval_EvalFrame /home/danzin/projects/python_build_matrix/builds/release-gil-nojit-asan/./Include/internal/pycore_ceval.h:122:16
+    #17 0x607150e92eed in _PyEval_Vector /home/danzin/projects/python_build_matrix/builds/release-gil-nojit-asan/Python/ceval.c:2172:12
+    #18 0x607150e92eed in PyEval_EvalCode /home/danzin/projects/python_build_matrix/builds/release-gil-nojit-asan/Python/ceval.c:679:21
+    #19 0x607151005789 in run_mod /home/danzin/projects/python_build_matrix/builds/release-gil-nojit-asan/Python/pythonrun.c:1509:19
+    #20 0x607150fff9cc in _PyRun_File /home/danzin/projects/python_build_matrix/builds/release-gil-nojit-asan/Python/pythonrun.c:1332:15
+    #21 0x607150fff9cc in _PyRun_SimpleFile /home/danzin/projects/python_build_matrix/builds/release-gil-nojit-asan/Python/pythonrun.c:544:15
+    #22 0x607150ffef81 in _PyRun_AnyFile /home/danzin/projects/python_build_matrix/builds/release-gil-nojit-asan/Python/pythonrun.c:92:18
+    #23 0x6071510730fd in pymain_run_file_obj /home/danzin/projects/python_build_matrix/builds/release-gil-nojit-asan/Modules/main.c:478:24
+    #24 0x6071510730fd in pymain_run_file /home/danzin/projects/python_build_matrix/builds/release-gil-nojit-asan/Modules/main.c:494:20
+  run 2: no ASan report, rc=0
+  >>> 2/3 ASan reports

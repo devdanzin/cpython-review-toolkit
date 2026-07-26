@@ -1,0 +1,41 @@
+### 7510_mod : notify_site_7510_store_instance_attr.py mod (release-gil-nojit-asan, PYTHONMALLOC=malloc)
+  run 1: no ASan report, rc=0
+    | [main] armed mode=mod
+    | [main] returned from store_instance_attr_lock_held
+    | [main] len(d)=0
+    | [main] list(d)=[]
+    | [main] vars(o)={}
+    | [main] survived
+  run 2: no ASan report, rc=0
+[main] armed mode=mod
+[main] returned from store_instance_attr_lock_held
+[main] len(d)=0
+[main] list(d)=[]
+[main] vars(o)={}
+[main] survived
+AddressSanitizer:DEADLYSIGNAL
+=================================================================
+==3053407==ERROR: AddressSanitizer: SEGV on unknown address (pc 0x576f6b9ece33 bp 0x7fff27c44f90 sp 0x7fff27c44f00 T0)
+==3053407==The signal is caused by a READ memory access.
+==3053407==Hint: this fault was caused by a dereference of a high value address (see register values below).  Disassemble the provided pc to learn which register was used.
+    #0 0x576f6b9ece33 in free_object /home/danzin/projects/python_build_matrix/builds/release-gil-nojit-asan/Objects/object.c:921:5
+    #1 0x576f6b9ece33 in clear_freelist /home/danzin/projects/python_build_matrix/builds/release-gil-nojit-asan/Objects/object.c:907:9
+    #2 0x576f6b9ece33 in _PyObject_ClearFreeLists /home/danzin/projects/python_build_matrix/builds/release-gil-nojit-asan/Objects/object.c:935:5
+    #3 0x576f6bd2c5c6 in gc_collect_main /home/danzin/projects/python_build_matrix/builds/release-gil-nojit-asan/Python/gc.c:1611:9
+    #4 0x576f6bd2a708 in PyGC_Collect /home/danzin/projects/python_build_matrix/builds/release-gil-nojit-asan/Python/gc.c:1799:9
+    #5 0x576f6bdb766a in _Py_Finalize /home/danzin/projects/python_build_matrix/builds/release-gil-nojit-asan/Python/pylifecycle.c:2487:5
+    #6 0x576f6be42ba2 in Py_RunMain /home/danzin/projects/python_build_matrix/builds/release-gil-nojit-asan/Modules/main.c:893:9
+    #7 0x576f6be43843 in pymain_main /home/danzin/projects/python_build_matrix/builds/release-gil-nojit-asan/Modules/main.c:921:12
+    #8 0x576f6be439a2 in Py_BytesMain /home/danzin/projects/python_build_matrix/builds/release-gil-nojit-asan/Modules/main.c:945:12
+    #9 0x78c650a2a600 in __libc_start_call_main csu/../sysdeps/nptl/libc_start_call_main.h:59:16
+    #10 0x78c650a2a717 in __libc_start_main csu/../csu/libc-start.c:360:3
+    #11 0x576f6b6f2eb4 in _start (/home/danzin/projects/python_build_matrix/builds/release-gil-nojit-asan/python+0x1d9eb4) (BuildId: 122a1ef0f157604175441a62bd3151f00f44a928)
+
+==3053407==Register values:
+rax = 0x00576f6c2c0e0140  rbx = 0x0000576f6c411390  rcx = 0x000aeded8581c028  rdx = 0x00000000000003de  
+rdi = 0x000075264fc34f8f  rsi = 0x000078c650cb00d0  rbp = 0x00007fff27c44f90  rsp = 0x00007fff27c44f00  
+ r8 = 0x0000000000000038   r9 = 0x000077064fbf8000  r10 = 0x00007fffffffff01  r11 = 0x0000000000000001  
+r12 = 0x00000aeded882272  r13 = 0x00000aeded882273  r14 = 0x0000576f6c411398  r15 = 0x00576f6c2c0e0000  
+AddressSanitizer can not provide additional info.
+  run 5: no ASan report, rc=0
+  >>> 2/5 ASan reports

@@ -37,15 +37,24 @@ import _testcapi
 MODE = sys.argv[1] if len(sys.argv) > 1 else "clear"
 N = int(sys.argv[2]) if len(sys.argv) > 2 else 200
 
+# A "_int" suffix stores small ints, which are IMMORTAL, so the stale
+# Py_XDECREF(old_value) at :2076 becomes a no-op and the run isolates the
+# stale-ix WRITE at :2067 instead.  Without the suffix the values are heap
+# objects with refcount 1 and :2076 fires first.
+IMMORTAL = MODE.endswith("_int")
+BASE = MODE[:-4] if IMMORTAL else MODE
+
 TARGET = "k%d" % (N - 1)
+
+
+def val(i):
+    return i if IMMORTAL else [i]
 
 
 def build():
     d = {}
     for i in range(N):
-        # heap objects, refcount exactly 1 (held only by the dict) --
-        # NOT small ints, which are immortal and make :2076 a no-op.
-        d["k%d" % i] = [i]
+        d["k%d" % i] = val(i)
     return d
 
 
@@ -57,15 +66,15 @@ def main():
         if fired:
             return
         fired.append(1)
-        if MODE == "clear":
+        if BASE == "clear":
             d.clear()
-        elif MODE == "regrow":
+        elif BASE == "regrow":
             d.clear()
             for j in range(3):
-                d["r%d" % j] = [j]
-        elif MODE == "resize":
+                d["r%d" % j] = val(j)
+        elif BASE == "resize":
             for j in range(N * 8):
-                d["g%d" % j] = [j]
+                d["g%d" % j] = val(j)
         else:
             raise SystemExit("unknown mode %r" % MODE)
 
@@ -75,7 +84,7 @@ def main():
     print("[main] armed mode=%s N=%d" % (MODE, N), flush=True)
 
     # MODIFIED: key already present, so insertdict takes the :2060 branch.
-    d[TARGET] = ["replacement"]
+    d[TARGET] = 7 if IMMORTAL else ["replacement"]
 
     print("[main] returned from insertdict", flush=True)
     _testcapi.unwatch_dict(wid, d)

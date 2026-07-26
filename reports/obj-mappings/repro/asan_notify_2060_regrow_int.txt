@@ -1,0 +1,32 @@
+### 2060_regrow_int : notify_site_2060_insertdict_modified.py regrow_int (release-gil-nojit-asan, PYTHONMALLOC=malloc)
+[main] armed mode=regrow_int N=200
+=================================================================
+==3053370==ERROR: AddressSanitizer: heap-buffer-overflow on address 0x6e953b9ff520 at pc 0x56dd8f441145 bp 0x7ffd17fb4d40 sp 0x7ffd17fb4d38
+WRITE of size 8 at 0x6e953b9ff520 thread T0
+    #0 0x56dd8f441144 in insertdict /home/danzin/projects/python_build_matrix/builds/release-gil-nojit-asan/Objects/dictobject.c:2068:17
+    #1 0x56dd8f7128cd in _PyEval_EvalFrameDefault /home/danzin/projects/python_build_matrix/builds/release-gil-nojit-asan/Python/generated_cases.c.h:12634:27
+    #2 0x56dd8f700eed in _PyEval_EvalFrame /home/danzin/projects/python_build_matrix/builds/release-gil-nojit-asan/./Include/internal/pycore_ceval.h:122:16
+    #3 0x56dd8f700eed in _PyEval_Vector /home/danzin/projects/python_build_matrix/builds/release-gil-nojit-asan/Python/ceval.c:2172:12
+    #4 0x56dd8f700eed in PyEval_EvalCode /home/danzin/projects/python_build_matrix/builds/release-gil-nojit-asan/Python/ceval.c:679:21
+    #5 0x56dd8f873789 in run_mod /home/danzin/projects/python_build_matrix/builds/release-gil-nojit-asan/Python/pythonrun.c:1509:19
+    #6 0x56dd8f86d9cc in _PyRun_File /home/danzin/projects/python_build_matrix/builds/release-gil-nojit-asan/Python/pythonrun.c:1332:15
+    #7 0x56dd8f86d9cc in _PyRun_SimpleFile /home/danzin/projects/python_build_matrix/builds/release-gil-nojit-asan/Python/pythonrun.c:544:15
+    #8 0x56dd8f86cf81 in _PyRun_AnyFile /home/danzin/projects/python_build_matrix/builds/release-gil-nojit-asan/Python/pythonrun.c:92:18
+    #9 0x56dd8f8e10fd in pymain_run_file_obj /home/danzin/projects/python_build_matrix/builds/release-gil-nojit-asan/Modules/main.c:478:24
+    #10 0x56dd8f8e10fd in pymain_run_file /home/danzin/projects/python_build_matrix/builds/release-gil-nojit-asan/Modules/main.c:494:20
+    #11 0x56dd8f8dfd30 in pymain_run_python /home/danzin/projects/python_build_matrix/builds/release-gil-nojit-asan/Modules/main.c:804:21
+    #12 0x56dd8f8dfd30 in Py_RunMain /home/danzin/projects/python_build_matrix/builds/release-gil-nojit-asan/Modules/main.c:891:5
+    #13 0x56dd8f8e0843 in pymain_main /home/danzin/projects/python_build_matrix/builds/release-gil-nojit-asan/Modules/main.c:921:12
+    #14 0x56dd8f8e09a2 in Py_BytesMain /home/danzin/projects/python_build_matrix/builds/release-gil-nojit-asan/Modules/main.c:945:12
+    #15 0x71d53c82a600 in __libc_start_call_main csu/../sysdeps/nptl/libc_start_call_main.h:59:16
+    #16 0x71d53c82a717 in __libc_start_main csu/../csu/libc-start.c:360:3
+    #17 0x56dd8f18feb4 in _start (/home/danzin/projects/python_build_matrix/builds/release-gil-nojit-asan/python+0x1d9eb4) (BuildId: 122a1ef0f157604175441a62bd3151f00f44a928)
+
+0x6e953b9ff520 is located 2146 bytes after 126-byte region [0x6e953b9fec40,0x6e953b9fecbe)
+freed by thread T0 here:
+    #0 0x56dd8f2351ba in free (/home/danzin/projects/python_build_matrix/builds/release-gil-nojit-asan/python+0x27f1ba) (BuildId: 122a1ef0f157604175441a62bd3151f00f44a928)
+    #1 0x56dd8f5a8d81 in unicode_dealloc /home/danzin/projects/python_build_matrix/builds/release-gil-nojit-asan/Objects/unicodeobject.c:1714:5
+    #2 0x56dd8f4937d5 in _Py_Dealloc /home/danzin/projects/python_build_matrix/builds/release-gil-nojit-asan/Objects/object.c:3319:5
+    #3 0x56dd8f7a7d4e in Py_DECREF /home/danzin/projects/python_build_matrix/builds/release-gil-nojit-asan/./Include/refcount.h:427:9
+    #4 0x56dd8f7a7d4e in Py_XDECREF /home/danzin/projects/python_build_matrix/builds/release-gil-nojit-asan/./Include/refcount.h:520:9
+  >>> 3/3 ASan reports

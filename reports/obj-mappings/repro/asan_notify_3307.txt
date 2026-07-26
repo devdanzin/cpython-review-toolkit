@@ -1,0 +1,32 @@
+### 3307 : notify_site_3307_pop_knownhash.py clear (release-gil-nojit-asan, PYTHONMALLOC=malloc)
+[main] armed mode=clear N=200
+=================================================================
+==3053263==ERROR: AddressSanitizer: heap-use-after-free on address 0x77c839ad5670 at pc 0x59e318821005 bp 0x7ffecdf087e0 sp 0x7ffecdf087d8
+READ of size 4 at 0x77c839ad5670 thread T0
+    #0 0x59e318821004 in Py_INCREF /home/danzin/projects/python_build_matrix/builds/release-gil-nojit-asan/./Include/refcount.h:286:31
+    #1 0x59e318821004 in _Py_NewRef /home/danzin/projects/python_build_matrix/builds/release-gil-nojit-asan/./Include/refcount.h:536:5
+    #2 0x59e318821004 in _PyDict_Pop_KnownHash /home/danzin/projects/python_build_matrix/builds/release-gil-nojit-asan/Objects/dictobject.c:3308:34
+    #3 0x59e3188389ac in dict_pop_default /home/danzin/projects/python_build_matrix/builds/release-gil-nojit-asan/Objects/dictobject.c:3389:9
+    #4 0x59e3188389ac in dict_pop_impl /home/danzin/projects/python_build_matrix/builds/release-gil-nojit-asan/Objects/dictobject.c:4991:12
+    #5 0x59e3188389ac in dict_pop /home/danzin/projects/python_build_matrix/builds/release-gil-nojit-asan/Objects/clinic/dictobject.c.h:204:20
+    #6 0x59e31876761f in _PyObject_VectorcallTstate /home/danzin/projects/python_build_matrix/builds/release-gil-nojit-asan/./Include/internal/pycore_call.h:144:11
+    #7 0x59e31876761f in PyObject_Vectorcall /home/danzin/projects/python_build_matrix/builds/release-gil-nojit-asan/Objects/call.c:327:12
+    #8 0x59e318ae0941 in _Py_VectorCallInstrumentation_StackRefSteal /home/danzin/projects/python_build_matrix/builds/release-gil-nojit-asan/Python/ceval.c:768:11
+    #9 0x59e318af40d3 in _PyEval_EvalFrameDefault /home/danzin/projects/python_build_matrix/builds/release-gil-nojit-asan/Python/generated_cases.c.h:1906:35
+    #10 0x59e318adeeed in _PyEval_EvalFrame /home/danzin/projects/python_build_matrix/builds/release-gil-nojit-asan/./Include/internal/pycore_ceval.h:122:16
+    #11 0x59e318adeeed in _PyEval_Vector /home/danzin/projects/python_build_matrix/builds/release-gil-nojit-asan/Python/ceval.c:2172:12
+    #12 0x59e318adeeed in PyEval_EvalCode /home/danzin/projects/python_build_matrix/builds/release-gil-nojit-asan/Python/ceval.c:679:21
+    #13 0x59e318c51789 in run_mod /home/danzin/projects/python_build_matrix/builds/release-gil-nojit-asan/Python/pythonrun.c:1509:19
+    #14 0x59e318c4b9cc in _PyRun_File /home/danzin/projects/python_build_matrix/builds/release-gil-nojit-asan/Python/pythonrun.c:1332:15
+    #15 0x59e318c4b9cc in _PyRun_SimpleFile /home/danzin/projects/python_build_matrix/builds/release-gil-nojit-asan/Python/pythonrun.c:544:15
+    #16 0x59e318c4af81 in _PyRun_AnyFile /home/danzin/projects/python_build_matrix/builds/release-gil-nojit-asan/Python/pythonrun.c:92:18
+    #17 0x59e318cbf0fd in pymain_run_file_obj /home/danzin/projects/python_build_matrix/builds/release-gil-nojit-asan/Modules/main.c:478:24
+    #18 0x59e318cbf0fd in pymain_run_file /home/danzin/projects/python_build_matrix/builds/release-gil-nojit-asan/Modules/main.c:494:20
+    #19 0x59e318cbdd30 in pymain_run_python /home/danzin/projects/python_build_matrix/builds/release-gil-nojit-asan/Modules/main.c:804:21
+    #20 0x59e318cbdd30 in Py_RunMain /home/danzin/projects/python_build_matrix/builds/release-gil-nojit-asan/Modules/main.c:891:5
+    #21 0x59e318cbe843 in pymain_main /home/danzin/projects/python_build_matrix/builds/release-gil-nojit-asan/Modules/main.c:921:12
+    #22 0x59e318cbe9a2 in Py_BytesMain /home/danzin/projects/python_build_matrix/builds/release-gil-nojit-asan/Modules/main.c:945:12
+    #23 0x7b683a82a600 in __libc_start_call_main csu/../sysdeps/nptl/libc_start_call_main.h:59:16
+    #24 0x7b683a82a717 in __libc_start_main csu/../csu/libc-start.c:360:3
+    #25 0x59e31856deb4 in _start (/home/danzin/projects/python_build_matrix/builds/release-gil-nojit-asan/python+0x1d9eb4) (BuildId: 122a1ef0f157604175441a62bd3151f00f44a928)
+  >>> 3/3 ASan reports

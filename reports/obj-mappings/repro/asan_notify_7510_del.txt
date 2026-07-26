@@ -1,0 +1,39 @@
+### 7510_del : notify_site_7510_store_instance_attr.py del (release-gil-nojit-asan, PYTHONMALLOC=malloc)
+  run 1: no ASan report, rc=1
+    |     sys.exit(main())
+    |              ~~~~^^
+    |   File "/home/danzin/projects/cpython-review-toolkit/reports/obj-mappings/repro/notify_site_7510_store_instance_attr.py", line 90, in main
+    |     print("[main] len(d)=%d" % len(d), flush=True)
+    |                                ~~~^^^
+    | SystemError: <built-in function len> returned NULL without setting an exception
+[main] armed mode=del
+[main] returned from store_instance_attr_lock_held
+=================================================================
+==3053422==ERROR: AddressSanitizer: heap-buffer-overflow on address 0x6ef213434f7f at pc 0x5a981f804a5e bp 0x7ffc53afac40 sp 0x7ffc53afac38
+WRITE of size 8 at 0x6ef213434f7f thread T0
+    #0 0x5a981f804a5d in _PyGCHead_SET_NEXT /home/danzin/projects/python_build_matrix/builds/release-gil-nojit-asan/./Include/internal/pycore_gc.h:151:18
+    #1 0x5a981f804a5d in _PyObject_GC_TRACK /home/danzin/projects/python_build_matrix/builds/release-gil-nojit-asan/./Include/internal/pycore_gc.h:231:5
+    #2 0x5a981f804a5d in PyList_New /home/danzin/projects/python_build_matrix/builds/release-gil-nojit-asan/Objects/listobject.c:277:5
+    #3 0x5a981f804a5d in _PyList_FromStackRefStealOnSuccess /home/danzin/projects/python_build_matrix/builds/release-gil-nojit-asan/Objects/listobject.c:3295:16
+    #4 0x5a981fb06173 in _PyEval_EvalFrameDefault /home/danzin/projects/python_build_matrix/builds/release-gil-nojit-asan/Python/generated_cases.c.h:1576:32
+    #5 0x5a981fafe904 in _PyEval_EvalFrame /home/danzin/projects/python_build_matrix/builds/release-gil-nojit-asan/./Include/internal/pycore_ceval.h:122:16
+    #6 0x5a981fafe904 in _PyEval_Vector /home/danzin/projects/python_build_matrix/builds/release-gil-nojit-asan/Python/ceval.c:2172:12
+    #7 0x5a981f78bf8b in _PyObject_VectorcallTstate /home/danzin/projects/python_build_matrix/builds/release-gil-nojit-asan/./Include/internal/pycore_call.h:144:11
+    #8 0x5a981f78bf8b in object_vacall /home/danzin/projects/python_build_matrix/builds/release-gil-nojit-asan/Objects/call.c:823:14
+    #9 0x5a981f78b8fd in PyObject_CallMethodObjArgs /home/danzin/projects/python_build_matrix/builds/release-gil-nojit-asan/Objects/call.c:960:24
+    #10 0x5a981fbf2d70 in import_find_and_load_with_name /home/danzin/projects/python_build_matrix/builds/release-gil-nojit-asan/Python/import.c:4135:11
+    #11 0x5a981fbf193a in import_find_and_load /home/danzin/projects/python_build_matrix/builds/release-gil-nojit-asan/Python/import.c:4166:12
+    #12 0x5a981fbf193a in PyImport_ImportModuleLevelObject /home/danzin/projects/python_build_matrix/builds/release-gil-nojit-asan/Python/import.c
+    #13 0x5a981faf10de in builtin___import___impl /home/danzin/projects/python_build_matrix/builds/release-gil-nojit-asan/Python/bltinmodule.c:286:12
+    #14 0x5a981faf10de in builtin___import__ /home/danzin/projects/python_build_matrix/builds/release-gil-nojit-asan/Python/clinic/bltinmodule.c.h:111:20
+    #15 0x5a981f7883b4 in _PyObject_VectorcallTstate /home/danzin/projects/python_build_matrix/builds/release-gil-nojit-asan/./Include/internal/pycore_call.h:144:11
+    #16 0x5a981f7883b4 in _PyObject_CallFunctionVa /home/danzin/projects/python_build_matrix/builds/release-gil-nojit-asan/Objects/call.c:552:18
+    #17 0x5a981f7880d4 in PyObject_CallFunction /home/danzin/projects/python_build_matrix/builds/release-gil-nojit-asan/Objects/call.c:574:14
+    #18 0x5a981fbef2a5 in PyImport_Import /home/danzin/projects/python_build_matrix/builds/release-gil-nojit-asan/Python/import.c:4749:9
+    #19 0x5a981fbf67af in PyImport_ImportModuleAttr /home/danzin/projects/python_build_matrix/builds/release-gil-nojit-asan/Python/import.c:4965:21
+    #20 0x5a981fbf67af in PyImport_ImportModuleAttrString /home/danzin/projects/python_build_matrix/builds/release-gil-nojit-asan/Python/import.c:4986:24
+    #21 0x5a981fc6daf0 in _PyErr_Display /home/danzin/projects/python_build_matrix/builds/release-gil-nojit-asan/Python/pythonrun.c:1161:36
+    #22 0x5a981fc6f1b6 in PyErr_Display /home/danzin/projects/python_build_matrix/builds/release-gil-nojit-asan/Python/pythonrun.c:1229:5
+    #23 0x5a981fca7db4 in sys_excepthook_impl /home/danzin/projects/python_build_matrix/builds/release-gil-nojit-asan/./Python/sysmodule.c:831:5
+    #24 0x5a981fca7db4 in sys_excepthook /home/danzin/projects/python_build_matrix/builds/release-gil-nojit-asan/./Python/clinic/sysmodule.c.h:153:20
+  >>> 2/3 ASan reports

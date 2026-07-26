@@ -1,0 +1,32 @@
+### 7510_detach : notify_site_7510_store_instance_attr.py detach (release-gil-nojit-asan, PYTHONMALLOC=malloc)
+[main] armed mode=detach
+[main] returned from store_instance_attr_lock_held
+[main] len(d)=3
+[main] list(d)=['a', 'b', 'c']
+[main] vars(o)={'x': 1}
+[main] survived
+=================================================================
+==3053368==ERROR: AddressSanitizer: heap-use-after-free on address 0x71d8b5abb9f8 at pc 0x5af26bce3810 bp 0x7ffe61b02d40 sp 0x7ffe61b02d38
+READ of size 8 at 0x71d8b5abb9f8 thread T0
+    #0 0x5af26bce380f in _PyObject_IS_GC /home/danzin/projects/python_build_matrix/builds/release-gil-nojit-asan/./Include/internal/pycore_object.h:828:26
+    #1 0x5af26bce380f in visit_decref /home/danzin/projects/python_build_matrix/builds/release-gil-nojit-asan/Python/gc.c:445:9
+    #2 0x5af26b96777b in dict_traverse /home/danzin/projects/python_build_matrix/builds/release-gil-nojit-asan/Objects/dictobject.c:5104:17
+    #3 0x5af26bce9b0d in subtract_refs /home/danzin/projects/python_build_matrix/builds/release-gil-nojit-asan/Python/gc.c:497:16
+    #4 0x5af26bce9b0d in deduce_unreachable /home/danzin/projects/python_build_matrix/builds/release-gil-nojit-asan/Python/gc.c:1177:5
+    #5 0x5af26bce4d6f in gc_collect_main /home/danzin/projects/python_build_matrix/builds/release-gil-nojit-asan/Python/gc.c:1509:24
+    #6 0x5af26bd74c23 in finalize_modules /home/danzin/projects/python_build_matrix/builds/release-gil-nojit-asan/Python/pylifecycle.c:1955:5
+    #7 0x5af26bd71689 in _Py_Finalize /home/danzin/projects/python_build_matrix/builds/release-gil-nojit-asan/Python/pylifecycle.c:2491:5
+    #8 0x5af26bdfcba2 in Py_RunMain /home/danzin/projects/python_build_matrix/builds/release-gil-nojit-asan/Modules/main.c:893:9
+    #9 0x5af26bdfd843 in pymain_main /home/danzin/projects/python_build_matrix/builds/release-gil-nojit-asan/Modules/main.c:921:12
+    #10 0x5af26bdfd9a2 in Py_BytesMain /home/danzin/projects/python_build_matrix/builds/release-gil-nojit-asan/Modules/main.c:945:12
+    #11 0x7578b682a600 in __libc_start_call_main csu/../sysdeps/nptl/libc_start_call_main.h:59:16
+    #12 0x7578b682a717 in __libc_start_main csu/../csu/libc-start.c:360:3
+    #13 0x5af26b6aceb4 in _start (/home/danzin/projects/python_build_matrix/builds/release-gil-nojit-asan/python+0x1d9eb4) (BuildId: 122a1ef0f157604175441a62bd3151f00f44a928)
+
+0x71d8b5abb9f8 is located 24 bytes inside of 56-byte region [0x71d8b5abb9e0,0x71d8b5abba18)
+freed by thread T0 here:
+    #0 0x5af26b7521ba in free (/home/danzin/projects/python_build_matrix/builds/release-gil-nojit-asan/python+0x27f1ba) (BuildId: 122a1ef0f157604175441a62bd3151f00f44a928)
+    #1 0x5af26b9a6e46 in free_object /home/danzin/projects/python_build_matrix/builds/release-gil-nojit-asan/Objects/object.c:921:5
+    #2 0x5af26b9a6e46 in clear_freelist /home/danzin/projects/python_build_matrix/builds/release-gil-nojit-asan/Objects/object.c:907:9
+    #3 0x5af26b9a6e46 in _PyObject_ClearFreeLists /home/danzin/projects/python_build_matrix/builds/release-gil-nojit-asan/Objects/object.c:935:5
+  >>> 3/3 ASan reports

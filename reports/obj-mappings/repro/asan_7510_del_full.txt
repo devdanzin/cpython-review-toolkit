@@ -1,0 +1,10 @@
+[main] armed mode=del
+[main] returned from store_instance_attr_lock_held
+Traceback (most recent call last):
+  File "/home/danzin/projects/cpython-review-toolkit/reports/obj-mappings/repro/notify_site_7510_store_instance_attr.py", line 101, in <module>
+    sys.exit(main())
+             ~~~~^^
+  File "/home/danzin/projects/cpython-review-toolkit/reports/obj-mappings/repro/notify_site_7510_store_instance_attr.py", line 90, in main
+    print("[main] len(d)=%d" % len(d), flush=True)
+                               ~~~^^^
+SystemError: <built-in function len> returned NULL without setting an exception
