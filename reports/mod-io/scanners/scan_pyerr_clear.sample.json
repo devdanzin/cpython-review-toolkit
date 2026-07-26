@@ -28,6 +28,12 @@
   "total_pyerr_clear_calls": 22,
   "total_pyerr_clear_calls_in_destructors": 3,
   "skipped_files": [],
+  "denominators": {
+    "files_analyzed": 7,
+    "functions_analyzed": 289,
+    "findings": 1,
+    "destructor_functions": 27
+  },
   "_sample": {
     "files_requested": [
       "Modules/_io/textio.c",
@@ -63,7 +69,12 @@
       "destructor_functions": "summed",
       "total_pyerr_clear_calls": "summed",
       "total_pyerr_clear_calls_in_destructors": "summed",
-      "skipped_files": "concatenated"
+      "skipped_files": "concatenated",
+      "denominators": "merged key-wise",
+      "denominators.files_analyzed": "summed",
+      "denominators.functions_analyzed": "summed",
+      "denominators.findings": "summed",
+      "denominators.destructor_functions": "summed"
     }
   }
 }

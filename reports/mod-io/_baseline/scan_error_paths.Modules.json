@@ -1,0 +1,705 @@
+{
+  "project_root": "/home/danzin/projects/cpython",
+  "scan_root": "/home/danzin/projects/cpython/Modules",
+  "files_analyzed": 484,
+  "functions_analyzed": 6361,
+  "denominators": {
+    "files_analyzed": 484,
+    "functions_analyzed": 6361,
+    "findings": 71,
+    "fallible_assignment_sites": 960,
+    "int_status_callees_resolved": 853,
+    "int_status_callees_discovered": 823
+  },
+  "findings": [
+    {
+      "type": "unchecked_return",
+      "api_call": "PyObject_Call",
+      "variable": "data->result",
+      "detail": "Return value of PyObject_Call assigned to 'data->result' is neither checked for NULL nor returned unmodified",
+      "confidence": "medium",
+      "file": "Modules/_cursesmodule.c",
+      "function": "curses_use_call",
+      "line": 4783
+    },
+    {
+      "type": "unconditional_pyerr_clear",
+      "api_call": "PyErr_Clear",
+      "detail": "PyErr_Clear() with no PyErr_ExceptionMatches within the preceding 3 lines \u2014 swallows any live exception, including KeyboardInterrupt and MemoryError raised by user code",
+      "confidence": "medium",
+      "file": "Modules/_interpchannelsmodule.c",
+      "function": "ensure_highlevel_module_loaded",
+      "line": 229
+    },
+    {
+      "type": "unconditional_pyerr_clear",
+      "api_call": "PyErr_Clear",
+      "detail": "PyErr_Clear() with no PyErr_ExceptionMatches within the preceding 3 lines \u2014 swallows any live exception, including KeyboardInterrupt and MemoryError raised by user code",
+      "confidence": "medium",
+      "file": "Modules/_interpchannelsmodule.c",
+      "function": "_channelid_from_xid",
+      "line": 2623
+    },
+    {
+      "type": "alloc_null_no_memerror",
+      "api_call": "PyMem_RawMalloc",
+      "variable": "data",
+      "detail": "PyMem_RawMalloc does not set MemoryError; the failure branch for 'data' returns an error sentinel without PyErr_NoMemory()",
+      "confidence": "high",
+      "file": "Modules/_interpqueuesmodule.c",
+      "function": "_queueid_xid_new",
+      "line": 1329,
+      "guard_line": 1330
+    },
+    {
+      "type": "unconditional_pyerr_clear",
+      "api_call": "PyErr_Clear",
+      "detail": "PyErr_Clear() with no PyErr_ExceptionMatches within the preceding 3 lines \u2014 swallows any live exception, including KeyboardInterrupt and MemoryError raised by user code",
+      "confidence": "medium",
+      "file": "Modules/_interpretersmodule.c",
+      "function": "unwrap_not_shareable",
+      "line": 93
+    },
+    {
+      "type": "unconditional_pyerr_clear",
+      "api_call": "PyErr_Clear",
+      "detail": "PyErr_Clear() with no PyErr_ExceptionMatches within the preceding 3 lines \u2014 swallows any live exception, including KeyboardInterrupt and MemoryError raised by user code",
+      "confidence": "medium",
+      "file": "Modules/_io/bufferedio.c",
+      "function": "_buffered_init",
+      "line": 870
+    },
+    {
+      "type": "unconditional_pyerr_clear",
+      "api_call": "PyErr_Clear",
+      "detail": "PyErr_Clear() with no PyErr_ExceptionMatches within the preceding 3 lines \u2014 swallows any live exception, including KeyboardInterrupt and MemoryError raised by user code",
+      "confidence": "medium",
+      "file": "Modules/_lsprof.c",
+      "function": "normalizeUserObj",
+      "line": 170
+    },
+    {
+      "type": "unconditional_pyerr_clear",
+      "api_call": "PyErr_Clear",
+      "detail": "PyErr_Clear() with no PyErr_ExceptionMatches within the preceding 3 lines \u2014 swallows any live exception, including KeyboardInterrupt and MemoryError raised by user code",
+      "confidence": "medium",
+      "file": "Modules/_lsprof.c",
+      "function": "newProfilerEntry",
+      "line": 225
+    },
+    {
+      "type": "alloc_null_no_memerror",
+      "api_call": "PyMem_Malloc",
+      "variable": "self",
+      "detail": "PyMem_Malloc does not set MemoryError; the failure branch for 'self' returns an error sentinel without PyErr_NoMemory()",
+      "confidence": "high",
+      "file": "Modules/_lsprof.c",
+      "function": "newSubEntry",
+      "line": 259,
+      "guard_line": 260
+    },
+    {
+      "type": "unconditional_pyerr_clear",
+      "api_call": "PyErr_Clear",
+      "detail": "PyErr_Clear() with no PyErr_ExceptionMatches within the preceding 3 lines \u2014 swallows any live exception, including KeyboardInterrupt and MemoryError raised by user code",
+      "confidence": "medium",
+      "file": "Modules/_lsprof.c",
+      "function": "get_cfunc_from_callable",
+      "line": 700
+    },
+    {
+      "type": "unconditional_pyerr_clear",
+      "api_call": "PyErr_Clear",
+      "detail": "PyErr_Clear() with no PyErr_ExceptionMatches within the preceding 3 lines \u2014 swallows any live exception, including KeyboardInterrupt and MemoryError raised by user code",
+      "confidence": "medium",
+      "file": "Modules/_pickle.c",
+      "function": "write_unicode_binary",
+      "line": 2853
+    },
+    {
+      "type": "int_status_never_tested",
+      "api_call": "save_frozenset_impl",
+      "variable": "status",
+      "detail": "'status' takes save_frozenset_impl's int status and is never tested. Unlike a NULL pointer returned straight back to the caller, a `return status` at the end of the function stops nothing in between: the code below runs with a live exception, and anything it commits or skips (a rollback, a slot update) happens anyway. Test status at the assignment and take the error path there.",
+      "confidence": "high",
+      "file": "Modules/_pickle.c",
+      "function": "save_frozenset",
+      "line": 3796,
+      "use_line": 3800
+    },
+    {
+      "type": "alloc_null_no_memerror",
+      "api_call": "PyMem_Calloc",
+      "variable": "new_items",
+      "detail": "PyMem_Calloc does not set MemoryError; the failure branch for 'new_items' returns an error sentinel without PyErr_NoMemory()",
+      "confidence": "high",
+      "file": "Modules/_queuemodule.c",
+      "function": "resize_ringbuf",
+      "line": 102,
+      "guard_line": 103
+    },
+    {
+      "type": "unconditional_pyerr_clear",
+      "api_call": "PyErr_Clear",
+      "detail": "PyErr_Clear() with no PyErr_ExceptionMatches within the preceding 3 lines \u2014 swallows any live exception, including KeyboardInterrupt and MemoryError raised by user code",
+      "confidence": "medium",
+      "file": "Modules/_randommodule.c",
+      "function": "random_seed",
+      "line": 305
+    },
+    {
+      "type": "unconditional_pyerr_clear",
+      "api_call": "PyErr_Clear",
+      "detail": "PyErr_Clear() with no PyErr_ExceptionMatches within the preceding 3 lines \u2014 swallows any live exception, including KeyboardInterrupt and MemoryError raised by user code",
+      "confidence": "medium",
+      "file": "Modules/_remote_debugging/asyncio.c",
+      "function": "_Py_RemoteDebug_GetAsyncioDebugAddress",
+      "line": 47
+    },
+    {
+      "type": "unconditional_pyerr_clear",
+      "api_call": "PyErr_Clear",
+      "detail": "PyErr_Clear() with no PyErr_ExceptionMatches within the preceding 3 lines \u2014 swallows any live exception, including KeyboardInterrupt and MemoryError raised by user code",
+      "confidence": "medium",
+      "file": "Modules/_remote_debugging/asyncio.c",
+      "function": "ensure_async_debug_offsets",
+      "line": 103
+    },
+    {
+      "type": "unconditional_pyerr_clear",
+      "api_call": "PyErr_Clear",
+      "detail": "PyErr_Clear() with no PyErr_ExceptionMatches within the preceding 3 lines \u2014 swallows any live exception, including KeyboardInterrupt and MemoryError raised by user code",
+      "confidence": "medium",
+      "file": "Modules/_remote_debugging/binary_io_writer.c",
+      "function": "string_hash_func",
+      "line": 292
+    },
+    {
+      "type": "unconditional_pyerr_clear",
+      "api_call": "PyErr_Clear",
+      "detail": "PyErr_Clear() with no PyErr_ExceptionMatches within the preceding 3 lines \u2014 swallows any live exception, including KeyboardInterrupt and MemoryError raised by user code",
+      "confidence": "medium",
+      "file": "Modules/_remote_debugging/binary_io_writer.c",
+      "function": "string_compare_func",
+      "line": 308
+    },
+    {
+      "type": "unconditional_pyerr_clear",
+      "api_call": "PyErr_Clear",
+      "detail": "PyErr_Clear() with no PyErr_ExceptionMatches within the preceding 3 lines \u2014 swallows any live exception, including KeyboardInterrupt and MemoryError raised by user code",
+      "confidence": "medium",
+      "file": "Modules/_remote_debugging/frame_cache.c",
+      "function": "frame_cache_invalidate_stale",
+      "line": 126
+    },
+    {
+      "type": "unconditional_pyerr_clear",
+      "api_call": "PyErr_Clear",
+      "detail": "PyErr_Clear() with no PyErr_ExceptionMatches within the preceding 3 lines \u2014 swallows any live exception, including KeyboardInterrupt and MemoryError raised by user code",
+      "confidence": "medium",
+      "file": "Modules/_remote_debugging/frames.c",
+      "function": "clear_last_profiled_frames",
+      "line": 470
+    },
+    {
+      "type": "unconditional_pyerr_clear",
+      "api_call": "PyErr_Clear",
+      "detail": "PyErr_Clear() with no PyErr_ExceptionMatches within the preceding 3 lines \u2014 swallows any live exception, including KeyboardInterrupt and MemoryError raised by user code",
+      "confidence": "medium",
+      "file": "Modules/_remote_debugging/frames.c",
+      "function": "clear_last_profiled_frames",
+      "line": 481
+    },
+    {
+      "type": "unconditional_pyerr_clear",
+      "api_call": "PyErr_Clear",
+      "detail": "PyErr_Clear() with no PyErr_ExceptionMatches within the preceding 3 lines \u2014 swallows any live exception, including KeyboardInterrupt and MemoryError raised by user code",
+      "confidence": "medium",
+      "file": "Modules/_remote_debugging/frames.c",
+      "function": "clear_last_profiled_frames",
+      "line": 490
+    },
+    {
+      "type": "unconditional_pyerr_clear",
+      "api_call": "PyErr_Clear",
+      "detail": "PyErr_Clear() with no PyErr_ExceptionMatches within the preceding 3 lines \u2014 swallows any live exception, including KeyboardInterrupt and MemoryError raised by user code",
+      "confidence": "medium",
+      "file": "Modules/_remote_debugging/frames.c",
+      "function": "clear_last_profiled_frames",
+      "line": 501
+    },
+    {
+      "type": "alloc_null_no_memerror",
+      "api_call": "PyMem_Malloc",
+      "variable": "repeat",
+      "detail": "PyMem_Malloc does not set MemoryError; the failure branch for 'repeat' returns an error sentinel without PyErr_NoMemory()",
+      "confidence": "high",
+      "file": "Modules/_sre/sre.c",
+      "function": "repeat_pool_malloc",
+      "line": 435,
+      "guard_line": 436
+    },
+    {
+      "type": "unconditional_pyerr_clear",
+      "api_call": "PyErr_Clear",
+      "detail": "PyErr_Clear() with no PyErr_ExceptionMatches within the preceding 3 lines \u2014 swallows any live exception, including KeyboardInterrupt and MemoryError raised by user code",
+      "confidence": "medium",
+      "file": "Modules/_struct.c",
+      "function": "cache_struct_converter",
+      "line": 2667
+    },
+    {
+      "type": "unconditional_pyerr_clear",
+      "api_call": "PyErr_Clear",
+      "detail": "PyErr_Clear() with no PyErr_ExceptionMatches within the preceding 3 lines \u2014 swallows any live exception, including KeyboardInterrupt and MemoryError raised by user code",
+      "confidence": "medium",
+      "file": "Modules/_testcapi/getargs.c",
+      "function": "gh_99240_clear_args",
+      "line": 758
+    },
+    {
+      "type": "unchecked_return",
+      "api_call": "PyObject_Malloc",
+      "variable": "buffer",
+      "detail": "Return value of PyObject_Malloc assigned to 'buffer' is neither checked for NULL nor returned unmodified",
+      "confidence": "medium",
+      "file": "Modules/_testcapi/mem.c",
+      "function": "pyobject_malloc_without_gil",
+      "line": 532
+    },
+    {
+      "type": "unchecked_return",
+      "api_call": "PyMem_Malloc",
+      "variable": "buffer",
+      "detail": "Return value of PyMem_Malloc assigned to 'buffer' is neither checked for NULL nor returned unmodified",
+      "confidence": "medium",
+      "file": "Modules/_testcapi/mem.c",
+      "function": "pymem_api_misuse",
+      "line": 565
+    },
+    {
+      "type": "unchecked_return",
+      "api_call": "PyMem_Malloc",
+      "variable": "buffer",
+      "detail": "Return value of PyMem_Malloc assigned to 'buffer' is neither checked for NULL nor returned unmodified",
+      "confidence": "medium",
+      "file": "Modules/_testcapi/mem.c",
+      "function": "pymem_malloc_without_gil",
+      "line": 579
+    },
+    {
+      "type": "alloc_null_no_memerror",
+      "api_call": "PyMem_Calloc",
+      "variable": "states",
+      "detail": "PyMem_Calloc does not set MemoryError; the failure branch for 'states' returns an error sentinel without PyErr_NoMemory()",
+      "confidence": "high",
+      "file": "Modules/_testcapi/monitoring.c",
+      "function": "CodeLike_new",
+      "line": 24,
+      "guard_line": 26
+    },
+    {
+      "type": "unchecked_return",
+      "api_call": "PyUnicode_FromString",
+      "variable": "test_string",
+      "detail": "Return value of PyUnicode_FromString assigned to 'test_string' is neither checked for NULL nor returned unmodified",
+      "confidence": "medium",
+      "file": "Modules/_testcapi/object.c",
+      "function": "pyobject_print_noref_object",
+      "line": 64
+    },
+    {
+      "type": "unchecked_return",
+      "api_call": "PyUnicode_FromString",
+      "variable": "test_string",
+      "detail": "Return value of PyUnicode_FromString assigned to 'test_string' is neither checked for NULL nor returned unmodified",
+      "confidence": "medium",
+      "file": "Modules/_testcapi/object.c",
+      "function": "pyobject_print_os_error",
+      "line": 99
+    },
+    {
+      "type": "unchecked_return",
+      "api_call": "PyList_New",
+      "variable": "obj",
+      "detail": "Return value of PyList_New assigned to 'obj' is neither checked for NULL nor returned unmodified",
+      "confidence": "medium",
+      "file": "Modules/_testcapi/object.c",
+      "function": "pyobject_is_unique_temporary_new_object",
+      "line": 144
+    },
+    {
+      "type": "unchecked_return",
+      "api_call": "PyUnicode_FromString",
+      "variable": "unicode",
+      "detail": "Return value of PyUnicode_FromString assigned to 'unicode' is neither checked for NULL nor returned unmodified",
+      "confidence": "medium",
+      "file": "Modules/_testcapi/object.c",
+      "function": "test_py_set_immortal",
+      "line": 234
+    },
+    {
+      "type": "unchecked_return",
+      "api_call": "PyLong_FromLong",
+      "variable": "single",
+      "detail": "Return value of PyLong_FromLong assigned to 'single' is neither checked for NULL nor returned unmodified",
+      "confidence": "medium",
+      "file": "Modules/_testcapimodule.c",
+      "function": "profile_int",
+      "line": 867
+    },
+    {
+      "type": "unchecked_return",
+      "api_call": "PyLong_FromLong",
+      "variable": "single",
+      "detail": "Return value of PyLong_FromLong assigned to 'single' is neither checked for NULL nor returned unmodified",
+      "confidence": "medium",
+      "file": "Modules/_testcapimodule.c",
+      "function": "profile_int",
+      "line": 878
+    },
+    {
+      "type": "unconditional_pyerr_clear",
+      "api_call": "PyErr_Clear",
+      "detail": "PyErr_Clear() with no PyErr_ExceptionMatches within the preceding 3 lines \u2014 swallows any live exception, including KeyboardInterrupt and MemoryError raised by user code",
+      "confidence": "medium",
+      "file": "Modules/_tkinter.c",
+      "function": "AsObj",
+      "line": 1099
+    },
+    {
+      "type": "unconditional_pyerr_clear",
+      "api_call": "PyErr_Clear",
+      "detail": "PyErr_Clear() with no PyErr_ExceptionMatches within the preceding 3 lines \u2014 swallows any live exception, including KeyboardInterrupt and MemoryError raised by user code",
+      "confidence": "medium",
+      "file": "Modules/_winapi.c",
+      "function": "getulong",
+      "line": 874
+    },
+    {
+      "type": "unconditional_pyerr_clear",
+      "api_call": "PyErr_Clear",
+      "detail": "PyErr_Clear() with no PyErr_ExceptionMatches within the preceding 3 lines \u2014 swallows any live exception, including KeyboardInterrupt and MemoryError raised by user code",
+      "confidence": "medium",
+      "file": "Modules/_winapi.c",
+      "function": "gethandle",
+      "line": 890
+    },
+    {
+      "type": "unconditional_pyerr_clear",
+      "api_call": "PyErr_Clear",
+      "detail": "PyErr_Clear() with no PyErr_ExceptionMatches within the preceding 3 lines \u2014 swallows any live exception, including KeyboardInterrupt and MemoryError raised by user code",
+      "confidence": "medium",
+      "file": "Modules/_winapi.c",
+      "function": "gethandlelist",
+      "line": 1177
+    },
+    {
+      "type": "unconditional_pyerr_clear",
+      "api_call": "PyErr_Clear",
+      "detail": "PyErr_Clear() with no PyErr_ExceptionMatches within the preceding 3 lines \u2014 swallows any live exception, including KeyboardInterrupt and MemoryError raised by user code",
+      "confidence": "medium",
+      "file": "Modules/_winapi.c",
+      "function": "getattributelist",
+      "line": 1248
+    },
+    {
+      "type": "pylong_sentinel_no_errcheck",
+      "api_call": "PyLong_AsSsize_t",
+      "variable": "cur_trans_idx",
+      "detail": "'cur_trans_idx' comes from PyLong_AsSsize_t, whose -1 return is both the error sentinel and the honest conversion of the integer -1, but the guard tests only '== -1' with no PyErr_Occurred(). An input whose value really is -1 takes the failure branch with no exception set and returns the function's error sentinel \u2014 the caller propagates NULL to Python and _Py_CheckFunctionResult raises SystemError (SIGABRT on a debug build). Fix: 'if (x == -1 && PyErr_Occurred())'.",
+      "confidence": "high",
+      "file": "Modules/_zoneinfo.c",
+      "function": "load_data",
+      "line": 1073,
+      "assign_line": 1072
+    },
+    {
+      "type": "pylong_sentinel_no_errcheck",
+      "api_call": "PyLong_AsLong",
+      "variable": "hour",
+      "detail": "'hour' comes from PyLong_AsLong, whose -1 return is both the error sentinel and the honest conversion of the integer -1, but the guard tests only '== -1' with no PyErr_Occurred(). An input whose value really is -1 takes the failure branch with no exception set and returns the function's error sentinel \u2014 the caller propagates NULL to Python and _Py_CheckFunctionResult raises SystemError (SIGABRT on a debug build). Fix: 'if (x == -1 && PyErr_Occurred())'.",
+      "confidence": "high",
+      "file": "Modules/_zoneinfo.c",
+      "function": "get_local_timestamp",
+      "line": 2314,
+      "assign_line": 2312
+    },
+    {
+      "type": "pylong_sentinel_no_errcheck",
+      "api_call": "PyLong_AsLong",
+      "variable": "minute",
+      "detail": "'minute' comes from PyLong_AsLong, whose -1 return is both the error sentinel and the honest conversion of the integer -1, but the guard tests only '== -1' with no PyErr_Occurred(). An input whose value really is -1 takes the failure branch with no exception set and returns the function's error sentinel \u2014 the caller propagates NULL to Python and _Py_CheckFunctionResult raises SystemError (SIGABRT on a debug build). Fix: 'if (x == -1 && PyErr_Occurred())'.",
+      "confidence": "high",
+      "file": "Modules/_zoneinfo.c",
+      "function": "get_local_timestamp",
+      "line": 2324,
+      "assign_line": 2322
+    },
+    {
+      "type": "pylong_sentinel_no_errcheck",
+      "api_call": "PyLong_AsLong",
+      "variable": "second",
+      "detail": "'second' comes from PyLong_AsLong, whose -1 return is both the error sentinel and the honest conversion of the integer -1, but the guard tests only '== -1' with no PyErr_Occurred(). An input whose value really is -1 takes the failure branch with no exception set and returns the function's error sentinel \u2014 the caller propagates NULL to Python and _Py_CheckFunctionResult raises SystemError (SIGABRT on a debug build). Fix: 'if (x == -1 && PyErr_Occurred())'.",
+      "confidence": "high",
+      "file": "Modules/_zoneinfo.c",
+      "function": "get_local_timestamp",
+      "line": 2334,
+      "assign_line": 2332
+    },
+    {
+      "type": "alloc_null_no_memerror",
+      "api_call": "PyMem_Malloc",
+      "variable": "node",
+      "detail": "PyMem_Malloc does not set MemoryError; the failure branch for 'node' returns an error sentinel without PyErr_NoMemory()",
+      "confidence": "high",
+      "file": "Modules/_zoneinfo.c",
+      "function": "strong_cache_node_new",
+      "line": 2357,
+      "guard_line": 2358
+    },
+    {
+      "type": "unconditional_pyerr_clear",
+      "api_call": "PyErr_Clear",
+      "detail": "PyErr_Clear() with no PyErr_ExceptionMatches within the preceding 3 lines \u2014 swallows any live exception, including KeyboardInterrupt and MemoryError raised by user code",
+      "confidence": "medium",
+      "file": "Modules/faulthandler.c",
+      "function": "faulthandler_get_fileno",
+      "line": 164
+    },
+    {
+      "type": "unconditional_pyerr_clear",
+      "api_call": "PyErr_Clear",
+      "detail": "PyErr_Clear() with no PyErr_ExceptionMatches within the preceding 3 lines \u2014 swallows any live exception, including KeyboardInterrupt and MemoryError raised by user code",
+      "confidence": "medium",
+      "file": "Modules/getpath.c",
+      "function": "env_to_dict",
+      "line": 703
+    },
+    {
+      "type": "unconditional_pyerr_clear",
+      "api_call": "PyErr_Clear",
+      "detail": "PyErr_Clear() with no PyErr_ExceptionMatches within the preceding 3 lines \u2014 swallows any live exception, including KeyboardInterrupt and MemoryError raised by user code",
+      "confidence": "medium",
+      "file": "Modules/getpath.c",
+      "function": "env_to_dict",
+      "line": 714
+    },
+    {
+      "type": "alloc_null_no_memerror",
+      "api_call": "PyMem_RawMalloc",
+      "variable": "path",
+      "detail": "PyMem_RawMalloc does not set MemoryError; the failure branch for 'path' returns an error sentinel without PyErr_NoMemory()",
+      "confidence": "high",
+      "file": "Modules/getpath.c",
+      "function": "progname_to_dict",
+      "line": 784,
+      "guard_line": 785
+    },
+    {
+      "type": "unconditional_pyerr_clear",
+      "api_call": "PyErr_Clear",
+      "detail": "PyErr_Clear() with no PyErr_ExceptionMatches within the preceding 3 lines \u2014 swallows any live exception, including KeyboardInterrupt and MemoryError raised by user code",
+      "confidence": "medium",
+      "file": "Modules/getpath.c",
+      "function": "_PyConfig_InitPathConfig",
+      "line": 872
+    },
+    {
+      "type": "unconditional_pyerr_clear",
+      "api_call": "PyErr_Clear",
+      "detail": "PyErr_Clear() with no PyErr_ExceptionMatches within the preceding 3 lines \u2014 swallows any live exception, including KeyboardInterrupt and MemoryError raised by user code",
+      "confidence": "medium",
+      "file": "Modules/getpath.c",
+      "function": "_PyConfig_InitPathConfig",
+      "line": 878
+    },
+    {
+      "type": "unconditional_pyerr_clear",
+      "api_call": "PyErr_Clear",
+      "detail": "PyErr_Clear() with no PyErr_ExceptionMatches within the preceding 3 lines \u2014 swallows any live exception, including KeyboardInterrupt and MemoryError raised by user code",
+      "confidence": "medium",
+      "file": "Modules/getpath.c",
+      "function": "_PyConfig_InitPathConfig",
+      "line": 884
+    },
+    {
+      "type": "unconditional_pyerr_clear",
+      "api_call": "PyErr_Clear",
+      "detail": "PyErr_Clear() with no PyErr_ExceptionMatches within the preceding 3 lines \u2014 swallows any live exception, including KeyboardInterrupt and MemoryError raised by user code",
+      "confidence": "medium",
+      "file": "Modules/getpath.c",
+      "function": "_PyConfig_InitPathConfig",
+      "line": 894
+    },
+    {
+      "type": "unconditional_pyerr_clear",
+      "api_call": "PyErr_Clear",
+      "detail": "PyErr_Clear() with no PyErr_ExceptionMatches within the preceding 3 lines \u2014 swallows any live exception, including KeyboardInterrupt and MemoryError raised by user code",
+      "confidence": "medium",
+      "file": "Modules/getpath.c",
+      "function": "_PyConfig_InitPathConfig",
+      "line": 903
+    },
+    {
+      "type": "unconditional_pyerr_clear",
+      "api_call": "PyErr_Clear",
+      "detail": "PyErr_Clear() with no PyErr_ExceptionMatches within the preceding 3 lines \u2014 swallows any live exception, including KeyboardInterrupt and MemoryError raised by user code",
+      "confidence": "medium",
+      "file": "Modules/getpath.c",
+      "function": "_PyConfig_InitPathConfig",
+      "line": 906
+    },
+    {
+      "type": "unconditional_pyerr_clear",
+      "api_call": "PyErr_Clear",
+      "detail": "PyErr_Clear() with no PyErr_ExceptionMatches within the preceding 3 lines \u2014 swallows any live exception, including KeyboardInterrupt and MemoryError raised by user code",
+      "confidence": "medium",
+      "file": "Modules/itertoolsmodule.c",
+      "function": "islice_new",
+      "line": 1613
+    },
+    {
+      "type": "unconditional_pyerr_clear",
+      "api_call": "PyErr_Clear",
+      "detail": "PyErr_Clear() with no PyErr_ExceptionMatches within the preceding 3 lines \u2014 swallows any live exception, including KeyboardInterrupt and MemoryError raised by user code",
+      "confidence": "medium",
+      "file": "Modules/itertoolsmodule.c",
+      "function": "islice_new",
+      "line": 1624
+    },
+    {
+      "type": "unconditional_pyerr_clear",
+      "api_call": "PyErr_Clear",
+      "detail": "PyErr_Clear() with no PyErr_ExceptionMatches within the preceding 3 lines \u2014 swallows any live exception, including KeyboardInterrupt and MemoryError raised by user code",
+      "confidence": "medium",
+      "file": "Modules/itertoolsmodule.c",
+      "function": "islice_new",
+      "line": 1629
+    },
+    {
+      "type": "unconditional_pyerr_clear",
+      "api_call": "PyErr_Clear",
+      "detail": "PyErr_Clear() with no PyErr_ExceptionMatches within the preceding 3 lines \u2014 swallows any live exception, including KeyboardInterrupt and MemoryError raised by user code",
+      "confidence": "medium",
+      "file": "Modules/itertoolsmodule.c",
+      "function": "islice_new",
+      "line": 1648
+    },
+    {
+      "type": "unconditional_pyerr_clear",
+      "api_call": "PyErr_Clear",
+      "detail": "PyErr_Clear() with no PyErr_ExceptionMatches within the preceding 3 lines \u2014 swallows any live exception, including KeyboardInterrupt and MemoryError raised by user code",
+      "confidence": "medium",
+      "file": "Modules/main.c",
+      "function": "pymain_import_readline",
+      "line": 261
+    },
+    {
+      "type": "unconditional_pyerr_clear",
+      "api_call": "PyErr_Clear",
+      "detail": "PyErr_Clear() with no PyErr_ExceptionMatches within the preceding 3 lines \u2014 swallows any live exception, including KeyboardInterrupt and MemoryError raised by user code",
+      "confidence": "medium",
+      "file": "Modules/main.c",
+      "function": "pymain_import_readline",
+      "line": 269
+    },
+    {
+      "type": "alloc_null_no_memerror",
+      "api_call": "PyMem_RawMalloc",
+      "variable": "woutbufp",
+      "detail": "PyMem_RawMalloc does not set MemoryError; the failure branch for 'woutbufp' returns an error sentinel without PyErr_NoMemory()",
+      "confidence": "high",
+      "file": "Modules/posixmodule.c",
+      "function": "_PyOS_getfullpathname",
+      "line": 5454,
+      "guard_line": 5459
+    },
+    {
+      "type": "unconditional_pyerr_clear",
+      "api_call": "PyErr_Clear",
+      "detail": "PyErr_Clear() with no PyErr_ExceptionMatches within the preceding 3 lines \u2014 swallows any live exception, including KeyboardInterrupt and MemoryError raised by user code",
+      "confidence": "medium",
+      "file": "Modules/readline.c",
+      "function": "get_hook_module_state",
+      "line": 156
+    },
+    {
+      "type": "unchecked_return",
+      "api_call": "PyLong_FromLong",
+      "variable": "state->begidx",
+      "detail": "Return value of PyLong_FromLong assigned to 'state->begidx' is neither checked for NULL nor returned unmodified",
+      "confidence": "medium",
+      "file": "Modules/readline.c",
+      "function": "flex_complete",
+      "line": 1330
+    },
+    {
+      "type": "unchecked_return",
+      "api_call": "PyLong_FromLong",
+      "variable": "state->endidx",
+      "detail": "Return value of PyLong_FromLong assigned to 'state->endidx' is neither checked for NULL nor returned unmodified",
+      "confidence": "medium",
+      "file": "Modules/readline.c",
+      "function": "flex_complete",
+      "line": 1331
+    },
+    {
+      "type": "unchecked_return",
+      "api_call": "PyLong_FromLong",
+      "variable": "mod_state->begidx",
+      "detail": "Return value of PyLong_FromLong assigned to 'mod_state->begidx' is neither checked for NULL nor returned unmodified",
+      "confidence": "medium",
+      "file": "Modules/readline.c",
+      "function": "setup_readline",
+      "line": 1431
+    },
+    {
+      "type": "unchecked_return",
+      "api_call": "PyLong_FromLong",
+      "variable": "mod_state->endidx",
+      "detail": "Return value of PyLong_FromLong assigned to 'mod_state->endidx' is neither checked for NULL nor returned unmodified",
+      "confidence": "medium",
+      "file": "Modules/readline.c",
+      "function": "setup_readline",
+      "line": 1432
+    },
+    {
+      "type": "unconditional_pyerr_clear",
+      "api_call": "PyErr_Clear",
+      "detail": "PyErr_Clear() with no PyErr_ExceptionMatches within the preceding 3 lines \u2014 swallows any live exception, including KeyboardInterrupt and MemoryError raised by user code",
+      "confidence": "medium",
+      "file": "Modules/socketmodule.c",
+      "function": "socket_sethostname",
+      "line": 5957
+    },
+    {
+      "type": "unconditional_pyerr_clear",
+      "api_call": "PyErr_Clear",
+      "detail": "PyErr_Clear() with no PyErr_ExceptionMatches within the preceding 3 lines \u2014 swallows any live exception, including KeyboardInterrupt and MemoryError raised by user code",
+      "confidence": "medium",
+      "file": "Modules/syslogmodule.c",
+      "function": "syslog_get_argv",
+      "line": 100
+    },
+    {
+      "type": "unconditional_pyerr_clear",
+      "api_call": "PyErr_Clear",
+      "detail": "PyErr_Clear() with no PyErr_ExceptionMatches within the preceding 3 lines \u2014 swallows any live exception, including KeyboardInterrupt and MemoryError raised by user code",
+      "confidence": "medium",
+      "file": "Modules/syslogmodule.c",
+      "function": "syslog_get_argv",
+      "line": 113
+    }
+  ],
+  "summary": {
+    "missing_null_checks": 0,
+    "unchecked_returns": 14,
+    "alloc_null_no_memerror": 8,
+    "unconditional_pyerr_clear": 44,
+    "pylong_sentinel_no_errcheck": 4,
+    "unchecked_parse_calls": 0,
+    "int_status_never_tested": 1,
+    "total_findings": 71
+  }
+}

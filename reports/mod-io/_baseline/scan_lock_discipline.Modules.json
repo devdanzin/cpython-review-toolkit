@@ -1,0 +1,108 @@
+{
+  "project_root": "/home/danzin/projects/cpython",
+  "scan_root": "/home/danzin/projects/cpython/Modules",
+  "files_analyzed": 380,
+  "functions_analyzed": 10457,
+  "findings": [],
+  "summary": {
+    "total_findings": 0,
+    "by_type": {},
+    "by_classification": {}
+  },
+  "critical_section_functions": 489,
+  "mutex_functions": 55,
+  "lock_families": [
+    "critical_section",
+    "python_mutex"
+  ],
+  "local_lock_macros": {
+    "Modules/_ctypes/ctypes.h": {
+      "aliases": {
+        "STGINFO_LOCK": [
+          "critical_section",
+          "acquire"
+        ],
+        "STGINFO_UNLOCK": [
+          "critical_section",
+          "release"
+        ]
+      },
+      "lock_held_assertions": []
+    },
+    "Modules/_dbmmodule.c": {
+      "aliases": {},
+      "lock_held_assertions": [
+        "check_dbmobject_open"
+      ]
+    },
+    "Modules/_gdbmmodule.c": {
+      "aliases": {},
+      "lock_held_assertions": [
+        "check_gdbmobject_open"
+      ]
+    },
+    "Modules/_ssl.c": {
+      "aliases": {
+        "PySSL_BEGIN_ALLOW_THREADS": [
+          "python_mutex",
+          "acquire"
+        ],
+        "PySSL_END_ALLOW_THREADS": [
+          "python_mutex",
+          "release"
+        ]
+      },
+      "lock_held_assertions": []
+    },
+    "Modules/hashlib.h": {
+      "aliases": {
+        "HASHLIB_ACQUIRE_LOCK": [
+          "python_mutex",
+          "acquire"
+        ],
+        "HASHLIB_EXTERNAL_INSTRUCTIONS_LOCKED": [
+          "python_mutex",
+          "acquire"
+        ],
+        "HASHLIB_RELEASE_LOCK": [
+          "python_mutex",
+          "release"
+        ]
+      },
+      "lock_held_assertions": []
+    }
+  },
+  "vocabulary_counts": {
+    "FT_MUTEX_UNLOCK": 3,
+    "HASHLIB_ACQUIRE_LOCK": 3,
+    "HASHLIB_EXTERNAL_INSTRUCTIONS_LOCKED": 1,
+    "HASHLIB_RELEASE_LOCK": 3,
+    "LOCK_WEAKREFS": 1,
+    "PyMutex_Lock": 56,
+    "PyMutex_Unlock": 68,
+    "PySSL_BEGIN_ALLOW_THREADS": 3,
+    "PySSL_END_ALLOW_THREADS": 3,
+    "Py_BEGIN_CRITICAL_SECTION": 532,
+    "Py_BEGIN_CRITICAL_SECTION2": 10,
+    "Py_BEGIN_CRITICAL_SECTION2_MUTEX": 1,
+    "Py_BEGIN_CRITICAL_SECTION_MUTEX": 2,
+    "Py_BEGIN_CRITICAL_SECTION_SEQUENCE_FAST": 3,
+    "Py_END_CRITICAL_SECTION": 505,
+    "Py_END_CRITICAL_SECTION2": 11,
+    "Py_END_CRITICAL_SECTION_SEQUENCE_FAST": 2,
+    "STGINFO_LOCK": 2,
+    "STGINFO_UNLOCK": 2,
+    "UNLOCK_WEAKREFS": 2
+  },
+  "skipped_files": [],
+  "rule_not_applicable": false,
+  "denominators": {
+    "files_analyzed": 380,
+    "functions_analyzed": 10457,
+    "findings": 0,
+    "vocabulary_resolved": 1213,
+    "vocabulary_tokens_seen": 20,
+    "critical_section_functions": 489,
+    "mutex_functions": 55
+  }
+}

@@ -4,12 +4,39 @@
   "files_analyzed": 7,
   "functions_analyzed": 312,
   "outparam_wrappers": [],
-  "findings": [],
+  "denominators": {
+    "files_analyzed": 7,
+    "functions_analyzed": 312,
+    "findings": 1,
+    "assignment_sites": 1012,
+    "fallible_sources_resolved": 466,
+    "local_nullable_helpers": 151,
+    "outparam_wrappers": 0
+  },
+  "assignment_sites": 1012,
+  "fallible_sources_resolved": 466,
+  "local_nullable_helpers": 151,
+  "findings": [
+    {
+      "type": "unchecked_alloc",
+      "api_call": "_forward_call",
+      "variable": "ret",
+      "deref_is_assert": false,
+      "detail": "Result of _forward_call assigned to 'ret' is never checked for NULL and is dereferenced (Py_DECREF(ret))",
+      "confidence": "medium",
+      "file": "Modules/_io/bufferedio.c",
+      "function": "bufferedrwpair_isatty",
+      "line": 2444,
+      "deref_line": 2450
+    }
+  ],
   "summary": {
-    "unchecked_allocations": 0,
+    "unchecked_allocations": 1,
     "deref_before_check": 0,
     "decref_of_nulled_outparam": 0,
-    "total_findings": 0,
+    "decref_of_nulled_outparam_call_sites": 28,
+    "assert_only_derefs": 0,
+    "total_findings": 1,
     "high_confidence": 0
   },
   "_sample": {
@@ -39,11 +66,24 @@
       "files_analyzed": "summed",
       "functions_analyzed": "summed",
       "outparam_wrappers": "concatenated",
+      "denominators": "merged key-wise",
+      "denominators.files_analyzed": "summed",
+      "denominators.functions_analyzed": "summed",
+      "denominators.findings": "summed",
+      "denominators.assignment_sites": "summed",
+      "denominators.fallible_sources_resolved": "summed",
+      "denominators.local_nullable_helpers": "summed",
+      "denominators.outparam_wrappers": "summed",
+      "assignment_sites": "summed",
+      "fallible_sources_resolved": "summed",
+      "local_nullable_helpers": "summed",
       "findings": "concatenated",
       "summary": "merged key-wise",
       "summary.unchecked_allocations": "summed",
       "summary.deref_before_check": "summed",
       "summary.decref_of_nulled_outparam": "summed",
+      "summary.decref_of_nulled_outparam_call_sites": "summed",
+      "summary.assert_only_derefs": "summed",
       "summary.total_findings": "summed",
       "summary.high_confidence": "summed"
     }

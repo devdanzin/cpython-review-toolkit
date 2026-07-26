@@ -2,8 +2,8 @@
 
 **Slice:** Modules: _io package -- tier A
 **Target:** `/home/danzin/projects/cpython` @ `4f3be1b5777`
-**Scope argument:** `Modules/_io`
 **Size:** 7 files, 11,924 lines
+**Scope:** `Modules/_io` -- **WIDER THAN THIS SLICE.** No single path covers the slice exactly, so `Modules/_io` will pull in files owned by other slices. Review only the files listed below (also in `preflight/slice_files.txt`); anything you notice outside them belongs to another slice's pass -- note it in one line and leave it there.
 **Differential oracle:** `Lib/_pyio.py` -- a shipped pure-Python twin. Feed the same adversarial input to both and compare exit codes; a C-side SIGSEGV/SIGABRT where the twin raises cleanly is a confirmed, localized bug.
 
 **Why this slice:** Shipped pure-Python twin is a free differential oracle. Buffer-protocol dense; detach/close re-entrancy and raw-buffer resize are the shapes to hunt.
@@ -41,17 +41,17 @@ Raw JSON in `<run>/scanners/`. `<scanner>.sample.json` is scoped to this slice -
 
 | scanner | Modules/ | slice | slice finding types |
 |---|---|---|---|
-| `scan_init_bypass` | 26 | **19** | init_bypass_null_deref 19 |
-| `scan_ft_races` | 97 | **11** | guarded_writer_unguarded_reader 10, lazy_init_no_critical_section 1 |
+| `scan_init_bypass` | 37 | **26** | init_bypass_null_deref 26 |
+| `scan_ft_races` | 102 | **12** | guarded_writer_unguarded_reader 10, publish_before_init_complete 1, lazy_init_no_critical_section 1 |
 | `scan_deprecated_apis` | 138 | **2** | deprecated-api 2 |
-| `scan_error_paths` | 70 | **1** | unconditional_pyerr_clear 1 |
+| `scan_error_paths` | 71 | **1** | unconditional_pyerr_clear 1 |
+| `scan_null_checks` | 22 | **1** | unchecked_alloc 1 |
 | `scan_pyerr_clear` | 25 | **1** | pyerr_clear_unfiltered_after_python_call 1 |
 | `scan_gil_usage` | 68 | 0 | -- |
 | `scan_lock_discipline` | 0 | 0 | -- |
-| `scan_memory_patterns` | 2 | 0 | -- |
-| `scan_null_checks` | 13 | 0 | -- |
-| `scan_recursion_guards` | 13 | 0 | -- |
-| `scan_refcounts` | 8 | 0 | -- |
+| `scan_memory_patterns` | 6 | 0 | -- |
+| `scan_recursion_guards` | 17 | 0 | -- |
+| `scan_refcounts` | 9 | 0 | -- |
 | `scan_stw_safety` | 5 | 0 | -- |
 | `scan_uninit_dealloc` | 1 | 0 | -- |
 

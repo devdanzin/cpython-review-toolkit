@@ -23,6 +23,15 @@
     "PyGILState_Release": 0
   },
   "skipped_files": [],
+  "rule_not_applicable": true,
+  "rule_not_applicable_note": "This scanner recognised NONE of its vocabulary in this scope, so the empty findings list is silence, not safety. Either the constructs genuinely are absent, or they are spelled in a way the vocabulary does not cover (a file-local macro wrapper is the usual cause). Establish which before reporting a clean result.",
+  "denominators": {
+    "files_analyzed": 7,
+    "functions_analyzed": 289,
+    "findings": 0,
+    "vocabulary_resolved": 16,
+    "vocabulary_tokens_seen": 28
+  },
   "_sample": {
     "files_requested": [
       "Modules/_io/textio.c",
@@ -65,7 +74,15 @@
       "vocabulary_counts.Py_END_ALLOW_THREADS": "summed",
       "vocabulary_counts.PyGILState_Ensure": "summed",
       "vocabulary_counts.PyGILState_Release": "summed",
-      "skipped_files": "concatenated"
+      "skipped_files": "concatenated",
+      "rule_not_applicable": "or",
+      "rule_not_applicable_note": "carried (first)",
+      "denominators": "merged key-wise",
+      "denominators.files_analyzed": "summed",
+      "denominators.functions_analyzed": "summed",
+      "denominators.findings": "summed",
+      "denominators.vocabulary_resolved": "summed",
+      "denominators.vocabulary_tokens_seen": "summed"
     }
   }
 }

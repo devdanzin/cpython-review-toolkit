@@ -9,7 +9,20 @@
     "by_type": {},
     "by_confidence": {}
   },
+  "varobject_allocation_census": {
+    "sites": 4,
+    "via_slot_pointer": 4,
+    "non_constant_nitems": 0
+  },
   "skipped_files": [],
+  "denominators": {
+    "files_analyzed": 7,
+    "functions_analyzed": 289,
+    "findings": 0,
+    "varobject_allocation_census.sites": 4,
+    "varobject_allocation_census.via_slot_pointer": 4,
+    "varobject_allocation_census.non_constant_nitems": 0
+  },
   "_sample": {
     "files_requested": [
       "Modules/_io/textio.c",
@@ -41,7 +54,18 @@
       "summary.total_findings": "summed",
       "summary.by_type": "merged key-wise",
       "summary.by_confidence": "merged key-wise",
-      "skipped_files": "concatenated"
+      "varobject_allocation_census": "merged key-wise",
+      "varobject_allocation_census.sites": "summed",
+      "varobject_allocation_census.via_slot_pointer": "summed",
+      "varobject_allocation_census.non_constant_nitems": "summed",
+      "skipped_files": "concatenated",
+      "denominators": "merged key-wise",
+      "denominators.files_analyzed": "summed",
+      "denominators.functions_analyzed": "summed",
+      "denominators.findings": "summed",
+      "denominators.varobject_allocation_census.sites": "summed",
+      "denominators.varobject_allocation_census.via_slot_pointer": "summed",
+      "denominators.varobject_allocation_census.non_constant_nitems": "summed"
     }
   }
 }

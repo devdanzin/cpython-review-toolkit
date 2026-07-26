@@ -1,0 +1,7 @@
+Modules/_io/textio.c
+Modules/_io/bufferedio.c
+Modules/_io/bytesio.c
+Modules/_io/fileio.c
+Modules/_io/stringio.c
+Modules/_io/iobase.c
+Modules/_io/_iomodule.c

@@ -1,0 +1,104 @@
+{
+  "project_root": "/home/danzin/projects/cpython",
+  "scan_root": "/home/danzin/projects/cpython/Modules",
+  "files_analyzed": 380,
+  "functions_analyzed": 10457,
+  "findings": [
+    {
+      "type": "varobject_nitems_unguarded",
+      "function": "CThunkObject_new",
+      "line": 310,
+      "confidence": "low",
+      "nitems": "nargs",
+      "operands": [
+        "nargs"
+      ],
+      "dispatch": "direct",
+      "detail": "PyObject_GC_NewVar(..., nargs) reaches _PyObject_VAR_SIZE(tp, nitems) = tp_basicsize + nitems * tp_itemsize with **no** overflow guard before the call (no PY_SSIZE_T_MAX/itemsize division check, no __builtin_mul_overflow). The multiply is inside the macro, so it never appears in source and alloc_size_overflow cannot see it. If nitems is attacker-controlled the product wraps, the allocation succeeds far too small, and the first ob_item write is a heap overflow (Objects/structseq.c:77 PyStructSequence_New \u2014 reachable from pure Python via `os.terminal_size.n_fields = 2**62`). Guarded twin: Objects/tupleobject.c:52 tuple_alloc (`n > (PY_SSIZE_T_MAX - base) / sizeof(PyObject *)`).",
+      "file": "Modules/_ctypes/callbacks.c"
+    },
+    {
+      "type": "varobject_nitems_unguarded",
+      "function": "PyCursesComplexStr_New",
+      "line": 1275,
+      "confidence": "low",
+      "nitems": "len",
+      "operands": [
+        "len"
+      ],
+      "dispatch": "slot_pointer",
+      "detail": "type->tp_alloc(..., len) reaches _PyObject_VAR_SIZE(tp, nitems) = tp_basicsize + nitems * tp_itemsize with **no** overflow guard before the call (no PY_SSIZE_T_MAX/itemsize division check, no __builtin_mul_overflow). The multiply is inside the macro, so it never appears in source and alloc_size_overflow cannot see it. If nitems is attacker-controlled the product wraps, the allocation succeeds far too small, and the first ob_item write is a heap overflow (Objects/structseq.c:77 PyStructSequence_New \u2014 reachable from pure Python via `os.terminal_size.n_fields = 2**62`). Guarded twin: Objects/tupleobject.c:52 tuple_alloc (`n > (PY_SSIZE_T_MAX - base) / sizeof(PyObject *)`).",
+      "file": "Modules/_cursesmodule.c"
+    },
+    {
+      "type": "varobject_nitems_unguarded",
+      "function": "complexstr_new_impl",
+      "line": 1443,
+      "confidence": "low",
+      "nitems": "n",
+      "operands": [
+        "n"
+      ],
+      "dispatch": "slot_pointer",
+      "detail": "type->tp_alloc(..., n) reaches _PyObject_VAR_SIZE(tp, nitems) = tp_basicsize + nitems * tp_itemsize with **no** overflow guard before the call (no PY_SSIZE_T_MAX/itemsize division check, no __builtin_mul_overflow). The multiply is inside the macro, so it never appears in source and alloc_size_overflow cannot see it. If nitems is attacker-controlled the product wraps, the allocation succeeds far too small, and the first ob_item write is a heap overflow (Objects/structseq.c:77 PyStructSequence_New \u2014 reachable from pure Python via `os.terminal_size.n_fields = 2**62`). Guarded twin: Objects/tupleobject.c:52 tuple_alloc (`n > (PY_SSIZE_T_MAX - base) / sizeof(PyObject *)`).",
+      "file": "Modules/_cursesmodule.c"
+    },
+    {
+      "type": "varobject_nitems_unguarded",
+      "function": "complexstr_subscript",
+      "line": 1518,
+      "confidence": "low",
+      "nitems": "slicelen",
+      "operands": [
+        "slicelen"
+      ],
+      "dispatch": "slot_pointer",
+      "detail": "type->tp_alloc(..., slicelen) reaches _PyObject_VAR_SIZE(tp, nitems) = tp_basicsize + nitems * tp_itemsize with **no** overflow guard before the call (no PY_SSIZE_T_MAX/itemsize division check, no __builtin_mul_overflow). The multiply is inside the macro, so it never appears in source and alloc_size_overflow cannot see it. If nitems is attacker-controlled the product wraps, the allocation succeeds far too small, and the first ob_item write is a heap overflow (Objects/structseq.c:77 PyStructSequence_New \u2014 reachable from pure Python via `os.terminal_size.n_fields = 2**62`). Guarded twin: Objects/tupleobject.c:52 tuple_alloc (`n > (PY_SSIZE_T_MAX - base) / sizeof(PyObject *)`).",
+      "file": "Modules/_cursesmodule.c"
+    },
+    {
+      "type": "varobject_nitems_unguarded",
+      "function": "complexstr_concat",
+      "line": 1544,
+      "confidence": "low",
+      "nitems": "Py_SIZE(sa) + Py_SIZE(sb)",
+      "operands": [],
+      "dispatch": "slot_pointer",
+      "detail": "type->tp_alloc(..., Py_SIZE(sa) + Py_SIZE(sb)) reaches _PyObject_VAR_SIZE(tp, nitems) = tp_basicsize + nitems * tp_itemsize with **no** overflow guard before the call (no PY_SSIZE_T_MAX/itemsize division check, no __builtin_mul_overflow). The multiply is inside the macro, so it never appears in source and alloc_size_overflow cannot see it. If nitems is attacker-controlled the product wraps, the allocation succeeds far too small, and the first ob_item write is a heap overflow (Objects/structseq.c:77 PyStructSequence_New \u2014 reachable from pure Python via `os.terminal_size.n_fields = 2**62`). Guarded twin: Objects/tupleobject.c:52 tuple_alloc (`n > (PY_SSIZE_T_MAX - base) / sizeof(PyObject *)`).",
+      "file": "Modules/_cursesmodule.c"
+    },
+    {
+      "type": "mismatched_alloc_free",
+      "function": "pymem_api_misuse",
+      "line": 566,
+      "confidence": "high",
+      "detail": "'buffer' is allocated with the PyMem_* family but freed with PyMem_RawFree() (PyMem_Raw*). CPython's three allocator families draw from different heaps and must not be crossed \u2014 undefined behavior. Free with the matching family.",
+      "file": "Modules/_testcapi/mem.c"
+    }
+  ],
+  "summary": {
+    "total_findings": 6,
+    "by_type": {
+      "varobject_nitems_unguarded": 5,
+      "mismatched_alloc_free": 1
+    },
+    "by_confidence": {
+      "low": 5,
+      "high": 1
+    }
+  },
+  "varobject_allocation_census": {
+    "sites": 107,
+    "via_slot_pointer": 100,
+    "non_constant_nitems": 12
+  },
+  "skipped_files": [],
+  "denominators": {
+    "files_analyzed": 380,
+    "functions_analyzed": 10457,
+    "findings": 6,
+    "varobject_allocation_census.sites": 107,
+    "varobject_allocation_census.via_slot_pointer": 100,
+    "varobject_allocation_census.non_constant_nitems": 12
+  }
+}

@@ -2,7 +2,7 @@
   "project_root": "/home/danzin/projects/cpython",
   "scan_root": "/home/danzin/projects/cpython",
   "files_analyzed": 7,
-  "functions_analyzed": 0,
+  "functions_analyzed": -7,
   "findings": [
     {
       "type": "deprecated-api",
@@ -41,6 +41,7 @@
   ],
   "summary": {
     "total_findings": 2,
+    "denominator_note": "line-based rule: functions_analyzed is -1 (N/A). The denominator is files_analyzed x apis_in_vocabulary.",
     "by_api": {
       "_PyBytes_Resize": 1,
       "_PyUnicodeWriter_WriteStr": 1
@@ -63,6 +64,11 @@
     "apis_with_hits": 2
   },
   "vocabulary_source": "data/deprecated_c_apis.json",
+  "denominators": {
+    "files_analyzed": 7,
+    "functions_analyzed": -7,
+    "findings": 2
+  },
   "_sample": {
     "files_requested": [
       "Modules/_io/textio.c",
@@ -92,6 +98,7 @@
       "findings": "concatenated",
       "summary": "merged key-wise",
       "summary.total_findings": "summed",
+      "summary.denominator_note": "carried (first)",
       "summary.by_api": "merged key-wise",
       "summary.by_tier": "merged key-wise",
       "summary.by_severity": "merged key-wise",
@@ -100,7 +107,11 @@
       "summary.suppressed_compat_shim": "summed",
       "summary.apis_in_vocabulary": "carried (constant, not a count)",
       "summary.apis_with_hits": "summed",
-      "vocabulary_source": "carried (constant, not a count)"
+      "vocabulary_source": "carried (constant, not a count)",
+      "denominators": "merged key-wise",
+      "denominators.files_analyzed": "summed",
+      "denominators.functions_analyzed": "summed",
+      "denominators.findings": "summed"
     }
   }
 }

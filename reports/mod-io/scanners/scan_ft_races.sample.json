@@ -82,6 +82,21 @@
       "detail": "'buffered.write_end' (`self->write_end`) is accessed under a critical section at _io_BufferedWriter_write_impl:2124 but is written plainly here, with nothing synchronising it. A lock held by only some accessors of a field serialises nothing: the guarded and unguarded accessors race each other. This is the shape of gh-153298 (ga_parameters / CPY-0025), gh-128714 (func.__annotations__ / CPY-0029) and gh-153908 (itertools count_repr). Py_ssize_t does not tear on LP64, so the visible effect is a stale value rather than memory unsafety \u2014 one FT_ATOMIC_* on each access is the fix. Guarded twin: _io_BufferedWriter_write_impl:2124."
     },
     {
+      "type": "publish_before_init_complete",
+      "ft_class": "T4",
+      "function": "_io_FileIO___init___impl",
+      "member": "self.fd",
+      "access": "self->fd",
+      "line": 532,
+      "publish_line": 514,
+      "publish_api": "PyObject_SetAttr",
+      "written_in": "this function",
+      "call_hops": 0,
+      "confidence": "medium",
+      "detail": "'self' becomes reachable from other threads at PyObject_SetAttr() (line 514), and 'fd' is still written afterwards, in this function, with a plain non-atomic store and no critical section. On a free-threaded build another thread can observe the object between the two \u2014 half-initialised, and torn if the store is wider than a word. Finish initialising before publishing, or make the tail stores atomic. This is the fixup_slot_dispatchers shape (gh-151377).",
+      "file": "Modules/_io/fileio.c"
+    },
+    {
       "type": "guarded_writer_unguarded_reader",
       "ft_class": "T1",
       "file": "Modules/_io/textio.c",
@@ -126,24 +141,33 @@
     }
   ],
   "summary": {
-    "total_findings": 11,
+    "total_findings": 12,
     "by_class": {
       "T1": 10,
-      "T2": 1
+      "T2": 1,
+      "T4": 1
     },
     "by_type": {
       "guarded_writer_unguarded_reader": 10,
-      "lazy_init_no_critical_section": 1
+      "lazy_init_no_critical_section": 1,
+      "publish_before_init_complete": 1
     },
     "by_confidence": {
       "low": 7,
-      "medium": 4
+      "medium": 5
     }
   },
   "iternext_functions": 7,
   "lock_held_functions": 13,
   "files_with_ft_regions": 1,
   "skipped_files": [],
+  "denominators": {
+    "files_analyzed": 7,
+    "functions_analyzed": 289,
+    "findings": 12,
+    "iternext_functions": 7,
+    "lock_held_functions": 13
+  },
   "_sample": {
     "files_requested": [
       "Modules/_io/textio.c",
@@ -183,7 +207,13 @@
       "iternext_functions": "summed",
       "lock_held_functions": "summed",
       "files_with_ft_regions": "summed",
-      "skipped_files": "concatenated"
+      "skipped_files": "concatenated",
+      "denominators": "merged key-wise",
+      "denominators.files_analyzed": "summed",
+      "denominators.functions_analyzed": "summed",
+      "denominators.findings": "summed",
+      "denominators.iternext_functions": "summed",
+      "denominators.lock_held_functions": "summed"
     }
   }
 }

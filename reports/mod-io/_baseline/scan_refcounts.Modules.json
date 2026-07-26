@@ -1,0 +1,163 @@
+{
+  "project_root": "/home/danzin/projects/cpython",
+  "scan_root": "/home/danzin/projects/cpython/Modules",
+  "files_analyzed": 484,
+  "functions_analyzed": 8968,
+  "denominators": {
+    "files_analyzed": 484,
+    "functions_analyzed": 8968,
+    "findings": 9,
+    "borrowed_field_accessors": 12,
+    "borrowed_accessor_load_sites": 13,
+    "borrowed_slot_load_sites": 449
+  },
+  "field_accessors_discovered": [
+    "Array_length",
+    "GetKeepedObjects",
+    "ZstdDict_length",
+    "_handle_script_error",
+    "buffer_access_safe",
+    "calcsize_impl",
+    "certificate_hash",
+    "dec_hash",
+    "flags_as_exception",
+    "gc_get_debug_impl",
+    "get_sq_item",
+    "mmap_length_lock_held"
+  ],
+  "findings": [
+    {
+      "type": "borrowed_field_deref_across_call",
+      "api_call": "flags_as_list() [same-file helper, reaches Python]",
+      "variable": "ex",
+      "line": 634,
+      "load_line": 625,
+      "source": "flags_as_exception() -> ex",
+      "guarded_twin_line": null,
+      "detail": "'ex' is a borrowed reference from flags_as_exception() (field ex) taken at line 625 with no Py_INCREF; flags_as_list() [same-file helper, reaches Python] can run arbitrary Python before it is dereferenced here (the call precedes the use). Re-entrant code that clears the field drops the last reference and this dereference reads freed memory. No site in this file takes a strong reference on flags_as_exception()'s result, so confirm the field cannot be cleared re-entrantly before dismissing.",
+      "confidence": "medium",
+      "file": "Modules/_decimal/_decimal.c",
+      "function": "dec_addstatus"
+    },
+    {
+      "type": "init_not_reinit_safe",
+      "line": 1979,
+      "replaced_members": [
+        "s_codes"
+      ],
+      "stale_members": [
+        "s_size"
+      ],
+      "readers": [
+        {
+          "function": "unpackiter_iternext",
+          "line": 2274,
+          "expression": "self->so->s_size",
+          "member": "s_size"
+        },
+        {
+          "function": "unpackiter_iternext",
+          "line": 2278,
+          "expression": "self->so->s_size",
+          "member": "s_size"
+        }
+      ],
+      "detail": "__init__ 'Struct___init___impl' is re-callable on a live object and its second call destroys and replaces self->s_codes. unpackiter_iternext (line 2274) still reads that state through a stored owner pointer (self->so->s_size), so every invariant it validated at construction time \u2014 buffer bounds, element size, cached counts \u2014 is void after the re-init. Fix: reject the second call, or give the view its own snapshot of s_size",
+      "confidence": "high",
+      "file": "Modules/_struct.c",
+      "function": "Struct___init___impl"
+    },
+    {
+      "type": "owner_freed_before_use",
+      "api_call": "Py_DECREF",
+      "variable": "del",
+      "line": 108,
+      "detail": "Py_DECREF(del) at line 106 may release the last reference; 'del' is then dereferenced here. Hoist the read above the release, or hold a reference across it",
+      "confidence": "medium",
+      "file": "Modules/_testcapi/gc.c",
+      "function": "slot_tp_del"
+    },
+    {
+      "type": "owner_freed_before_use",
+      "api_call": "Py_DECREF",
+      "variable": "exporter",
+      "line": 35,
+      "detail": "Py_DECREF(exporter) at line 33 may release the last reference; 'exporter' is then dereferenced here. Hoist the read above the release, or hold a reference across it",
+      "confidence": "medium",
+      "file": "Modules/_testlimitedcapi/slots.c",
+      "function": "demo_releasebuffer"
+    },
+    {
+      "type": "stale_slot_use",
+      "api_call": "iternext() [= Py_TYPE(...)->tp_iternext]",
+      "variable": "it",
+      "line": 210,
+      "source": "bo->it",
+      "load_line": 196,
+      "detail": "'it' is borrowed from bo->it at line 196; iternext() [= Py_TYPE(...)->tp_iternext] can run arbitrary Python, and a re-entrant call reaching the bo->it clear at line 224 frees the object 'it' still points at -- which is then dereferenced or called here. Re-read bo->it after the call and bail on NULL (the pairwise_next pattern), or hold a strong reference for the duration",
+      "confidence": "high",
+      "file": "Modules/itertoolsmodule.c",
+      "function": "batched_next"
+    },
+    {
+      "type": "stale_slot_use",
+      "api_call": "iternext() [= Py_TYPE(...)->tp_iternext]",
+      "variable": "it",
+      "line": 1711,
+      "source": "lz->it",
+      "load_line": 1701,
+      "detail": "'it' is borrowed from lz->it at line 1701; iternext() [= Py_TYPE(...)->tp_iternext] can run arbitrary Python, and a re-entrant call reaching the lz->it clear at line 1732 frees the object 'it' still points at -- which is then dereferenced or called here. Re-read lz->it after the call and bail on NULL (the pairwise_next pattern), or hold a strong reference for the duration",
+      "confidence": "high",
+      "file": "Modules/itertoolsmodule.c",
+      "function": "islice_next"
+    },
+    {
+      "type": "slot_transfer_across_call",
+      "api_call": "PyNumber_Add",
+      "variable": "result",
+      "line": 3633,
+      "escape_line": 3641,
+      "source": "lz->long_cnt",
+      "detail": "'result' is borrowed from lz->long_cnt here; PyNumber_Add can run arbitrary Python before lz->long_cnt is overwritten at line 3639, and 'result' then escapes at line 3641. A re-entrant call performs the same transfer, so the single reference is handed to two owners. Take a reference on lz->long_cnt before the call, or re-read the slot after it",
+      "confidence": "medium",
+      "file": "Modules/itertoolsmodule.c",
+      "function": "count_nextlong"
+    },
+    {
+      "type": "borrowed_ref_across_call",
+      "api_call": "PyIter_Next",
+      "variable": "it",
+      "line": 3988,
+      "detail": "'it' is a borrowed reference from PyTuple_GET_ITEM; PyIter_Next can run arbitrary Python between the read and this Py_DECREF(it), so ownership is released through a pointer this function never owned and may no longer be valid. INCREF before the call, or re-read the owner after it",
+      "confidence": "medium",
+      "file": "Modules/itertoolsmodule.c",
+      "function": "zip_longest_next_lock_held"
+    },
+    {
+      "type": "borrowed_ref_across_call",
+      "api_call": "PyIter_Next",
+      "variable": "it",
+      "line": 4018,
+      "detail": "'it' is a borrowed reference from PyTuple_GET_ITEM; PyIter_Next can run arbitrary Python between the read and this Py_DECREF(it), so ownership is released through a pointer this function never owned and may no longer be valid. INCREF before the call, or re-read the owner after it",
+      "confidence": "medium",
+      "file": "Modules/itertoolsmodule.c",
+      "function": "zip_longest_next_lock_held"
+    }
+  ],
+  "summary": {
+    "potential_leaks": 0,
+    "potential_double_frees": 0,
+    "stale_slot_decref": 0,
+    "owner_freed_before_use": 2,
+    "borrowed_ref_across_call": 2,
+    "slot_transfer_across_call": 1,
+    "stale_slot_use": 2,
+    "borrowed_field_deref_across_call": 1,
+    "init_not_reinit_safe": 1,
+    "new_missing_member_init": 0,
+    "total_findings": 9,
+    "high_confidence": 3,
+    "medium_confidence": 6,
+    "low_confidence": 0
+  }
+}

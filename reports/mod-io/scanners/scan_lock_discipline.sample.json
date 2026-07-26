@@ -27,11 +27,22 @@
     "critical_section",
     "python_mutex"
   ],
+  "local_lock_macros": {},
   "vocabulary_counts": {
     "Py_BEGIN_CRITICAL_SECTION": 9,
     "Py_END_CRITICAL_SECTION": 8
   },
   "skipped_files": [],
+  "rule_not_applicable": false,
+  "denominators": {
+    "files_analyzed": 7,
+    "functions_analyzed": 289,
+    "findings": 0,
+    "vocabulary_resolved": 17,
+    "vocabulary_tokens_seen": 6,
+    "critical_section_functions": 8,
+    "mutex_functions": 0
+  },
   "_sample": {
     "files_requested": [
       "Modules/_io/textio.c",
@@ -66,10 +77,20 @@
       "critical_section_functions": "summed",
       "mutex_functions": "summed",
       "lock_families": "concatenated",
+      "local_lock_macros": "merged key-wise",
       "vocabulary_counts": "merged key-wise",
       "vocabulary_counts.Py_BEGIN_CRITICAL_SECTION": "summed",
       "vocabulary_counts.Py_END_CRITICAL_SECTION": "summed",
-      "skipped_files": "concatenated"
+      "skipped_files": "concatenated",
+      "rule_not_applicable": "or",
+      "denominators": "merged key-wise",
+      "denominators.files_analyzed": "summed",
+      "denominators.functions_analyzed": "summed",
+      "denominators.findings": "summed",
+      "denominators.vocabulary_resolved": "summed",
+      "denominators.vocabulary_tokens_seen": "summed",
+      "denominators.critical_section_functions": "summed",
+      "denominators.mutex_functions": "summed"
     }
   }
 }

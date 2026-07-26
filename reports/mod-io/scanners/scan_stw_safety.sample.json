@@ -8,11 +8,20 @@
     "total_findings": 0,
     "by_type": {},
     "by_confidence": {},
-    "stw_function_count": 0
+    "stw_function_count": 0,
+    "stw_wrapper_count": 0
   },
   "stw_functions": [],
+  "stw_wrappers": [],
   "function_classifications": {},
   "skipped_files": [],
+  "denominators": {
+    "files_analyzed": 7,
+    "functions_analyzed": 289,
+    "findings": 0,
+    "stw_functions": 0,
+    "stw_wrappers": 0
+  },
   "_sample": {
     "files_requested": [
       "Modules/_io/textio.c",
@@ -45,9 +54,17 @@
       "summary.by_type": "merged key-wise",
       "summary.by_confidence": "merged key-wise",
       "summary.stw_function_count": "summed",
+      "summary.stw_wrapper_count": "summed",
       "stw_functions": "concatenated",
+      "stw_wrappers": "concatenated",
       "function_classifications": "merged key-wise",
-      "skipped_files": "concatenated"
+      "skipped_files": "concatenated",
+      "denominators": "merged key-wise",
+      "denominators.files_analyzed": "summed",
+      "denominators.functions_analyzed": "summed",
+      "denominators.findings": "summed",
+      "denominators.stw_functions": "summed",
+      "denominators.stw_wrappers": "summed"
     }
   }
 }

@@ -3,6 +3,14 @@
   "scan_root": "/home/danzin/projects/cpython",
   "files_analyzed": 7,
   "functions_analyzed": 157,
+  "denominators": {
+    "files_analyzed": 7,
+    "functions_analyzed": 157,
+    "findings": 1,
+    "fallible_assignment_sites": 35,
+    "int_status_callees_resolved": 232,
+    "int_status_callees_discovered": 22
+  },
   "findings": [
     {
       "type": "unconditional_pyerr_clear",
@@ -21,6 +29,7 @@
     "unconditional_pyerr_clear": 1,
     "pylong_sentinel_no_errcheck": 0,
     "unchecked_parse_calls": 0,
+    "int_status_never_tested": 0,
     "total_findings": 1
   },
   "_sample": {
@@ -49,6 +58,13 @@
       "scan_root": "carried (constant, not a count)",
       "files_analyzed": "summed",
       "functions_analyzed": "summed",
+      "denominators": "merged key-wise",
+      "denominators.files_analyzed": "summed",
+      "denominators.functions_analyzed": "summed",
+      "denominators.findings": "summed",
+      "denominators.fallible_assignment_sites": "summed",
+      "denominators.int_status_callees_resolved": "summed",
+      "denominators.int_status_callees_discovered": "summed",
       "findings": "concatenated",
       "summary": "merged key-wise",
       "summary.missing_null_checks": "summed",
@@ -57,6 +73,7 @@
       "summary.unconditional_pyerr_clear": "summed",
       "summary.pylong_sentinel_no_errcheck": "summed",
       "summary.unchecked_parse_calls": "summed",
+      "summary.int_status_never_tested": "summed",
       "summary.total_findings": "summed"
     }
   }

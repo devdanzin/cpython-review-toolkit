@@ -12,7 +12,14 @@
     "by_shape": {},
     "by_type": {}
   },
-  "recursion_prone_slot_functions": 3,
+  "recursion_prone_slot_functions": 0,
+  "slot_classification": {
+    "classified_total": 3,
+    "from_slot_map": 2,
+    "from_name_suffix": 1,
+    "recursion_prone": 0,
+    "note": "from_name_suffix is a naming-convention guess, not evidence from a PyTypeObject slot table: a positional slot table makes from_slot_map 0 while from_name_suffix still fires. Quote recursion_prone as the denominator for this rule's coverage; quote classified_total only as 'functions the slot classifier recognised at all'."
+  },
   "dispatcher_guard_model": {
     "unguarded": {
       "PyObject_Hash": "Objects/object.c:1158 \u2014 NO guard",
@@ -50,7 +57,15 @@
     ],
     "note": "Verified against CPython main @ 3.16.0a0. Only the hash dispatchers lack _Py_EnterRecursiveCallTstate, so only hash descents are unguarded at every level. Self-recursion is unguarded regardless of dispatcher. bound_zero_excluded lists hash spellings deliberately kept out of the vocabulary because they never descend into the object graph (identity, raw pointer, flat byte range)."
   },
+  "large_cycles_not_reported": [],
+  "cycle_reporting_cap": 21,
   "skipped_files": [],
+  "denominators": {
+    "files_analyzed": 7,
+    "functions_analyzed": 289,
+    "findings": 0,
+    "recursion_prone_slot_functions": 0
+  },
   "_sample": {
     "files_requested": [
       "Modules/_io/textio.c",
@@ -86,6 +101,12 @@
       "summary.by_shape": "merged key-wise",
       "summary.by_type": "merged key-wise",
       "recursion_prone_slot_functions": "summed",
+      "slot_classification": "merged key-wise",
+      "slot_classification.classified_total": "summed",
+      "slot_classification.from_slot_map": "summed",
+      "slot_classification.from_name_suffix": "summed",
+      "slot_classification.recursion_prone": "summed",
+      "slot_classification.note": "carried (first)",
       "dispatcher_guard_model": "merged key-wise",
       "dispatcher_guard_model.unguarded": "merged key-wise",
       "dispatcher_guard_model.unguarded.PyObject_Hash": "carried (first)",
@@ -98,7 +119,14 @@
       "dispatcher_guard_model.guarded.PyObject_RichCompareBool": "carried (first)",
       "dispatcher_guard_model.bound_zero_excluded": "concatenated",
       "dispatcher_guard_model.note": "carried (first)",
-      "skipped_files": "concatenated"
+      "large_cycles_not_reported": "concatenated",
+      "cycle_reporting_cap": "summed",
+      "skipped_files": "concatenated",
+      "denominators": "merged key-wise",
+      "denominators.files_analyzed": "summed",
+      "denominators.functions_analyzed": "summed",
+      "denominators.findings": "summed",
+      "denominators.recursion_prone_slot_functions": "summed"
     }
   }
 }

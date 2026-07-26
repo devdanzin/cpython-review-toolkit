@@ -76,7 +76,7 @@ You are running as part of an **informed** explore. Unlike a cold run, you have 
 
 ## Previously-recorded findings (confirm, don't re-litigate; hunt siblings)
 
-From the `cpython-review-findings` catalog (61 recorded). These are context, not fresh discoveries: confirm each still reproduces in one line, then spend your effort on **un-found siblings** of the same shape (via its guarded twin).
+From the `cpython-review-findings` catalog (153 recorded). These are context, not fresh discoveries: confirm each still reproduces in one line, then spend your effort on **un-found siblings** of the same shape (via its guarded twin).
 
 | id | category | site | title | status |
 |----|----------|------|-------|--------|
@@ -86,7 +86,7 @@ From the `cpython-review-findings` catalog (61 recorded). These are context, not
 | CPY-0004 | refcount | `Objects/genericaliasobject.c:542 (_Py_subs_parameters); Objects/genericaliasobject.c:460 (_Py_subs_parameters)` | _Py_subs_parameters reads PyTuple_GET_ITEM(args, iarg) one line after Py_XDECREF(tuple_args) frees the tuple that args aliases -> heap use-after-free | reproduced |
 | CPY-0005 | null-deref | `Objects/genericaliasobject.c:302 (subs_tvars)` | subs_tvars does Py_DECREF(subargs) on a provably-NULL out-parameter after tuple_extend fails -> SIGSEGV; gh-148222 removed the identical line 60 lines above and left this one | reproduced |
 | CPY-0006 | pyerr-clear | `Objects/unionobject.c:172 (unionbuilder_add_single_unchecked)` | unionbuilder_add_single_unchecked calls PyErr_Clear() unconditionally after PyObject_Hash, swallowing any user __hash__ exception including KeyboardInterrupt and MemoryError | reproduced |
-| CPY-0007 | null-deref | `Objects/typeobject.c:12763 (supercheck); Objects/typeobject.c:12797 (super_descr_get)` | super.__new__(super).__get__(1) -> SIGSEGV: super_descr_get passes an uninitialized su->type to supercheck, which dereferences it as type->tp_name | reproduced |
+| CPY-0007 | null-deref | `Objects/typeobject.c:12763 (supercheck); Objects/typeobject.c:12797 (super_descr_get); Objects/typeobject.c:12786 (super_descr_get)` | super.__new__(super).__get__(1) -> SIGSEGV: super_descr_get passes an uninitialized su->type to supercheck, which dereferences it as type->tp_name | reproduced |
 | CPY-0008 | null-deref | `Modules/_io/winconsoleio.c:957 (_io__WindowsConsoleIO_readall_impl)` | _io._WindowsConsoleIO.readall dereferences an unchecked PyBytes_FromStringAndSize on the very next line (Windows-only; guarded twin 65 lines below) | static-confirmed |
 | CPY-0009 | pyerr-clear | `Python/pystate.c:836 (interpreter_clear)` | interpreter_clear() unconditionally _PyErr_Clear()s an audit-hook exception: a hook vetoing cpython.PyInterpreterState_Clear is silently discarded, with no unraisable report and exit code 0 | reproduced |
 | CPY-0011 | uninit-dealloc | `Objects/odictobject.c:1952 (odictiter_new); Objects/odictobject.c:1718 (odictiter_dealloc)` | odictiter_new: Py_DECREF of a half-built, never-GC-tracked odict_iterator on the _PyTuple_FromPairSteal failure path -> SIGABRT (_PyObject_GC_UNTRACK assert), garbage Py_XDECREFs with NDEBUG | reproduced |
@@ -141,6 +141,98 @@ From the `cpython-review-findings` catalog (61 recorded). These are context, not
 | CPY-0065 | null-deref | `Modules/_asynciomodule.c:2788 (_asyncio_Task_get_context_impl)` | _asyncio_Task_get_context_impl does Py_NewRef(self->task_context) with no NULL guard: Task.__new__(Task).get_context() -> SIGSEGV, while its two neighbouring methods guard the identical field family | reproduced |
 | CPY-0066 | recursion | `Modules/_sqlite/row.c:239 (pysqlite_row_hash); Modules/_sqlite/row.c:235 (pysqlite_row_hash)` | pysqlite_row_hash descends both sqlite3.Row fields through PyObject_Hash with no recursion guard: Row(cur, (Row(cur, (...)),)) alternates with tuple_hash and overflows the native C stack (SIGSEGV) | reproduced |
 | CPY-0067 | tsan | `Modules/arraymodule.c:3247 (arrayiter_next); Modules/arraymodule.c:3248 (arrayiter_next)` | arrayiter_next drops its owning array reference with a plain store + plain DECREF and no critical section: a shared array iterator double-DECREFs the array under free-threading (refcount -1, SIGABRT) | reproduced |
+| CPY-0068 | refcount | `Objects/typeobject.c:9332 (type_ready_inherit); Objects/typeobject.c:9336 (type_ready_inherit); Objects/typeobject.c:8814 (overrides_hash); Objects/typeobject.c:4768 (type_new_set_classcell)` | type_ready_inherit holds a borrowed tp_mro across overrides_hash(), which dispatches a user __eq__ that can free it | reproduced |
+| CPY-0069 | refcount | `Objects/typeobject.c:12369 (recurse_down_subclasses); Objects/typeobject.c:12377 (recurse_down_subclasses); Objects/typeobject.c:12386 (recurse_down_subclasses); Objects/typeobject.c:9790 (remove_subclass)` | recurse_down_subclasses holds a borrowed tp_subclasses across PyDict_Contains, whose user __eq__ can free the dict mid-iteration | reproduced |
+| CPY-0070 | null-deref | `Objects/typeobject.c:1966 (type_set_bases_unlocked); Objects/typeobject.c:1965 (type_set_bases_unlocked); Objects/typeobject.c:11938 (update_one_slot)` | type_set_bases_unlocked never branches on add_all_subclasses's result: the rollback is skipped and __bases__ is committed while MemoryError is raised | reproduced |
+| CPY-0071 | recursion | `Objects/typeobject.c:7117 (merge_class_dict); Objects/typeobject.c:8526 (object___dir___impl); Objects/typeobject.c:8478 (object___sizeof___impl)` | merge_class_dict recurses over __bases__ with no recursion guard: dir(obj) on a cyclic __class__.__bases__ is an uncatchable SIGSEGV | reproduced |
+| CPY-0072 | tsan | `Objects/typeobject.c:12136 (fixup_slot_dispatchers); Objects/typeobject.c:12056 (update_one_slot); Objects/typeobject.c:9581 (type_ready); Objects/typeobject.c:4958 (type_new_impl)` | fixup_slot_dispatchers rewrites the slot table with plain stores AFTER PyType_Ready published the type into every base's tp_subclasses | reproduced |
+| CPY-0073 | null-deref | `Objects/typeobject.c:6494 (set_flags_recursive); Objects/typeobject.c:6522 (_PyType_SetFlagsRecursive); Objects/typeobject.c:778 (_PyType_GetSubclasses); Objects/typeobject.c:799 (_PyType_GetSubclasses)` | _PyType_SetFlagsRecursive allocates with the world stopped and discards the failure from a void function, leaving MemoryError pending and subclasses unflagged | reproduced |
+| CPY-0074 | pyerr-clear | `Objects/typeobject.c:6183 (find_name_in_mro); Objects/typeobject.c:11942 (update_one_slot)` | find_name_in_mro's bare PyErr_Clear feeds update_one_slot a NULL slot_value, silently clearing tp_init: C(1,2,3) is accepted after del C.__init__ | reproduced |
+| CPY-0075 | pyerr-clear | `Objects/typeobject.c:11090 (has_dunder_getitem); Objects/typeobject.c:11108 (slot_tp_iter)` | has_dunder_getitem discards lookup_maybe_method's -1 and slot_tp_iter then overwrites the live exception with TypeError, __context__ = None | reproduced |
+| CPY-0076 | pyerr-clear | `Objects/typeobject.c:2405 (type_repr); Objects/typeobject.c:7490 (object_repr)` | type_repr and object_repr bare-clear whatever a user __eq__ raised during type_module()'s dict lookup | reproduced |
+| CPY-0077 | pyerr-clear | `Objects/typeobject.c:6149 (find_name_in_mro); Objects/typeobject.c:6158 (find_name_in_mro)` | find_name_in_mro's bare PyErr_Clear turns a user __eq__ exception into a wrong AttributeError | reproduced |
+| CPY-0078 | pyerr-clear | `Objects/typeobject.c:7609 (same_slots_added)` | same_slots_added collapses PyObject_RichCompareBool's tri-state, replacing a user exception with TypeError and __context__ = None | reproduced |
+| CPY-0079 | null-deref | `Objects/dictobject.c:4494 (copy_lock_held_untracked); Objects/dictobject.c:4489 (copy_lock_held_untracked); Objects/dictobject.c:4492 (copy_lock_held_untracked); Objects/dictobject.c:5362 (anydict_new_untracked)` | An assert() dereferences an unchecked allocation result in dictobject.c, and the UB lets the optimizer delete the inlined NULL check | reproduced |
+| CPY-0080 | null-deref | `Objects/typeobject.c:12793 (super_descr_get)` | super_descr_get passes a NULL su->type into PyObject_CallFunctionObjArgs, silently truncating a 2-argument call to 0 arguments | reproduced |
+| CPY-0081 | null-deref | `Objects/typeobject.c:12839 (super_init_without_args); Objects/typeobject.c:12840 (super_init_without_args)` | super_init_without_args casts localsplus[0] to PyCellObject* on co_localspluskinds alone; the PyCell_Check is a debug-only assert | reproduced |
+| CPY-0082 | tsan | `Objects/typeobject.c:1745 (type_set_abstractmethods); Objects/typeobject.c:12523 (PyType_Freeze)` | Two callers enter types_stop_world() holding TYPE_LOCK without type_lock_prevent_release(), so the detach silently drops the lock | static-confirmed |
+| CPY-0083 | refcount | `Objects/typeobject.c:783 (_PyType_GetSubclasses); Objects/typeobject.c:788 (_PyType_GetSubclasses); Objects/typeobject.c:9790 (remove_subclass)` | _PyType_GetSubclasses holds a borrowed tp_subclasses across PyDict_Next, guarded only by a stale GIL-era comment | static-confirmed |
+| CPY-0084 | refcount | `Objects/typeobject.c:1195 (_PyType_Modified_Unlocked); Objects/typeobject.c:1223 (_PyType_Modified_Unlocked)` | _PyType_Modified_Unlocked holds a borrowed tp_subclasses across a type-watcher callback and PyErr_FormatUnraisable("%R") | static-confirmed |
+| CPY-0085 | pyerr-clear | `Objects/typeobject.c:11227 (slot_tp_finalize); Objects/typeobject.c:11243 (slot_tp_finalize)` | slot_tp_finalize restores a saved exception over a live one raised by __del__'s descriptor lookup, with zero unraisable reports | reproduced |
+| CPY-0086 | uninit-dealloc | `Objects/typeobject.c:5623 (type_from_slots_or_spec); Objects/typeobject.c:5562 (type_from_slots_or_spec); Objects/typeobject.c:7034 (type_dealloc)` | type_from_slots_or_spec rejects a custom metaclass tp_new but dispatches through that metaclass's unvalidated tp_alloc, leaving ht_slots uninitialized | static-confirmed |
+| CPY-0087 | recursion | `Objects/typeobject.c:12359 (update_subclasses); Objects/typeobject.c:1206 (_PyType_Modified_Unlocked); Objects/typeobject.c:1431 (assign_version_tag); Objects/typeobject.c:1854 (mro_hierarchy_for_complete_type); (+1 more)` | Five class-hierarchy descents in typeobject.c recurse over a Python-mutable graph with no recursion guard; the file has zero guard macros | reproduced |
+| CPY-0088 | memory-pattern | `Objects/typeobject.c:5290 (type_from_slots_or_spec)` | type_from_slots_or_spec negates spec->basicsize without a range check: INT_MIN is signed-overflow UB and lands a negative tp_basicsize in PyType_Ready | static-confirmed |
+| CPY-0089 | null-deref | `Objects/typeobject.c:592 (_PyType_GetBases); Objects/typeobject.c:5946 (PyType_GetModuleByToken_DuringGC); Objects/typeobject.c:709 (init_tp_subclasses); Objects/typeobject.c:4032 (_PyObject_SetDict)` | Four latent NULL/assert-only guards in typeobject.c: unchecked tp_bases INCREF, assert-only tp_mro, unasserted managed-static state, and Py_NewRef on a deletable __dict__ | static-confirmed |
+| CPY-0090 | tsan | `Objects/typeobject.c:1572 (type_set_name); Objects/typeobject.c:1598 (type_set_qualname)` | type.__name__ / __qualname__ assignment collapses 4,141x under free-threading; object_set_class got the uniquely-referenced fast path and these did not | reproduced |
+| CPY-0091 | refcount | `Objects/typeobject.c:12656 (do_super_lookup); Objects/typeobject.c:12699 (super_getattro); Objects/typeobject.c:12950 (super_init_impl)` | super borrows su->type/su->obj/su->obj_type across a lookup that runs user Python; a re-entrant super.__init__ frees all three | reproduced |
+| CPY-0092 | oom | `Objects/typeobject.c:6714 (type_update_dict)` | type_update_dict converts EVERY _PyDict_SetItem_LockHeld failure to AttributeError, destroying a live MemoryError | reproduced |
+| CPY-0093 | tsan | `Objects/typeobject.c:7609 (same_slots_added); Objects/typeobject.c:7683 (compatible_for_assignment); Objects/typeobject.c:7823 (object_set_class)` | __class__ assignment runs a user __eq__ inside the stop-the-world region | reproduced |
+| CPY-0094 | refcount | `Objects/typeobject.c:7825 (object_set_class); Objects/typeobject.c:7832 (object_set_class)` | object_set_class captures oldto before a call that can re-enter and retype self, then Py_DECREFs the stale value | reproduced |
+| CPY-0095 | refcount | `Objects/typeobject.c:1299 (type_mro_modified); Objects/typeobject.c:3678 (mro_internal); Objects/typeobject.c:1952 (type_set_bases_unlocked)` | mro_internal hands the newly published MRO to type_mro_modified as a borrowed pointer; a re-entrant __bases__ assignment drops the last reference | reproduced |
+| CPY-0096 | tsan | `Objects/dictobject.c:1971 (insert_split_key); Objects/typeobject.c:1206 (_PyType_Modified_Unlocked); Objects/typeobject.c:1222 (_PyType_Modified_Unlocked); Objects/typeobject.c:1223 (_PyType_Modified_Unlocked)` | insert_split_key calls _PyType_Modified_Unlocked, which runs arbitrary Python, while holding the non-reentrant DONT_DETACH keys mutex | reproduced |
+| CPY-0097 | crash | `Objects/typeobject.c:3776 (solid_base)` | solid_base recurses on type->tp_base with no recursion guard; a deep base chain overflows the C stack | reproduced |
+| CPY-0098 | uaf | `Objects/typeobject.c:1201 (_PyType_Modified_Unlocked); Objects/typeobject.c:1223 (_PyType_Modified_Unlocked); Objects/typeobject.c:9791 (remove_subclass)` | _PyType_Modified_Unlocked walks tp_subclasses with a live PyDict_Next cursor while the watcher path runs user Python that can free the dict | reproduced |
+| CPY-0099 | crash | `Objects/typeobject.c:6744 (update_slot_after_setattr); Objects/typeobject.c:12177 (update_all_slots)` | update_slot's -1 is discarded in the #else arm of an #ifdef whose other arm tests it | reproduced |
+| CPY-0100 | correctness | `Objects/typeobject.c:1952 (type_set_bases_unlocked); Objects/typeobject.c:1968 (type_set_bases_unlocked)` | type_set_bases_unlocked's bail: path frees the rollback log before the exit, so a FAILED __bases__ assignment leaves __bases__ and __mro__ disagreeing | static-confirmed |
+| CPY-0101 | correctness | `Objects/typeobject.c:1111 (PyType_Watch)` | PyType_Watch discards assign_version_tag's result and returns success, leaving the watcher permanently silent | reproduced |
+| CPY-0102 | uaf | `Objects/typeobject.c:3320 (set_mro_error); Objects/typeobject.c:3322 (set_mro_error)` | set_mro_error frees a value one line before using it | reproduced |
+| CPY-0103 | tsan | `Objects/typeobject.c:7990 (object_getstate_default)` | object_getstate_default SIGSEGVs when pickle.dumps races list.append | reproduced |
+| CPY-0104 | tsan | `Objects/typeobject.c:9581 (type_ready); Objects/typeobject.c:9487 (type_ready_managed_dict); Objects/typeobject.c:2524 (_PyType_AllocNoTrack); Objects/typeobject.c:2551 (_PyType_AllocNoTrack)` | type_ready publishes the type before setting Py_TPFLAGS_INLINE_VALUES, and the allocator reads that flag both to size and to initialise | reproduced |
+| CPY-0105 | tsan | `Objects/typeobject.c:1129 (PyType_Unwatch); Objects/typeobject.c:1112 (PyType_Watch)` | PyType_Unwatch writes tp_watched without TYPE_LOCK while PyType_Watch, 17 lines up, writes it under the lock | reproduced |
+| CPY-0106 | uaf | `Objects/typeobject.c:12386 (recurse_down_subclasses)` | recurse_down_subclasses runs a user __eq__ through PyDict_Contains that synchronously frees the dict being iterated | reproduced |
+| CPY-0107 | tsan | `Objects/dictobject.c:1385 (_Py_dict_lookup); Objects/dictobject.c:1168 (compare_unicode_generic)` | compare_unicode_generic runs PyObject_RichCompareBool under LOCK_KEYS -- the unswept sibling of CPY-0096, and the only lock-order inversion found tree-wide | reproduced |
+| CPY-0108 | crash | `Objects/typeobject.c:6002 (get_base_by_token_recursive); Objects/typeobject.c:7276 (type_clear)` | get_base_by_token_recursive descends tp_bases unguarded whenever tp_mro is NULL -- a state type_clear manufactures on every GC'd heap type | reproduced |
+| CPY-0109 | correctness | `Objects/typeobject.c:294 (managed_static_type_state_get)` | managed_static_type_state_get uses > where every sibling bound test in the region uses strict < | static-confirmed |
+| CPY-0110 | correctness | `Objects/typeobject.c:6453 (_PyType_SetFlags); Objects/typeobject.c:6506 (_PyType_SetFlagsRecursive)` | _PyType_SetFlags mutates tp_flags with no version-tag invalidation while its sibling _PyType_SetFlagsRecursive received exactly that in gh-148450 | reproduced |
+| CPY-0111 | tsan | `Objects/typeobject.c:1745 (type_set_abstractmethods)` | type_set_abstractmethods stops the world inside TYPE_LOCK without type_lock_prevent_release(), so the lock can be dropped across the window | static-confirmed |
+| CPY-0112 | correctness | `Objects/typeobject.c:9676 (init_static_type)` | init_static_type's failure path clears the managed-static index but leaves _Py_TPFLAGS_STATIC_BUILTIN set, so every later lookup computes index = SIZE_MAX | static-confirmed |
+| CPY-0113 | correctness | `Objects/typeobject.c:6172 (find_name_in_mro); Objects/typeobject.c:12597 (_PySuper_LookupDescr)` | The _PyCStackRef pinning idiom -- the modern defence against exactly the borrowed-ref-across-Python-call shape that produced most of pass 2's UAFs -- is applied at 14 of 201 candidate accesses | static-confirmed |
+| CPY-0114 | correctness | `Objects/typeobject.c:1382 (_PyType_LookupByVersion)` | type_dealloc never clears interp->types.type_version_cache[v % 4096], whose raw pointer _PyType_LookupByVersion dereferences | static-confirmed |
+| CPY-0115 | tsan | `Objects/typeobject.c:793 (_PyType_GetSubclasses); Objects/typeobject.c:702 (init_tp_subclasses); Objects/dictobject.c:2987 (delitem_common)` | _PyType_GetSubclasses walks tp_subclasses with a live PyDict_Next cursor while another thread replaces or deletes from that dict | reproduced |
+| CPY-0116 | static | `Objects/dictobject.c:6283 (dictreviter_iter_lock_held); Objects/dictobject.c:6284 (dictreviter_iter_lock_held); Objects/dictobject.c:6272 (dictreviter_iter_lock_held); Objects/dictobject.c:6261 (dictreviter_iter_lock_held); (+1 more)` | reversed(dict) reads DK_UNICODE_ENTRIES(k)[di_pos] with no upper bound -- SIGSEGV in released CPython from pure Python | reported |
+| CPY-0117 | static | `Objects/dictobject.c:8314 (_PyDict_SendEvent); Objects/dictobject.c:1917 (insert_combined_dict); Objects/dictobject.c:1910 (insert_combined_dict); Objects/dictobject.c:5051 (dict_popitem_impl); (+6 more)` | A doc-CONFORMING dict watcher makes CPython itself run Python (PyErr_FormatUnraisable) inside 10 windows holding stale state | reported |
+| CPY-0118 | static | `Objects/setobject.c:290 (set_add_entry_takeref); Objects/setobject.c:294 (set_add_entry_takeref); Objects/setobject.c:328 (set_add_entry_takeref)` | set.add() reports success and silently drops the element: the revalidation guard is ordered after the match verdict | reproduced |
+| CPY-0119 | oom | `Objects/setobject.c:319 (set_add_entry_takeref); Objects/setobject.c:326 (set_add_entry_takeref); Objects/setobject.c:271 (set_add_entry_takeref); Objects/setobject.c:517 (set_table_resize)` | set.add() under OOM commits the insertion before set_table_resize(), destroying the virgin-slot invariant -- then hangs forever | reproduced |
+| CPY-0120 | static | `Objects/setobject.c:2660 (set_remove_impl); Objects/setobject.c:2656 (set_remove_impl); Objects/setobject.c:2700 (set_discard_impl); Objects/setobject.c:2696 (set_discard_impl)` | set.remove()/set.discard() clear a user __eq__ TypeError: the narrowing guards a call with two failure modes | reproduced |
+| CPY-0121 | static | `Objects/dictobject.c:7932 (_PyObject_SetManagedDict); Objects/dictobject.c:7848 (replace_dict_probably_inline_materialized)` | assert(new_dict == NULL) on the _PyDict_DetachFromObject failure path asserts a relationship the code never establishes | reproduced |
+| CPY-0122 | tsan | `Objects/dictobject.c:6145 (dictiter_iternext_threadsafe)` | dictiter_iternext_threadsafe leaks the key and value it just increfed on the keys-changed path (free-threaded build only) | reproduced |
+| CPY-0123 | tsan | `Objects/dictobject.c:6337 (dictreviter_iter_lock_held); Objects/dictobject.c:6347 (dictreviter_iternext); Objects/dictobject.c:6352 (dictreviter_iternext)` | dictreviter_iternext double-DECREFs the dict: no Py_GIL_DISABLED arm, and the critical section guards the wrong object | reproduced |
+| CPY-0124 | tsan | `Objects/dictobject.c:676 (get_index_from_order); Objects/dictobject.c:6100 (dictiter_iternextkey_threadsafe); Objects/dictobject.c:6086 (dictiter_iternextkey_threadsafe); Objects/dictobject.c:6101 (dictiter_iternextkey_threadsafe)` | get_index_from_order re-reads ma_values after the lock-free iterator snapshotted it -- NULL-deref SIGSEGV from pure Python | reproduced |
+| CPY-0125 | static | `Objects/dictobject.c:2030 (insertdict); Objects/dictobject.c:1995 (_PyDict_InsertSplitValue); Objects/dictobject.c:4861 (dict_setdefault_ref_lock_held)` | insertdict -> _PyDict_InsertSplitValue NULL-derefs ma_values after insert_split_key ran Python -- on the DEFAULT GIL build | reproduced |
+| CPY-0126 | tsan | `Python/critical_section.c:50 (_PyCriticalSection_BeginSlow); Python/pystate.c:2534 (_PyEval_StopTheWorldAll); Python/pystate.c:2550 (_PyEval_StopTheWorld)` | Py_BEGIN_CRITICAL_SECTION's deadlock bypass reads interp->stoptheworld but StopTheWorldAll sets runtime->stoptheworld | static-confirmed |
+| CPY-0127 | tsan | `Objects/setobject.c:2916 (PySet_Type); Objects/setobject.c:3008 (PyFrozenSet_Type)` | set_clear_internal is registered raw as tp_clear with no critical section, while all 12 other routes into it take one | reproduced |
+| CPY-0128 | static | `Objects/dictobject.c:7335 (_PyObject_InitInlineValues); Objects/dictobject.c:7530 (store_instance_attr_lock_held); Objects/dictobject.c:7497 (store_instance_attr_lock_held)` | _PyObject_InitInlineValues NULLs only values[0..capacity-1], leaving the insertion-order array uninitialised -- single re-entry SIGSEGVs on plain release | reproduced |
+| CPY-0129 | tsan | `Objects/dictobject.c:5682 (dictiter_len); Objects/dictobject.c:6158 (dictiter_iternext_threadsafe)` | dictiter_len reads di_used while dictiter_iternext_threadsafe writes it (TSan-confirmed, not crash-reproduced) | static-confirmed |
+| CPY-0130 | tsan | `Objects/dictobject.c:7976 (detach_dict_from_object); Objects/dictobject.c:8019 (PyObject_ClearManagedDict)` | Two plain ma_values stores to live dicts bypass set_values() | static-confirmed |
+| CPY-0131 | tsan | `Objects/setobject.c:584 (set_discard_entry); Objects/setobject.c:592 (set_discard_entry); Objects/setobject.c:595 (set_discard_entry); Objects/setobject.c:595 (set_discard_entry); (+8 more)` | set_discard_entry writes through a raw setentry* that set_lookkey returned AFTER closing its own critical section | static-confirmed |
+| CPY-0132 | refcount | `Objects/setobject.c:176 (set_compare_frozenset); Objects/setobject.c:185 (set_compare_frozenset); Objects/setobject.c:190 (set_compare_frozenset); Objects/setobject.c:417 (set_lookkey); (+4 more)` | set_compare_frozenset calls PyObject_RichCompareBool on a BORROWED startkey with neither the Py_INCREF nor the changed-recheck its two siblings have | static-confirmed |
+| CPY-0133 | correctness | `Objects/setobject.c:167 (set_compare_frozenset); Objects/setobject.c:2008 (set_difference_update_internal); Objects/setobject.c:2077 (set_copy_and_difference_untracked); Objects/setobject.c:2106 (set_difference_untracked); (+4 more)` | set_compare_frozenset's comment records the wrong safety invariant: the real property is 'THIS frozenset is unreachable from Python', not 'frozensets are immutable' | reproduced |
+| CPY-0134 | tsan | `Objects/setobject.c:2662 (set_remove_impl); Objects/setobject.c:2702 (set_discard_impl); Objects/setobject.c:2639 (set.remove (clinic input)); Objects/setobject.c:2679 (set.discard (clinic input)); (+4 more)` | set.remove / set.discard nest a critical section on `key` inside the clinic critical section on `so`, in the opposite order to every Py_BEGIN_CRITICAL_SECTION2 in the file -- so's lock is suspended and atomicity is lost | reproduced |
+| CPY-0135 | static | `Objects/dictobject.c:230 ((macro definition)); Objects/dictobject.c:244 (split_keys_entry_added); Objects/dictobject.c:226 ((macro definition)); Objects/dictobject.c:218 ((comment)); (+7 more)` | Assertion asymmetry runs the wrong way in dictobject.c: the DONT_DETACH keys lock, whose violation costs the process, is asserted once; the survivable dict lock is asserted 20 times | static-confirmed |
+| CPY-0136 | pyerr-clear | `Objects/dictobject.c:7269 (_PyDict_NewKeysForClass); Objects/dictobject.c:7265 (_PyDict_NewKeysForClass); Objects/dictobject.c:7256 ((header comment)); Objects/dictobject.c:868 (new_keys_object); (+2 more)` | _PyDict_NewKeysForClass's PyErr_Clear() is vestigial after an allocator swap -- it can only discard a CALLER's exception | static-confirmed |
+| CPY-0137 | error-path | `Objects/dictobject.c:7280 (_PyDict_NewKeysForClass); Objects/dictobject.c:2425 (dict_getitem); Objects/dictobject.c:2415 ((comment)); Objects/typeobject.c:9480 (type_ready_managed_dict); (+2 more)` | _PyDict_NewKeysForClass uses PyDict_GetItem on a class-body dict, so class creation can emit an unraisable that tells the USER to fix CPython's own code | reproduced |
+| CPY-0138 | memory-pattern | `Objects/dictobject.c:2200 (dictresize); Objects/dictobject.c:590 ((macro)); Objects/dictobject.c:803 (get_log2_bytes); Objects/dictobject.c:866 (new_keys_object); (+1 more)` | dictresize's size guard is four values too permissive: it admits log2_newsize 60..63, where the keys-object malloc argument is undefined or wraps | static-confirmed |
+| CPY-0139 | memory-pattern | `Objects/dictobject.c:3111 (clear_embedded_values); Objects/dictobject.c:3112 (clear_embedded_values); Objects/dictobject.c:3113 (clear_embedded_values); Objects/dictobject.c:505 (dictkeys_decref); (+4 more)` | clear_embedded_values indexes a 30-element STACK array under an assert-only bound -- one of four assert-only dk_nentries walks that amplify the CPY-0117 family into different memory-error classes | static-confirmed |
+| CPY-0140 | static | `Objects/dictobject.c:4380 (dict_merge); Objects/dictobject.c:4321 (dict_merge); Objects/dictobject.c:4387 (dict_merge); Objects/dictobject.c:4336 (dict_merge); (+5 more)` | dict_merge has a `return -1;` stranded inside a Py_BEGIN_CRITICAL_SECTION region -- the sixth exit of an incomplete free-threading conversion, dead only because the inserted goto precedes it | static-confirmed |
+| CPY-0141 | static | `Objects/dictobject.c:182 ((macro definition, Py_GIL_DISABLED arm)); Objects/dictobject.c:183 ((macro definition, Py_GIL_DISABLED arm)); Objects/dictobject.c:271 ((macro definition, default arm)); Objects/dictobject.c:272 ((macro definition, default arm)); (+3 more)` | LOAD_INDEX / STORE_INDEX carry a trailing semicolon in the FREE-THREADED arm only -- expression-context use compiles under the GIL and is a hard syntax error under Py_GIL_DISABLED | static-confirmed |
+| CPY-0142 | static | `Objects/dictobject.c:7601 ((comment + #if 0)); Objects/dictobject.c:7606 (_PyObject_ManagedDictValidityCheck); Objects/dictobject.c:7613 (_PyObject_ManagedDictValidityCheck); Objects/dictobject.c:7603 ((macro)); (+3 more)` | The #if 0 _PyObject_ManagedDictValidityCheck block is provably rotted -- it reads values[-2] for a size that moved to a positive offset in 2024, and the header comment it was written against is stale for the same reason | static-confirmed |
+| CPY-0143 | static | `Objects/dictobject.c:4321 (dict_merge); Objects/dictobject.c:4324 (dict_merge); Objects/dictobject.c:4339 (dict_merge); Objects/dictobject.c:4346 (dict_merge); (+5 more)` | dict_merge's slow path runs five arbitrary-Python calls inside Py_BEGIN_CRITICAL_SECTION(a) -- the state-caching question, answered: no stale pointer, but the section provides no atomicity and the slow path has no mutated-during-update guard | static-confirmed |
+| CPY-0144 | tsan | `Objects/setobject.c:1719 (set_intersection); Objects/setobject.c:1743 (set_intersection); Objects/setobject.c:1747 (set_intersection); Objects/setobject.c:1754 (set_intersection); (+5 more)` | set_intersection and set_difference_untracked hold live set_next cursors across calls that run user __eq__/__hash__, with no restart loop, in the same file as set_add_entry_takeref which has one | static-confirmed |
+| CPY-0145 | tsan | `Objects/dictobject.c:8461 (frozendict_hash); Objects/dictobject.c:8462 (frozendict_hash); Objects/dictobject.c:8450 (frozendict_hash); Objects/dictobject.c:8481 (frozendict_hash); (+5 more)` | frozendict_hash holds a live _PyDict_Next cursor and a borrowed value across PyObject_Hash(value) -- CPY-0115's shape at a distinct site -- and caches its hash with RELAXED stores where frozenset_hash uses release/acquire for the identical pattern | static-confirmed |
+| CPY-0146 | static | `Objects/setobject.c:3136 (_PySet_NextEntry); Objects/setobject.c:3146 (_PySet_NextEntry); Objects/setobject.c:3152 (_PySet_NextEntryRef); Objects/setobject.c:3160 (_PySet_NextEntryRef); (+4 more)` | _PySet_NextEntry does not assert the object lock while its sibling _PySet_NextEntryRef does -- two exported cursors in one file, one guarded, differing in ownership with nothing modelling it | static-confirmed |
+| CPY-0149 | memory-pattern | `Objects/odictobject.c:585 (_odict_resize); Objects/odictobject.c:568 (_odict_resize); Objects/odictobject.c:569 (_odict_resize); Objects/odictobject.c:578 (_odict_resize); (+2 more)` | _odict_resize: a mutating __eq__ inside _Py_dict_lookup grows the node list past the fast_nodes buffer sized before it -> unbounded heap OOB WRITE at fast_nodes[i] = node | reproduced |
+| CPY-0150 | uaf | `Objects/odictobject.c:540 (_odict_get_index_raw); Objects/odictobject.c:546 (_odict_get_index_raw); Objects/odictobject.c:549 (_odict_get_index_raw); Objects/odictobject.c:607 (_odict_get_index); (+6 more)` | _odict_get_index_raw caches ma_keys across the Python-running _Py_dict_lookup and returns keys->dk_nentries from the freed object -- gh-142637 still live, and reachable from __setitem__ as well as the reported delete paths | reproduced |
+| CPY-0151 | null-deref | `Objects/funcobject.c:41 (notify_func_watchers); Objects/funcobject.c:33 (notify_func_watchers); Objects/funcobject.c:39 (notify_func_watchers); Objects/funcobject.c:111 (PyFunction_ClearWatcher); (+2 more)` | notify_code_watchers / notify_func_watchers / notify_context_watchers call cb() on a snapshotted bit without a NULL check -- a re-entrant Py*_ClearWatcher makes CPython call a NULL function pointer (rip=0x0) | reproduced |
+| CPY-0152 | static | `Python/errors.c:1737 (format_unraisable_v); Python/errors.c:1768 (format_unraisable_v); Python/errors.c:1714 (format_unraisable_v); Python/errors.c:1725 (format_unraisable_v); (+3 more)` | format_unraisable_v is the single choke point through which every PyErr_WriteUnraisable / PyErr_FormatUnraisable site tree-wide runs arbitrary user Python -- and it also unconditionally clears the caller's exception state | static-confirmed |
+| CPY-0153 | correctness | `Objects/listobject.c:3415 (list_remove_impl); Objects/listobject.c:3412 (list_remove_impl); Modules/_collectionsmodule.c:1477 (deque_remove_impl)` | list_remove_impl deletes index i captured before a mutating __eq__ -- memory-safe (the callee clamps) but removes the WRONG element, on a plain GIL build, single-threaded | reproduced |
+| CPY-0154 | tsan | `Objects/weakrefobject.c:163 (gc_clear); Objects/weakrefobject.c:165 (gc_clear); Objects/weakrefobject.c:114 (clear_weakref); Objects/weakrefobject.c:519 (_PyWeakref_RefType); (+3 more)` | weakrefobject.c gc_clear skips the weakref-list lock on the written premise 'The world is stopped during GC in free-threaded builds' -- delete_garbage dispatches tp_clear fifteen lines AFTER _PyEval_StartTheWorld | static-confirmed |
+| CPY-0155 | correctness | `Modules/_testcapi/watchers.c:49 (dict_watch_callback); Modules/_testcapi/watchers.c:52 (dict_watch_callback); Modules/_testcapi/watchers.c:55 (dict_watch_callback); Modules/_testcapi/watchers.c:64 (dict_watch_callback); (+3 more)` | CPython's own reference dict watcher (_testcapi dict_watch_callback) violates BOTH halves of the contract in Doc/c-api/dict.rst -- it runs user Python via %S and it calls exception-setting APIs with no save/restore | reproduced |
+| CPY-0156 | static | `Doc/c-api/type.rst:138 (PyType_WatchCallback); Objects/typeobject.c:1222 (type_modified_unlocked); Objects/typeobject.c:1223 (type_modified_unlocked); Doc/c-api/dict.rst:595 (PyDict_WatchCallback); (+3 more)` | PyType_WatchCallback is the only watcher callback type whose docs specify NO error protocol at all -- yet typeobject.c:1222 treats <0 as 'exception set' and discharges it via PyErr_FormatUnraisable exactly like the four documented ones | static-confirmed |
+| CPY-0157 | static | `Objects/object.c:3410 (PyRefTracer_SetTracer); Objects/object.c:3412 (PyRefTracer_SetTracer); Objects/object.c:3413 (PyRefTracer_SetTracer); Include/internal/pycore_object.h:111 (_PyReftracerTrack); (+1 more)` | PyRefTracer_SetTracer invokes the user-supplied C tracer (TRACKER_REMOVED) inside a runtime-wide _PyEval_StopTheWorldAll region, where CPY-0126's critical-section deadlock bypass does not fire | static-confirmed |
+| CPY-0158 | static | `Python/instrumentation.c:2130 (monitoring_free_tool_id / clear_tool_id path); Python/instrumentation.c:2022 (check_tool); Python/instrumentation.c:2050 (_PyMonitoring_SetEvents); Python/instrumentation.c:2070 (_PyMonitoring_SetLocalEvents); (+4 more)` | Python/instrumentation.c runs PyErr_Format inside four _PyEval_StopTheWorld regions, while two sites in the same subsystem deliberately move the identical call AFTER StartTheWorld -- an unexplained asymmetry | static-confirmed |
+| CPY-0159 | memory-pattern | `Modules/_testinternalcapi.c:2106 (get_object_dict_values); Modules/_testinternalcapi.c:2114 (get_object_dict_values); Modules/_testinternalcapi.c:2101 (get_object_dict_values); Modules/_testinternalcapi.c:2105 (get_object_dict_values)` | _testinternalcapi.get_object_dict_values bounds its read of an instance's inline values by the CLASS's dk_nentries and never by that instance's values->capacity -- an ASan report from here names _testinternalcapi.c and misdirects triage | static-confirmed |
+| CPY-0160 | tsan | `Python/gc_free_threading.c:2423 (visit_get_objects); Python/gc_free_threading.c:1742 (delete_garbage); Python/gc_free_threading.c:1761 (delete_garbage)` | gc.get_objects() can return objects mid-teardown: delete_garbage clears the UNREACHABLE bit before dispatching tp_clear | reproduced |
+| CPY-0161 | tsan | `Objects/dictobject.c:3229 (_PyDict_Next); Objects/dictobject.c:3237 (_PyDict_Next); Objects/dictobject.c:3217 (_PyDict_Next); Objects/dictobject.c:3225 (_PyDict_Next); (+1 more)` | PyDict_Next can return 1 with *pvalue == NULL: _PyDict_Next double-loads me_value with plain reads | reproduced |
 
 ## Known false-positive classes — DO NOT re-report (justify if you flag one)
 
@@ -665,3 +757,98 @@ main @ 3.16.0a0 and is now gated in the scanner.
   reporting each site as a separate FIX misstates the problem. The scanner caps
   T1 at 4 unsynchronised sites across 2 functions per field for exactly this
   reason — report the wholesale case as one POLICY finding instead.
+
+## Error paths — `int_status_never_tested` (issue #28 rule 4)
+
+- **Symmetric cleanup that must run regardless of the status.**
+  `Modules/_pickle.c` `save_frozenset:3796` is the shape:
+
+  ```c
+  if (self->fast && !fast_save_enter(self, obj)) { return -1; }
+  int status = save_frozenset_impl(state, self, obj);
+  if (self->fast && !fast_save_leave(self, obj)) { return -1; }
+  return status;
+  ```
+
+  The scanner's "the region between the assignment and the read is fallible"
+  gate fires on that intervening `return -1;`, but the intervening call is the
+  *leave* half of an enter/leave pair and is **required** to run on the failure
+  path too. Nothing is committed and nothing is skipped, and `status` reaches
+  the caller unchanged. Tell this apart from the real shape by asking what the
+  intervening code *does*: cleanup that must happen either way is correct,
+  whereas `type_set_bases_unlocked:1966` runs `update_all_slots()` with a live
+  exception and skips its own rollback. **1 of the 2 candidates tree-wide is
+  this class** — check it first.
+- **Accumulate-then-return.** `res = f(); Py_DECREF(x); return res;` with only
+  cleanup in between is correct and is already suppressed by the same gate
+  (160 raw assignments across `Objects/` + `Modules/` + `Python/` reduce to 2).
+
+## NULL checks — the widened fallible-source set (issue #28)
+
+`scan_null_checks` used to resolve its assignment sources from a closed enum of
+45 API names, which reached **49 of 760** assignment-from-call sites (6.4%).
+The producer of the value is now also discovered from the file: any
+pointer-returning function whose body can `return NULL`, transitively through
+thin forwarders. That is what made `Objects/dictobject.c:4494` visible at all.
+Two FP classes come with it:
+
+- **A public API that is both a checked function and an unchecked macro in the
+  same translation unit.** `Objects/unicodeobject.c:15388` defines
+  `void* PyUnicode_DATA(PyObject *op)` with a real `return NULL` type-check
+  path — so discovery is correct to call it fallible — but every *internal*
+  call site expands the same-named **macro** instead, which cannot fail. The
+  finding at `:12922` is real about the name and wrong about the call. Check
+  whether the header defines a macro of the same name before triaging.
+- **The argument is provably the right type at the call site.** Most of these
+  helpers only return NULL on a type check the caller has already done. That is
+  a legitimate dismissal, but say *which* prior check establishes it.
+
+Before dismissing a whole file, read the three denominators now in the
+envelope: `assignment_sites`, `fallible_sources_resolved`, and
+`local_nullable_helpers`. Tree-wide they are 78,109 / 5,386 / 5,341.
+`summary.decref_of_nulled_outparam_call_sites` exists for the same reason: that
+rule's denominator on CPython is **effectively zero**, so its zero is
+structural and must never be reported as a clean result.
+
+## Dynamic verification — artifacts of the harness, not of CPython (obj-typeobject pass 2)
+
+Three of these cost real time in one run. All three produce a *confident wrong
+answer*, which is what makes them worth naming.
+
+- **A deprecated API in the stress script imports a module on a worker
+  thread.** `scenario_mixed` hung under TSan and then reproduced **5/6 on plain
+  FT vs 0/4 on GIL** — a textbook new-finding signature. The cause was
+  `sys._clear_type_cache()` being **deprecated**: emitting its warning formats
+  via `linecache`, which lazily imports `tokenize` → `io` → `ABCMeta.__new__`,
+  i.e. **class creation on a worker thread**, starved by four other threads
+  stopping the world. Suppressing the warning: **0/6**. Before believing an
+  FT-only hang in a stress script, check whether any call in it is deprecated
+  or triggers a lazy import. Note the honest limit: this data does **not**
+  settle starvation vs. true deadlock — it only shows the trigger is the
+  harness.
+- **A partial TSan log is indistinguishable from a clean one.** TSan writes
+  race blocks as it goes, so a run still executing looks exactly like a run
+  that found nothing. This misled the same session **three times**: two
+  scenarios read 0 races mid-run and finished at 29 and 22, and the third
+  nearly cost the second confirmation of a real finding. Never conclude from a
+  log whose process is still alive.
+- **`os.fork()`-per-scenario isolation deadlocks under TSan.** The stress-agent
+  template's default isolation cannot be used on a TSan build. Use
+  `STRESS_NO_FORK=1` with per-process scenario selection from a driver script.
+
+## Guarded twins are twin *for a specific threat model*
+
+The informed-explore method leans on "name the guarded twin — that is the fix".
+One correction, from `obj-typeobject` pass 2: `_PyType_GetSubclasses:793` was
+cited as a guarded twin of the `_PyType_Modified_Unlocked` cursor-invalidation
+UAF, on the strength of an explicit in-code comment justifying its borrowed
+reference. **That comment addresses re-entrancy, not concurrent mutation** —
+and under the second threat model the "twin" is itself a defect (reproduced
+cross-thread: `T.__subclasses__()` racing `X.__bases__ = (...)`, against
+`init_tp_subclasses:702` replacing the dict and `delitem_common:2987` deleting
+from it).
+
+Before citing a site as the twin, read *what its comment actually claims* and
+confirm the claim covers the threat model you are reasoning about. A site can
+be simultaneously the correct model for re-entrancy and a live bug for
+concurrency.

@@ -3,6 +3,17 @@
   "scan_root": "/home/danzin/projects/cpython",
   "files_analyzed": 7,
   "functions_analyzed": 292,
+  "denominators": {
+    "files_analyzed": 7,
+    "functions_analyzed": 292,
+    "findings": 0,
+    "borrowed_field_accessors": 1,
+    "borrowed_accessor_load_sites": 6,
+    "borrowed_slot_load_sites": 26
+  },
+  "field_accessors_discovered": [
+    "buffer_access_safe"
+  ],
   "findings": [],
   "summary": {
     "potential_leaks": 0,
@@ -12,6 +23,7 @@
     "borrowed_ref_across_call": 0,
     "slot_transfer_across_call": 0,
     "stale_slot_use": 0,
+    "borrowed_field_deref_across_call": 0,
     "init_not_reinit_safe": 0,
     "new_missing_member_init": 0,
     "total_findings": 0,
@@ -45,6 +57,14 @@
       "scan_root": "carried (constant, not a count)",
       "files_analyzed": "summed",
       "functions_analyzed": "summed",
+      "denominators": "merged key-wise",
+      "denominators.files_analyzed": "summed",
+      "denominators.functions_analyzed": "summed",
+      "denominators.findings": "summed",
+      "denominators.borrowed_field_accessors": "summed",
+      "denominators.borrowed_accessor_load_sites": "summed",
+      "denominators.borrowed_slot_load_sites": "summed",
+      "field_accessors_discovered": "concatenated",
       "findings": "concatenated",
       "summary": "merged key-wise",
       "summary.potential_leaks": "summed",
@@ -54,6 +74,7 @@
       "summary.borrowed_ref_across_call": "summed",
       "summary.slot_transfer_across_call": "summed",
       "summary.stale_slot_use": "summed",
+      "summary.borrowed_field_deref_across_call": "summed",
       "summary.init_not_reinit_safe": "summed",
       "summary.new_missing_member_init": "summed",
       "summary.total_findings": "summed",
