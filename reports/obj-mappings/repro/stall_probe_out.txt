@@ -1,0 +1,43 @@
+=== probe attempt 1 ===
+
+Thread 0x0000761c515fc6c0 [Thread-3 (hamme] (most recent call first):
+  File "/home/danzin/projects/python_build_matrix/builds/release-ft-nojit/Lib/threading.py", line 367 in wait
+  File "/home/danzin/projects/python_build_matrix/builds/release-ft-nojit/Lib/threading.py", line 664 in wait
+  File "CPY-0127_gc_tp_clear_vs_mutator.py", line 175 in hammer
+  File "/home/danzin/projects/python_build_matrix/builds/release-ft-nojit/Lib/threading.py", line 1160 in run
+  File "/home/danzin/projects/python_build_matrix/builds/release-ft-nojit/Lib/threading.py", line 1218 in _bootstrap_inner
+  File "/home/danzin/projects/python_build_matrix/builds/release-ft-nojit/Lib/threading.py", line 1180 in _bootstrap
+
+Thread 0x0000761c525fd6c0 [Thread-2 (hamme] (most recent call first):
+  File "/home/danzin/projects/python_build_matrix/builds/release-ft-nojit/Lib/threading.py", line 367 in wait
+  File "/home/danzin/projects/python_build_matrix/builds/release-ft-nojit/Lib/threading.py", line 664 in wait
+  File "CPY-0127_gc_tp_clear_vs_mutator.py", line 175 in hammer
+  File "/home/danzin/projects/python_build_matrix/builds/release-ft-nojit/Lib/threading.py", line 1160 in run
+  File "/home/danzin/projects/python_build_matrix/builds/release-ft-nojit/Lib/threading.py", line 1218 in _bootstrap_inner
+  File "/home/danzin/projects/python_build_matrix/builds/release-ft-nojit/Lib/threading.py", line 1180 in _bootstrap
+
+Thread 0x0000761c535fe6c0 [Thread-1 (hamme] (most recent call first):
+  File "/home/danzin/projects/python_build_matrix/builds/release-ft-nojit/Lib/threading.py", line 367 in wait
+  File "/home/danzin/projects/python_build_matrix/builds/release-ft-nojit/Lib/threading.py", line 664 in wait
+  File "CPY-0127_gc_tp_clear_vs_mutator.py", line 175 in hammer
+  File "/home/danzin/projects/python_build_matrix/builds/release-ft-nojit/Lib/threading.py", line 1160 in run
+  File "/home/danzin/projects/python_build_matrix/builds/release-ft-nojit/Lib/threading.py", line 1218 in _bootstrap_inner
+  File "/home/danzin/projects/python_build_matrix/builds/release-ft-nojit/Lib/threading.py", line 1180 in _bootstrap
+
+Thread 0x0000761c54f40780 [python] (most recent call first):
+  File "CPY-0127_gc_tp_clear_vs_mutator.py", line 209 in main
+  File "CPY-0127_gc_tp_clear_vs_mutator.py", line 225 in <module>
+  File "<frozen runpy>", line 87 in _run_code
+  File "<frozen runpy>", line 97 in _run_module_code
+  File "<frozen runpy>", line 292 in run_path
+  File "/home/danzin/projects/cpython-review-toolkit/reports/obj-mappings/repro/stall_probe.py", line 16 in <module>
+  exit=1
+=== probe attempt 2 ===
+rounds=60 hammers=4 nelem=3000 mode=gcobjects gil=False
+round 0 staged=1 acquired=4
+  exit=139
+=== probe attempt 3 ===
+rounds=60 hammers=4 nelem=3000 mode=gcobjects gil=False
+round 0 staged=1 acquired=3
+completed: 60 rounds, 60 tp_clear windows staged, 155 acquisitions
+  exit=0

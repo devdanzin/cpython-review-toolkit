@@ -1,0 +1,2 @@
+rounds=60 hammers=4 nelem=3000 mode=gcobjects gil=False
+round 0 staged=1 acquired=2

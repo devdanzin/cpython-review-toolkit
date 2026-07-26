@@ -120,15 +120,14 @@ Command terminated by signal 11
   exit=139
 ```
 
-Standalone run 2, same configuration, same quiet machine:
+Standalone runs 2 and 3, same configuration, same quiet machine — **both hit the
+600 s cap**:
 
 ```
-=== standalone run 2 ===
-rounds=60 hammers=4 nelem=3000 mode=gcobjects gil=False
-round 0 staged=1 acquired=4
-Command exited with non-zero status 124
-  wall=600.08 s
-  exit=124
+=== standalone run 2 ===          === standalone run 3 ===
+Command exited with status 124    Command exited with status 124
+  wall=600.08 s                     wall=600.08 s
+  exit=124                          exit=124
 ```
 
 **The one thing this settles: the TIMEOUTs are not CPU contention.** The same
@@ -136,22 +135,32 @@ timeout reproduces standalone on a quiet machine. I attributed the matrix
 TIMEOUTs to the four co-resident fuzzer processes earlier in this pass; that was
 wrong and is retracted.
 
-**Do not read the two runs above as "crashes fast or else runs forever".** I
-wrote that first and it does not survive the matrix data: `codes=[-11, TIMEOUT,
-TIMEOUT, 0, 0, -11]` contains **two clean exit-0 completions inside the 240 s
-cap**. So the outcome is three-way — fast crash (~2 s), clean completion
-(<240 s), or a stall that outlives 600 s. A run that stalls past 600 s while its
-siblings finish in under 240 s is *not* explained by "the mode is uniformly
-slow"; that asymmetry is more suggestive of an intermittent stall than of
-throughput. I am flagging that rather than concluding it — `timeout` fired at
-exactly the cap, so run 2 cannot distinguish "would have finished at 601 s" from
-"stalled indefinitely", and I did not attach a debugger.
+**Do not read this as "crashes fast or else runs forever".** I wrote that first
+and it does not survive the matrix data: `codes=[-11, TIMEOUT, TIMEOUT, 0, 0,
+-11]` contains **two clean exit-0 completions inside the 240 s cap**. The outcome
+is three-way — fast crash (~2 s), clean completion (<240 s), or a stall that
+outlives 600 s — and the standalone runs land 1 crash / 2 stalls. A run that
+stalls past 600 s while a sibling on a *busier* machine finishes in under 240 s
+is not explained by "the mode is uniformly slow". That asymmetry looks like an
+intermittent stall.
 
 Four threads each taking a stop-the-world via `gc.get_objects()` in a tight loop,
-against a thread inside `gc.collect()`, is a plausible shape for an STW livelock
-— but that would be a `gc_free_threading.c` finding about my own unusual harness,
-not about `set_clear_internal`. Logged under "Noticed outside slice" for someone
-to pick up deliberately.
+against a thread inside `gc.collect()`, is a plausible shape for an STW livelock.
+The stalled process sits in state `Rl` — **running**, not blocked on a futex —
+which is what a livelock looks like and not what a deadlock looks like.
+
+**I could not finish characterising it, and I am saying so rather than
+implying otherwise.** `ptrace_scope=1` on this machine blocks `gdb -p`, so I
+wrote a `faulthandler.dump_traceback_later()` probe
+(`repro/stall_probe.py`, output `repro/stall_probe_out.txt`) to capture the
+Python-level stacks of every thread from inside the process. That probe was
+still running when I finalized. Until it is read, "STW livelock" is a hypothesis
+consistent with three observations (state `Rl`, 2/3 standalone stalls, siblings
+completing) and confirmed by none of them.
+
+This is out of slice regardless — it would be a `gc_free_threading.c` finding
+about my own unusual harness, not about `set_clear_internal`. Logged under
+"Noticed outside slice".
 
 Either way the row is reported at **2/6**, the count that does not depend on
 resolving any of this.

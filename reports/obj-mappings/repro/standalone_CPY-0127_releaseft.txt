@@ -11,3 +11,8 @@ Command exited with non-zero status 124
   wall=600.08 s
   exit=124
 === standalone run 3 ===
+rounds=60 hammers=4 nelem=3000 mode=gcobjects gil=False
+round 0 staged=1 acquired=4
+Command exited with non-zero status 124
+  wall=600.08 s
+  exit=124
