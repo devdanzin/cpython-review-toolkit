@@ -153,12 +153,45 @@ def case_truncate_via_write():
 
 
 def case_readall_via_read():
-    """bufferedio.c:1748 -- _bufferedreader_read_all loops on self->raw.read()."""
-    raw = BaseRaw(b"x" * 32)
-    # hide .readall so the generic read() loop is taken
-    del raw.__class__.readall
+    """bufferedio.c:1748 -- _bufferedreader_read_all loops on self->raw.read().
+
+    The raw must NOT expose `readall`, otherwise :1716 takes the one-shot
+    readall branch and the loop at :1748 is never entered -- so this uses a
+    duck-typed raw rather than a RawIOBase subclass.
+    """
+    class DuckRaw:                     # deliberately not a RawIOBase
+        closed = False
+
+        def __init__(self):
+            self.n = 0
+            self.target = None
+
+        def readable(self):
+            return True
+
+        def writable(self):
+            return False
+
+        def seekable(self):
+            return False
+
+        def tell(self):
+            return 0
+
+        def readinto(self, b):
+            return 0
+
+        def read(self, n=-1):
+            if self.target is not None:
+                t, self.target = self.target, None
+                print("  [detaching from raw.read ->",
+                      type(t.detach()).__name__, "]", file=sys.stderr)
+            self.n += 1
+            return b"x" * 8 if self.n < 4 else b""
+
+    raw = DuckRaw()
     r = QuietFlushReader(raw, buffer_size=8)
-    raw.on_read = arm(raw, r)
+    raw.target = r
     return r.read()
 
 

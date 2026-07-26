@@ -1,0 +1,30 @@
+PROBE BufferedReader.__new__ flush
+PROBE BufferedReader.__new__ close
+PROBE BufferedReader.__new__ detach
+PROBE BufferedReader.__new__ seekable
+PROBE BufferedReader.__new__ readable
+PROBE BufferedReader.__new__ writable
+PROBE BufferedReader.__new__ fileno
+PROBE BufferedReader.__new__ isatty
+PROBE BufferedReader.__new__ tell
+PROBE BufferedReader.__new__ seek0
+PROBE BufferedReader.__new__ truncate
+PROBE BufferedReader.__new__ read
+PROBE BufferedReader.__new__ read1
+PROBE BufferedReader.__new__ readline
+PROBE BufferedReader.__new__ readlines
+PROBE BufferedReader.__new__ peek
+PROBE BufferedReader.__new__ readinto
+PROBE BufferedReader.__new__ write
+PROBE BufferedReader.__new__ writestr
+PROBE BufferedReader.__new__ writelines
+PROBE BufferedReader.__new__ iter
+PROBE BufferedReader.__new__ repr
+Traceback (most recent call last):
+  File "/home/danzin/projects/cpython-review-toolkit/reports/mod-io/repro/io_newbypass_sweep.py", line 119, in <module>
+    run(tname + ".__new__", lambda T=T: T.__new__(T))
+    ~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/danzin/projects/cpython-review-toolkit/reports/mod-io/repro/io_newbypass_sweep.py", line 89, in run
+    if not hasattr(obj, pname.rstrip("0").split("_")[0]) and pname not in (
+           ~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+ValueError: I/O operation on uninitialized object

@@ -27,6 +27,7 @@ DATA = b"A" * (CHUNK * 4)
 
 tw = None
 fired = False
+armed = False
 
 
 class EvilDecoder(codecs.IncrementalDecoder):
@@ -38,12 +39,12 @@ class EvilDecoder(codecs.IncrementalDecoder):
 
     def getstate(self):
         global fired
-        if tw is not None and not fired:
+        if armed and not fired:
             fired = True
             # Re-entrant re-initialisation: textio.c:1220 Py_CLEAR(self->snapshot)
             # frees the tuple, and with it the `next_input` bytes the caller
             # frame is still holding a raw pointer to.
-            tw.__init__(io.BytesIO(b"B" * 64), encoding="evilcodec")
+            tw.__init__(io.BytesIO(b"B" * 64), encoding="evilcodec", newline="\n")
         return (b"", 0)
 
     def setstate(self, state):
@@ -81,9 +82,10 @@ def _search(name):
 
 codecs.register(_search)
 
-tw = io.TextIOWrapper(io.BytesIO(DATA), encoding="evilcodec")
+tw = io.TextIOWrapper(io.BytesIO(DATA), encoding="evilcodec", newline="\n")
 tw._CHUNK_SIZE = CHUNK
 tw.read(1)  # populate self->snapshot and make decoded_chars_used == 1
+armed = True  # only detonate from inside tell(), not from read()'s own getstate()
 print("before tell", flush=True)
 try:
     r = tw.tell()
