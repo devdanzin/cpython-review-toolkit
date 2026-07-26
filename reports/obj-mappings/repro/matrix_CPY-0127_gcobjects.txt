@@ -17,12 +17,22 @@ release-ft-nojit                   4/6 nonzero   codes=[-11, 'TIMEOUT', 'TIMEOUT
 #     matrix_CPY-0127_gcobjects_debugft.txt
 #     debug-ft-nojit                 5/8 nonzero   codes=[0, -11, 0, -11, 0, -11, -6, -11]
 #
-# The two TIMEOUTs in the release-ft row are NOT claimed as hangs, and are NOT
-# claimed as CPU starvation either -- they are UNRESOLVED. Standalone re-run run 1
-# gave SIGSEGV in 2.33 s wall, which rules out "the crash path is slow" but does
-# not settle what the timed-out runs were doing. Runs 2-3 were still executing
-# when this file was written; see standalone_CPY-0127_releaseft.txt for the final
-# state before drawing any conclusion.
+# The two TIMEOUTs in the release-ft row are UNRESOLVED. Standalone re-runs on a
+# QUIET machine (standalone_CPY-0127_releaseft.txt) are bimodal:
+#     run 1: SIGSEGV,          wall=2.33 s
+#     run 2: timeout exit 124, wall=600.08 s
+# So the timeouts are NOT CPU contention from the co-resident fuzzers -- they
+# reproduce standalone. Whether the 600 s run was merely slow (four threads each
+# taking a stop-the-world via gc.get_objects() serialise each other) or genuinely
+# livelocked was not investigated; see "Noticed outside slice" in the report.
 #
 # Strict crash count for this row, independent of the timeouts: 2/6 SIGSEGV,
 # 2 clean, 2 indeterminate.
+
+# PROVENANCE, since it was queried: the five-line commentary header this file
+# briefly carried in commit 3f1e5e5 was written by the ORCHESTRATOR, not by the
+# reproduction agent. It was added when materializing the numbers out of the
+# volatile session scratchpad after an earlier copy had not happened, and it
+# carried a "NOT CLAIMED -- still running" note that went stale when the row
+# resolved. The agent was right to flag prose it could not account for; this
+# file's current content is its rewrite. Nothing was fabricated by either side.

@@ -120,22 +120,41 @@ Command terminated by signal 11
   exit=139
 ```
 
-So when this configuration crashes, it crashes almost immediately — a 240 s
-timeout is not "the crash path took a while".
+Standalone run 2, same configuration, same quiet machine:
 
-**What that does and does not establish.** It rules out the benign reading of the
-TIMEOUTs (a slow crash). It does **not** by itself prove the timed-out runs were
-CPU starvation rather than a genuine stall, and I am not claiming it does.
-Standalone run 2 was still executing at 4 min wall when this report was
-finalized, which is consistent with the mode simply being slow — four hammer
-threads each calling `gc.get_objects()` (one stop-the-world per call) against a
-collecting thread — but 4 min is short of the 600 s cap, so "a clean run exceeds
-the cap" is **not** a measurement I have. Runs 2-3 append to
-`repro/standalone_CPY-0127_releaseft.txt` as they finish; whoever picks this up
-should read that file before drawing a conclusion about the two TIMEOUTs.
+```
+=== standalone run 2 ===
+rounds=60 hammers=4 nelem=3000 mode=gcobjects gil=False
+round 0 staged=1 acquired=4
+Command exited with non-zero status 124
+  wall=600.08 s
+  exit=124
+```
 
-Either way the row is reported at 2/6, which is the count that does not depend on
-resolving them.
+**The one thing this settles: the TIMEOUTs are not CPU contention.** The same
+timeout reproduces standalone on a quiet machine. I attributed the matrix
+TIMEOUTs to the four co-resident fuzzer processes earlier in this pass; that was
+wrong and is retracted.
+
+**Do not read the two runs above as "crashes fast or else runs forever".** I
+wrote that first and it does not survive the matrix data: `codes=[-11, TIMEOUT,
+TIMEOUT, 0, 0, -11]` contains **two clean exit-0 completions inside the 240 s
+cap**. So the outcome is three-way — fast crash (~2 s), clean completion
+(<240 s), or a stall that outlives 600 s. A run that stalls past 600 s while its
+siblings finish in under 240 s is *not* explained by "the mode is uniformly
+slow"; that asymmetry is more suggestive of an intermittent stall than of
+throughput. I am flagging that rather than concluding it — `timeout` fired at
+exactly the cap, so run 2 cannot distinguish "would have finished at 601 s" from
+"stalled indefinitely", and I did not attach a debugger.
+
+Four threads each taking a stop-the-world via `gc.get_objects()` in a tight loop,
+against a thread inside `gc.collect()`, is a plausible shape for an STW livelock
+— but that would be a `gc_free_threading.c` finding about my own unusual harness,
+not about `set_clear_internal`. Logged under "Noticed outside slice" for someone
+to pick up deliberately.
+
+Either way the row is reported at **2/6**, the count that does not depend on
+resolving any of this.
 
 ### Two crash faces, both from gdb (`repro/gdb_CPY-0127_debug-ft.txt`)
 
@@ -687,3 +706,13 @@ the free has not happened yet when the read retires.
 - PR gh-151394 (open) fixes only the `type_dealloc_common` writer; the
   `type_set_bases` writer already holds the type lock and the reader holds
   nothing, so the PR as written does not close gh-151377's reader side.
+- **Possible stop-the-world livelock, unexamined.** `CPY-0127_gc_tp_clear_vs_mutator.py`
+  in `gcobjects` mode — four threads calling `gc.get_objects()` (one
+  `_PyEval_StopTheWorld` per call, `Python/gc_free_threading.c:2443`) in a tight
+  loop against a thread inside `gc.collect()` — ran past **600 s standalone on a
+  quiet `release-ft-nojit`** without completing 60 rounds, while the same script
+  finishes or crashes in ~2 s when the timing goes the other way. That may be
+  ordinary slowness (STW is expensive and these threads serialise each other) or
+  it may be a livelock in the STW machinery. I did not investigate; it is out of
+  slice and it is my harness driving an unusual API. Evidence:
+  `repro/standalone_CPY-0127_releaseft.txt`.
