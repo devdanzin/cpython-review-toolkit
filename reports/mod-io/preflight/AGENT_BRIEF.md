@@ -6,6 +6,52 @@ that the scanners cannot see.
 
 ---
 
+## 0. CORRECTIONS — read before §4 and §6
+
+I wrote §4 by hand from a source survey instead of dispatching the Phase 1 mapper, then
+dispatched ten agents on it. The mapper ran afterwards and audited it. **Three claims below are
+wrong and one hunt-list item sent agents after a bug that is not there.** The original text is
+left standing so the record is honest; these corrections override it.
+
+1. **§4a's critical-section count is wrong at module scope.** I grepped only the seven `.c`
+   files. Argument Clinic emits **25** `Py_BEGIN_CRITICAL_SECTION(self)` wrappers into
+   `Modules/_io/clinic/bufferedio.c.h`, and **87 generated + 8 hand-written = 95** across the
+   module. Every method in the §6 hunt list runs inside one. `scan_lock_discipline`'s
+   `critical_section_functions: 8` is 8 of 95 — a scan-root artifact, not a property of `_io`.
+   Consequence for triage: a reader the scanners call "unguarded" may be inside a
+   clinic-generated critical section you cannot see from the `.c` file alone. **Check the
+   `clinic/*.c.h` header before calling anything unguarded.**
+
+2. **§4a's and §6.2's ENTER_BUFFERED leak hunt found nothing, because there is nothing.**
+   All 12 spans are balanced — every `goto end`/`goto error`, every loop `break`, every early
+   return was audited by hand. My line numbers were right; the conclusion drawn from them was
+   not. The real hazard in those regions is the opposite shape: **`detach()` is the only
+   state-destroying method that does *not* take `ENTER_BUFFERED`.** `close()` *is* protected, and
+   a re-entrant `close()` correctly raises `"reentrant call inside %R"` — but `close()`
+   deliberately drops the lock at `:581` to run the user flush, and `detach()` needs no lock, so
+   `detach()` is what a callback fired from inside a "locked" region can still do. That is the
+   mechanism behind the §3 crash.
+
+3. **§3's lead is not novel.** It is an unswept sibling of a *shipped* fix: gh-142594 and
+   gh-143008 (both closed, `type-crash`) were fixed by `db4b1948bc4` (PR #145957), which
+   introduced `buffer_access_safe()` and touched `textio.c` only —
+   `git show --name-only db4b1948bc4 | grep -c bufferedio` is **0**. Frame every finding in this
+   family as **incomplete fix propagation**, not discovery.
+
+Smaller corrections: textio's guard line numbers in the §4b table are transposed
+(`CHECK_INITIALIZED` is 1597, `CHECK_ATTACHED` is 1604) and that family has five members, not
+three. §4c overstates the atomics — the `exports` **RMWs** are `FT_ATOMIC_ADD_SSIZE`
+(`bytesio.c:1291,1316`), only the reads are `RELAXED` loads, and the three-state comment at
+`:40-43` predates the FT-only `buf_shared` flag it does not mention. §4d's `tp_alloc` reasoning
+is right but its conclusion is too broad: the live analogue of the half-built-object class here
+is **re-initialization** — `_buffered_init` frees `self->buffer` and `self->lock`, and four
+`__init__`s reach it *without* `@critical_section`, while BytesIO's and TextIOWrapper's have it.
+§6.9's macro-hygiene worry has zero hits and rests on a wrong premise; the real precedent is
+gh-140650, which wrapped `CHECK_CLOSED` and left `CHECK_INITIALIZED`/`_INT` unwrapped two sites
+over — itself another instance of this slice's propagation theme.
+
+---
+
 ## 1. Scope — hard boundary
 
 Exactly **seven** files, listed in `preflight/slice_files.txt`:
