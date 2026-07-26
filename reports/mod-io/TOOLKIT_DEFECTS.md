@@ -139,6 +139,42 @@ Deferred for the same live-run reason as D-2. Unlike D-2 this one is local to
 
 ---
 
+## D-7 — CONFIRMED, NOT FIXED — my own `_lock_coverage()` fix is one rename from regressing
+
+The `scan_ft_races._lock_coverage()` change I shipped in the obj-mappings slice replaced a
+blanket "this function mentions a lock, suppress all of it" with per-span coverage — because that
+blanket had hidden TSAN-0053, TSAN-0054 and TSAN-0062, every instance of the class the rule
+exists for.
+
+It only narrowed the suppression for `Py_BEGIN/END_CRITICAL_SECTION`, which is delimitable.
+Everything else still falls back to whole-function suppression, and whether that fires is decided
+by `_LOCK_MACRO_RE = r"\b[A-Z][A-Z0-9_]*LOCK[A-Z0-9_]*\s*\("` — **a name pattern**. I ran the
+same function body both ways:
+
+```
+ENTER_BUFFERED / LEAVE_BUFFERED (as CPython spells it)
+    spans=[]  opaque=False  -> suppressed=False
+identical body, macros renamed ACQUIRE_BUFFERED_LOCK / RELEASE_BUFFERED_LOCK
+    spans=[]  opaque=True   -> suppressed=True    <- whole function goes dark
+```
+
+So on `bufferedio.c` the rule is simply blind to the file's real lock (12 spans, invisible), and
+had CPython chosen a name containing `LOCK`, the fallback would have swallowed
+`buffered_iternext` whole — reinstating the exact defect the fix removed, on a live catalogued
+race, with no code change at all. Credit to the ft-race agent for the framing: *the regression is
+one rename away.*
+
+The right fix is the same capability D-2/D-2b/D-3 keep pointing at, and two agents proposed it
+independently: **discover lock macros from their `#define` bodies** — does the expansion call
+`PyThread_acquire_lock` / `PyMutex_Lock` / `PyThread_release_lock` — rather than from their
+names. `scan_lock_discipline` already has a `local_lock_macros` facility for this that returned
+`{}` on this slice for the same naming reason.
+
+Interim hardening worth shipping alongside it: put `functions_suppressed_opaque_lock` in the
+envelope, so a suppression this broad can never again be invisible in the denominators.
+
+---
+
 ## D-4 — REPORTED — `scan_gil_usage`'s `rule_not_applicable` poisons a merged run
 
 Per the gil-discipline agent: the flag merges across files with policy `"or"`, so five

@@ -121,6 +121,36 @@ def sc_seek_honest_buffer():
     return t.seek(build_cookie(chars_to_skip=1))
 
 
+def sc_seek_after_failed_reconfigure():
+    """Second, much more reachable route to the same textio.c:2775 sink:
+    _textiowrapper_set_decoder (textio.c:976-978) does Py_CLEAR(self->decoder)
+    and leaves it NULL when _PyCodecInfo_GetIncrementalDecoder fails, so a
+    failed reconfigure() to a codec with no incremental decoder leaves a
+    fully-readable wrapper with decoder == NULL and ok == 1."""
+    import codecs
+
+    def probe(name):
+        if name != "nodecoder":
+            return None
+        return codecs.CodecInfo(
+            name="nodecoder",
+            encode=codecs.lookup("utf-8").encode,
+            decode=codecs.lookup("utf-8").decode,
+            incrementalencoder=codecs.lookup("utf-8").incrementalencoder,
+            incrementaldecoder=None,          # <- makes set_decoder fail
+        )
+
+    codecs.register(probe)
+    t = io.TextIOWrapper(io.BytesIO(b"abcdefgh"), encoding="utf-8")
+    try:
+        t.reconfigure(encoding="nodecoder")
+    except Exception as e:
+        sys.stderr.write("  reconfigure raised %r (decoder now NULL)\n" % (e,))
+    return t.seek(build_cookie(chars_to_skip=1))
+
+
+
+
 SCENARIOS = {
     name[3:]: fn for name, fn in sorted(globals().items()) if name.startswith("sc_")
 }

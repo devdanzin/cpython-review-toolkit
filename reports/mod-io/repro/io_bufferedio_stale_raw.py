@@ -102,6 +102,21 @@ SITES = {
         b.write(b"012")
         b.truncate(1)
     """),
+    "raw_tell:788": ("bufferedio.c:788", "_buffered_raw_tell", """
+        class Raw(io.RawIOBase):
+            def readable(self): return False
+            def writable(self): return True
+            def seekable(self): return True
+            def tell(self): return 0
+            def seek(self, p, w=0): return 0
+            def write(self, b): return len(b)
+            def truncate(self, p=None):
+                fire()                    # detach from raw.truncate, AFTER :1485
+                return 0
+        b = mk(io.BufferedWriter, Raw(), 64)
+        b.write(b"012")
+        b.truncate(1)                     # crashes at :1489 -> _buffered_raw_tell:788
+    """),
     # not a crash -- the contract-violation sibling, kept for completeness
     "raw_seek:818": ("bufferedio.c:818", "_buffered_raw_seek", """
         class Raw(io.RawIOBase):

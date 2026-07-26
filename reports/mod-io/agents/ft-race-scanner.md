@@ -25,10 +25,11 @@ Three distinct faces captured — a `PyMem` double free, a mimalloc double free,
 SIGSEGV on a `0xdddddddddddddddd`-poisoned `self->raw`.
 
 The same `__init__`-guard hole is present in `_io.StringIO` (5/5 FT, 0/5 GIL, corrupted
-`str`) and in `_io.FileIO` (12/12 crashes **including on the default GIL build**). The
-guarded twins are in the same package: `_io.BytesIO.__init__` and
-`_io.TextIOWrapper.__init__` both carry `@critical_section`, and both survive the identical
-harness 0/10.
+`str`) and in `_io.FileIO` (12/12 crashes **including on the default GIL build**). Across
+all nine `_io` types whose `__init__` is exposed to Python: **2 carry `@critical_section`
+and neither crashes under free-threading; 5 of the 7 that don't, do.** The guarded twins are
+in the same package — `_io.BytesIO.__init__` (`bytesio.c:1116`) and
+`_io.TextIOWrapper.__init__` (`textio.c:1127`).
 
 Separately, one **incomplete-fix residual**: gh-144777 (`8db8fc9b510`, Feb 2026) added
 `@critical_section` to four `IncrementalNewlineDecoder` methods and left the fifth accessor
@@ -654,12 +655,19 @@ Proposed rule **T6 `reinit_without_critical_section`**: a function wired as `Py_
 (or named `*___init___impl`) that (a) calls a free/clear API on a `self->` field —
 `PyMem_Free`, `PyThread_free_lock`, `Py_CLEAR`, `Py_XSETREF`, `PyUnicodeWriter_Discard`,
 `PyObject_Free` — and (b) is not clinic-guarded, in a file where ≥ 1 other entry point is.
-On this slice that emits exactly the 7 unguarded `__init__`s and skips the 2 guarded ones —
-a 7/9 hit rate with the two guarded ones as the built-in control. And it must **override**
-`_INITIALIZER_NAME_RE`, which currently argues the other way. This rule is worth a slice of
-its own: the same shape is why `_pickle`, `_struct` (CPY-0044/0048/0049) and `socket`
-(`sock_initobj_impl | socket_close`, already noted-but-uncatalogued in
-`cpython-tsan-findings`) keep producing findings.
+
+Scored against the measured matrix, on this slice it would fire on **6** of the 9 types:
+`StringIO`, `IncrementalNewlineDecoder`, `BufferedReader`, `BufferedWriter`,
+`BufferedRandom`, `FileIO`. **5 of those 6 are reproduced crashes** (precision **83 %**);
+the sixth, `IncrementalNewlineDecoder`, is the right shape with no reachable impact
+(the `Py_XSETREF`'d `errors`/`decoder` are usually interned or `None`). It is correctly
+silent on `BufferedRWPair` (plain assignment, no free call — clause (a) does not match) and
+on the two `@critical_section` types, which are the built-in controls.
+
+It must **override** `_INITIALIZER_NAME_RE`, which currently argues the other way. This rule
+is worth a slice of its own: the same shape is why `_pickle`, `_struct`
+(CPY-0044/0048/0049) and `socket` (`sock_initobj_impl | socket_close`, already
+noted-but-uncatalogued in `cpython-tsan-findings`) keep producing findings.
 
 **R3 — guard propagation stops at function pointers.** `_caller_propagated_guards` walks
 direct call edges, so `utf16_encode` / `utf32_encode` look unguarded although their only
