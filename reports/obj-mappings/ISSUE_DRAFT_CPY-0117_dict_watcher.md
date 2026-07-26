@@ -1,5 +1,7 @@
 # Issue draft — CPY-0117
 
+**FILED 2026-07-26 as [gh-154710](https://github.com/python/cpython/issues/154710)** (label: `type-crash`).
+
 **Title:** A dict watcher that follows the documented error protocol makes CPython re-enter Python mid-update
 
 **Labels:** `type-crash`, `interpreter-core`
