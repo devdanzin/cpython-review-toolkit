@@ -144,23 +144,45 @@ stalls past 600 s while a sibling on a *busier* machine finishes in under 240 s
 is not explained by "the mode is uniformly slow". That asymmetry looks like an
 intermittent stall.
 
-Four threads each taking a stop-the-world via `gc.get_objects()` in a tight loop,
-against a thread inside `gc.collect()`, is a plausible shape for an STW livelock.
-The stalled process sits in state `Rl` — **running**, not blocked on a futex —
-which is what a livelock looks like and not what a deadlock looks like.
+**I hypothesised an STW livelock — four hammers each taking a stop-the-world via
+`gc.get_objects()` against a collecting thread — and the probe falsified it.**
+`ptrace_scope=1` blocks `gdb -p`, so I used
+`faulthandler.dump_traceback_later()` from inside the process
+(`repro/stall_probe.py`, output `repro/stall_probe_out.txt`). Three probe
+attempts reproduced all three modes: **1 stall, 1 SIGSEGV (exit 139), 1 clean
+completion** ("60 rounds, 60 tp_clear windows staged, 155 acquisitions").
 
-**I could not finish characterising it, and I am saying so rather than
-implying otherwise.** `ptrace_scope=1` on this machine blocks `gdb -p`, so I
-wrote a `faulthandler.dump_traceback_later()` probe
-(`repro/stall_probe.py`, output `repro/stall_probe_out.txt`) to capture the
-Python-level stacks of every thread from inside the process. That probe was
-still running when I finalized. Until it is read, "STW livelock" is a hypothesis
-consistent with three observations (state `Rl`, 2/3 standalone stalls, siblings
-completing) and confirmed by none of them.
+The stalled one dumps like this:
 
-This is out of slice regardless — it would be a `gc_free_threading.c` finding
-about my own unusual harness, not about `set_clear_internal`. Logged under
-"Noticed outside slice".
+```
+Thread [Thread-1/2/3 (hammer)]  (all three identical)
+  File "threading.py", line 367 in wait
+  File "threading.py", line 664 in wait
+  File "CPY-0127_gc_tp_clear_vs_mutator.py", line 175 in hammer   <-- GO.wait(0.05)
+
+Thread [python]  (main)
+  File "CPY-0127_gc_tp_clear_vs_mutator.py", line 209 in main     <-- gc.collect()
+```
+
+**All three hammers are idle**, parked in `GO.wait(0.05)` — they are not inside
+`gc.get_objects()` and not contending for anything. The stall is entirely on the
+main thread, inside `gc.collect()`, with no Python frame below it. So it is not
+STW contention between the hammers; the collector is stuck in C somewhere under
+`gc.collect()`.
+
+**What that C frame is, I do not know, and the Python-level dump cannot tell
+me.** `delete_garbage` → `tp_clear` → `set_clear_internal` is *within* that C
+region, so one reading is that the unlocked clear corrupted the set into a
+non-terminating probe loop — which is exactly the `while (1)` non-termination
+this slice already documented for the OOM path (P3-F4 / CPY-0119, "set_lookkey
+needs at least one virgin slot to terminate failing searches"). That would make
+the stall a third face of CPY-0127 rather than an unrelated GC issue. It is
+equally consistent with an unrelated hang elsewhere under `gc.collect()`. I have
+not distinguished them and am not going to guess: it needs a C-level backtrace,
+which needs either a build run under gdb from process start or a relaxed
+`ptrace_scope`.
+
+Recorded under "Noticed outside slice" as an open question, not as a finding.
 
 Either way the row is reported at **2/6**, the count that does not depend on
 resolving any of this.
@@ -715,13 +737,19 @@ the free has not happened yet when the read retires.
 - PR gh-151394 (open) fixes only the `type_dealloc_common` writer; the
   `type_set_bases` writer already holds the type lock and the reader holds
   nothing, so the PR as written does not close gh-151377's reader side.
-- **Possible stop-the-world livelock, unexamined.** `CPY-0127_gc_tp_clear_vs_mutator.py`
-  in `gcobjects` mode — four threads calling `gc.get_objects()` (one
-  `_PyEval_StopTheWorld` per call, `Python/gc_free_threading.c:2443`) in a tight
-  loop against a thread inside `gc.collect()` — ran past **600 s standalone on a
-  quiet `release-ft-nojit`** without completing 60 rounds, while the same script
-  finishes or crashes in ~2 s when the timing goes the other way. That may be
-  ordinary slowness (STW is expensive and these threads serialise each other) or
-  it may be a livelock in the STW machinery. I did not investigate; it is out of
-  slice and it is my harness driving an unusual API. Evidence:
-  `repro/standalone_CPY-0127_releaseft.txt`.
+- **An unexplained stall inside `gc.collect()`, possibly a third face of
+  CPY-0127.** `CPY-0127_gc_tp_clear_vs_mutator.py` in `gcobjects` mode runs past
+  **600 s standalone on a quiet `release-ft-nojit`** in 2 of 3 runs, while the
+  other run crashes in ~2 s and a third completes 60 rounds cleanly. A
+  `faulthandler` dump of a stalled process shows **all hammer threads idle in
+  `GO.wait(0.05)`** and the main thread inside `gc.collect()` with no Python
+  frame below it. My first hypothesis — an STW livelock from concurrent
+  `gc.get_objects()` calls — is **falsified**: the hammers are not in
+  `gc.get_objects()` at all. `delete_garbage` → `tp_clear` →
+  `set_clear_internal` is inside that C region, and this slice has already
+  documented a `while (1)` non-termination for a set whose invariant is broken
+  (P3-F4 / CPY-0119), so the stall may be CPY-0127 corrupting a set into a
+  non-terminating probe loop rather than a separate GC bug. Undistinguished —
+  needs a C-level backtrace (`ptrace_scope=1` blocked `gdb -p`; run under gdb
+  from process start). Evidence: `repro/standalone_CPY-0127_releaseft.txt`,
+  `repro/stall_probe_out.txt`, `repro/stall_probe.py`.
