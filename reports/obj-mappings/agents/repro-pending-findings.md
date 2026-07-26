@@ -120,13 +120,22 @@ Command terminated by signal 11
   exit=139
 ```
 
-So when this configuration crashes it crashes almost immediately; a 240 s
-timeout is not the crash path taking a long time. The complementary observation
-is that a standalone run which does *not* crash early takes longer than the
-600 s cap — four hammer threads each calling `gc.get_objects()` (one
-stop-the-world per call) against a collecting thread is pathologically slow. Both
-readings point the same way: the TIMEOUTs are the harness, not a CPython hang.
-Runs 2-3 append to the same file as they finish.
+So when this configuration crashes, it crashes almost immediately — a 240 s
+timeout is not "the crash path took a while".
+
+**What that does and does not establish.** It rules out the benign reading of the
+TIMEOUTs (a slow crash). It does **not** by itself prove the timed-out runs were
+CPU starvation rather than a genuine stall, and I am not claiming it does.
+Standalone run 2 was still executing at 4 min wall when this report was
+finalized, which is consistent with the mode simply being slow — four hammer
+threads each calling `gc.get_objects()` (one stop-the-world per call) against a
+collecting thread — but 4 min is short of the 600 s cap, so "a clean run exceeds
+the cap" is **not** a measurement I have. Runs 2-3 append to
+`repro/standalone_CPY-0127_releaseft.txt` as they finish; whoever picks this up
+should read that file before drawing a conclusion about the two TIMEOUTs.
+
+Either way the row is reported at 2/6, which is the count that does not depend on
+resolving them.
 
 ### Two crash faces, both from gdb (`repro/gdb_CPY-0127_debug-ft.txt`)
 

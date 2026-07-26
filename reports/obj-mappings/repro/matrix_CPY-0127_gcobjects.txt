@@ -17,9 +17,12 @@ release-ft-nojit                   4/6 nonzero   codes=[-11, 'TIMEOUT', 'TIMEOUT
 #     matrix_CPY-0127_gcobjects_debugft.txt
 #     debug-ft-nojit                 5/8 nonzero   codes=[0, -11, 0, -11, 0, -11, -6, -11]
 #
-# The two TIMEOUTs in the release-ft row are NOT claimed as hangs. Per the slice
-# brief a TIMEOUT on this machine has twice turned out to be CPU contention; four
-# long-running fuzzer processes were resident throughout, and gcobjects mode costs
-# a stop-the-world per gc.get_objects() call. Standalone re-run in
-# standalone_CPY-0127_releaseft.txt. Strict crash count for this row: 2/6 SIGSEGV,
-# 2 indeterminate, 2 clean.
+# The two TIMEOUTs in the release-ft row are NOT claimed as hangs, and are NOT
+# claimed as CPU starvation either -- they are UNRESOLVED. Standalone re-run run 1
+# gave SIGSEGV in 2.33 s wall, which rules out "the crash path is slow" but does
+# not settle what the timed-out runs were doing. Runs 2-3 were still executing
+# when this file was written; see standalone_CPY-0127_releaseft.txt for the final
+# state before drawing any conclusion.
+#
+# Strict crash count for this row, independent of the timeouts: 2/6 SIGSEGV,
+# 2 clean, 2 indeterminate.
