@@ -665,6 +665,10 @@ def analyze(
         for key in cov_totals:
             cov_totals[key] += coverage[key]
         if not functions:
+            # Unlike the tree-sitter scanners this one has already counted the
+            # file in `files_analyzed` above, and `coverage` reports
+            # brace_blocks_seen / signatures_unparsed / extents_unresolved, so a
+            # parse failure here is already visible in the envelope.
             continue
 
         rel = str(filepath.relative_to(project_root))

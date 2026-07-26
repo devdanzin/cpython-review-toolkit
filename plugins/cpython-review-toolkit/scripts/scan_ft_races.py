@@ -87,6 +87,7 @@ import bisect
 import json
 import re
 import sys
+from typing import NamedTuple
 from collections import defaultdict
 from pathlib import Path
 
@@ -216,13 +217,106 @@ def strip_comments(source: str) -> str:
     return _MASK_RE.sub(_mask, source)
 
 
-def _has_lock(body: str) -> bool:
+# Primitives that actually take or release a lock. A file-local macro whose
+# *body* contains one of these is a lock wrapper regardless of what it is
+# called, which is the point: the naming heuristic above misses
+# `ENTER_BUFFERED`/`LEAVE_BUFFERED` (Modules/_io/bufferedio.c:329-338), the only
+# lock in the file holding this slice's crash cluster, because neither name
+# contains the substring LOCK.
+#
+# The inverse is worse and is why this exists. Whether the conservative
+# whole-function suppression fires was decided purely by the macro's spelling:
+# the identical body was not suppressed as `ENTER_BUFFERED` and fully suppressed
+# when renamed `ACQUIRE_BUFFERED_LOCK`. One rename away from reinstating the
+# defect the per-span coverage was written to remove, on a live catalogued race.
+# Matched against source whose backslash continuations have been spliced onto one
+# line. Doing the splice first rather than trying to express it in the pattern:
+# `(.*(?:\\\n.*)*)` looks right and is not, because the leading `.*` consumes the
+# trailing backslash and the continuation alternation can then never match. That
+# silently captured ENTER_BUFFERED's body as just " \" and made the whole
+# discovery pass return nothing for the one file it was written for.
+_DEFINE_RE = re.compile(
+    r"^[ \t]*#[ \t]*define[ \t]+([A-Za-z_]\w*)[ \t]*\(([^)]*)\)(.*)$",
+    re.MULTILINE,
+)
+
+_CONTINUATION_RE = re.compile(r"\\[ \t]*\n[ \t]*")
+
+
+def splice_continuations(source: str) -> str:
+    """Join backslash-continued lines into single logical lines.
+
+    Line numbers are NOT preserved -- this collapses newlines. That is fine for
+    the only caller, :func:`discover_local_lock_macros`, which reads macro names
+    and bodies and never reports an offset. Do not reuse it anywhere a finding's
+    line is computed from the returned text.
+    """
+    return _CONTINUATION_RE.sub(" ", source)
+
+
+_ACQUIRE_PRIMITIVE_RE = re.compile(
+    r"\b(?:PyThread_acquire_lock(?:_timed)?|PyMutex_Lock|_PyMutex_Lock"
+    r"|Py_BEGIN_CRITICAL_SECTION2?|_PyCriticalSection\w*Begin\w*)\s*\("
+)
+_RELEASE_PRIMITIVE_RE = re.compile(
+    r"\b(?:PyThread_release_lock|PyMutex_Unlock|_PyMutex_Unlock"
+    r"|Py_END_CRITICAL_SECTION2?|_PyCriticalSection\w*End\w*)\s*\("
+)
+
+
+class LocalLockMacros(NamedTuple):
+    """Function-like macros in one file that take or release a lock."""
+
+    acquire: frozenset[str]
+    release: frozenset[str]
+
+    def __bool__(self) -> bool:
+        return bool(self.acquire or self.release)
+
+    @property
+    def all(self) -> frozenset[str]:
+        return self.acquire | self.release
+
+
+NO_LOCAL_MACROS = LocalLockMacros(frozenset(), frozenset())
+
+
+def discover_local_lock_macros(source: str) -> LocalLockMacros:
+    """Find lock wrapper macros in ``source`` by expansion, not by name.
+
+    A macro is a release if its body releases a lock, otherwise an acquire if its
+    body takes one. Release is tested first because a paired wrapper's release
+    half sometimes also mentions the acquire primitive in a comment.
+    """
+    acq, rel = set(), set()
+    for m in _DEFINE_RE.finditer(splice_continuations(source)):
+        name, body = m.group(1), m.group(3)
+        if _RELEASE_PRIMITIVE_RE.search(body):
+            rel.add(name)
+        elif _ACQUIRE_PRIMITIVE_RE.search(body):
+            acq.add(name)
+    return LocalLockMacros(frozenset(acq), frozenset(rel))
+
+
+def _macro_invocation_re(names: frozenset[str]) -> re.Pattern[str] | None:
+    if not names:
+        return None
+    alt = "|".join(re.escape(n) for n in sorted(names, key=len, reverse=True))
+    return re.compile(r"\b(?:" + alt + r")\s*\(")
+
+
+def _has_lock(body: str, macros: LocalLockMacros = NO_LOCAL_MACROS) -> bool:
     if any(tok in body for tok in _LOCK_TOKENS):
         return True
-    return _LOCK_MACRO_RE.search(body) is not None
+    if _LOCK_MACRO_RE.search(body) is not None:
+        return True
+    rx = _macro_invocation_re(macros.all)
+    return rx is not None and rx.search(body) is not None
 
 
-def _lock_coverage(body: str) -> tuple[list[tuple[int, int]], bool]:
+def _lock_coverage(
+    body: str, macros: LocalLockMacros = NO_LOCAL_MACROS
+) -> tuple[list[tuple[int, int]], bool]:
     """Where in ``body`` a lock is actually held.
 
     Returns ``(critical_section_spans, opaque)``.
@@ -240,15 +334,65 @@ def _lock_coverage(body: str) -> tuple[list[tuple[int, int]], bool]:
     (their release is a separate, differently-named call, sometimes in a
     different function), so we report ``opaque`` and the caller keeps the
     conservative whole-function suppression for those.
+
+    ``local_macros`` comes from :func:`discover_local_lock_macros` and is matched
+    by expansion rather than by name, so a paired wrapper such as
+    ``ENTER_BUFFERED`` / ``LEAVE_BUFFERED`` is recognised whatever it is called.
+    A local pair *is* delimitable when both halves appear, so it yields spans
+    instead of opacity; a lone acquire is still opaque.
     """
-    opaque = "PyMutex_Lock" in body or "_PyCriticalSection" in body
-    if not opaque and _LOCK_MACRO_RE.search(body) is not None:
-        opaque = True
-    if opaque:
+    if "PyMutex_Lock" in body or "_PyCriticalSection" in body:
         return [], True
-    if "Py_BEGIN_CRITICAL_SECTION" not in body:
-        return [], False
-    return _critical_section_spans(body), False
+
+    # Locally discovered macros are matched by expansion, which is strictly
+    # better evidence than the naming heuristic, so they are consulted FIRST and
+    # their verdict wins. Order matters: `_LOCK_MACRO_RE` matches any
+    # SCREAMING_CASE name containing LOCK, so checking it first would send a
+    # perfectly delimitable local pair such as
+    # ACQUIRE_BUFFERED_LOCK/RELEASE_BUFFERED_LOCK straight to whole-function
+    # suppression purely because of how it is spelled.
+    ok, local_spans = _local_macro_spans(body, macros)
+    if not ok:
+        return [], True
+    spans = list(local_spans)
+
+    if not spans and _LOCK_MACRO_RE.search(body) is not None:
+        # A lock wrapper we could not resolve to a local #define — it is defined
+        # in a header we did not read. Undelimitable, so stay conservative.
+        return [], True
+
+    if "Py_BEGIN_CRITICAL_SECTION" in body:
+        spans.extend(_critical_section_spans(body))
+    return spans, False
+
+
+def _local_macro_spans(
+    body: str, macros: LocalLockMacros
+) -> tuple[bool, list[tuple[int, int]]]:
+    """Regions covered by paired local lock macros.
+
+    Returns ``(delimitable, spans)``. ``delimitable`` is False when a local lock
+    macro is invoked but the region cannot be bounded, in which case the caller
+    keeps the conservative whole-function suppression.
+    """
+    any_macro = _macro_invocation_re(macros.all)
+    if any_macro is None or any_macro.search(body) is None:
+        return True, []
+    acquire = _macro_invocation_re(macros.acquire)
+    release = _macro_invocation_re(macros.release)
+    if acquire is None or release is None:
+        return False, []
+    starts = [m.start() for m in acquire.finditer(body)]
+    ends = [m.end() for m in release.finditer(body)]
+    if not starts or not ends:
+        return False, []
+    spans: list[tuple[int, int]] = []
+    for s in starts:
+        nxt = next((e for e in ends if e > s), None)
+        if nxt is None:
+            return False, []
+        spans.append((s, nxt))
+    return True, spans
 
 
 def _offset_in_spans(offset: int, spans: list[tuple[int, int]]) -> bool:
@@ -398,16 +542,22 @@ def _check_t3(
     tree,
     source_bytes: bytes,
     gil_only: list[tuple[int, int]],
+    macros: LocalLockMacros = NO_LOCAL_MACROS,
+    stats: dict | None = None,
 ) -> dict | None:
     """T3: iternext that drops an owning self-member ref without a lock."""
     if not is_iter or _caller_holds_lock(func["name"]):
         return None
     body = strip_comments(func["body"])
-    cs_spans, lock_is_opaque = _lock_coverage(body)
+    cs_spans, lock_is_opaque = _lock_coverage(body, macros)
     if lock_is_opaque:
         # A PyMutex/`_PyCriticalSection`/SCREAMING_CASE-macro lock whose region
         # we cannot delimit — stay with whole-function suppression rather than
-        # guess.
+        # guess. Counted so that a suppression this broad is never invisible in
+        # the envelope: it is what hid TSAN-0053/0054/0062 before per-span
+        # coverage existed, and it remains the widest silencer in this rule.
+        if stats is not None:
+            stats["suppressed_opaque_lock_functions"] += 1
         return None
     base = _body_start_line(func)
 
@@ -1611,6 +1761,9 @@ def analyze(target: str, *, max_files: int = 0) -> dict:
     total_functions = 0
     iternext_functions = 0
     lock_held_functions = 0
+    files_with_local_lock_macros = 0
+    local_lock_macro_names: set[str] = set()
+    t3_stats = {"suppressed_opaque_lock_functions": 0}
     files_with_ft_regions = 0
     files_analyzed = 0
     skipped: list[dict] = []
@@ -1630,6 +1783,14 @@ def analyze(target: str, *, max_files: int = 0) -> dict:
 
         functions = extract_functions(tree, source_bytes)
         source = source_bytes.decode("utf-8", errors="replace")
+        # Lock wrappers defined in THIS file, discovered by what they expand to
+        # rather than by what they are called. Without this the rule is blind to
+        # ENTER_BUFFERED/LEAVE_BUFFERED, and -- worse -- whether the
+        # whole-function suppression fires depends on the macro's spelling.
+        local_macros = discover_local_lock_macros(source)
+        if local_macros:
+            files_with_local_lock_macros += 1
+            local_lock_macro_names.update(local_macros.all)
         gil_only, ft_only = _gil_disabled_regions(source)
         if ft_only:
             files_with_ft_regions += 1
@@ -1637,6 +1798,21 @@ def analyze(target: str, *, max_files: int = 0) -> dict:
         # T1 is file-scoped (needs cross-function field access map).
         findings.extend(_check_t1(source, rel, functions, gil_only))
         if not functions:
+            # A file the parser yielded nothing for vanishes from BOTH the
+            # numerator and the denominator unless it is recorded. tree-sitter-c
+            # cannot model a brace straddling #ifdef/#else, so a single such
+            # construct can swallow most of a file (Modules/_io/fileio.c yields
+            # 6 of 32 functions) or all of it -- and a silent drop then reads as
+            # "clean" when it means "never looked".
+            #
+            # Only .c files are recorded: a header holding nothing but
+            # declarations is the normal case and would bury the signal (104 of
+            # them in Modules/ alone), whereas a .c file with zero extracted
+            # functions is always worth a look.
+            if filepath.suffix == ".c":
+                skipped.append(
+                    {"file": str(filepath), "reason": "no functions extracted"}
+                )
             continue
 
         files_analyzed += 1
@@ -1654,7 +1830,8 @@ def analyze(target: str, *, max_files: int = 0) -> dict:
                 iternext_functions += 1
             if _caller_holds_lock(func["name"]):
                 lock_held_functions += 1
-            t3 = _check_t3(func, is_iter, tree, source_bytes, gil_only)
+            t3 = _check_t3(func, is_iter, tree, source_bytes, gil_only, local_macros,
+                           stats=t3_stats)
             if t3 is not None:
                 t3["file"] = rel
                 findings.append(t3)
@@ -1687,6 +1864,15 @@ def analyze(target: str, *, max_files: int = 0) -> dict:
             "by_confidence": dict(by_confidence),
         },
         iternext_functions=iternext_functions,
+        # Named to match scan_common's denominator suffixes, so these land in
+        # the `denominators` block automatically: `local_lock_wrappers` says how
+        # many lock wrapper macros were resolved by expansion, and
+        # `suppressed_opaque_lock_functions` says how many functions the widest
+        # silencer in this rule removed from consideration.
+        local_lock_wrappers=len(local_lock_macro_names),
+        suppressed_opaque_lock_functions=t3_stats["suppressed_opaque_lock_functions"],
+        local_lock_macro_names=sorted(local_lock_macro_names),
+        files_with_local_lock_macros=files_with_local_lock_macros,
         # Denominators for the suppressions, so a low count is auditable:
         # `*_lock_held` callees are silent by convention, and files carrying
         # #ifdef Py_GIL_DISABLED regions had those arms modelled rather than

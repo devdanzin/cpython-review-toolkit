@@ -806,3 +806,140 @@ class TestIntStatusNeverTested(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class TestArgumentClinicSignatures(unittest.TestCase):
+    """find_functions must see Argument Clinic ``_impl`` functions.
+
+    The previous implementation matched only the single line directly above the
+    opening brace. Argument Clinic puts ``/*[clinic end generated code: ...]*/``
+    there, so every ``_impl`` was invisible: 38 of 78 functions found on
+    Modules/_io/bufferedio.c, with _io__Buffered_close_impl,
+    _io__Buffered_detach_impl and _io__Buffered_seek_impl all missed -- exactly
+    the functions holding the crashes the mod-io slice was hunting.
+    """
+
+    CLINIC = (
+        "/*[clinic input]\n"
+        "_io._Buffered.truncate\n"
+        "[clinic start generated code]*/\n"
+        "\n"
+        "static PyObject *\n"
+        "_io__Buffered_truncate_impl(buffered *self, PyTypeObject *cls, PyObject *pos)\n"
+        "/*[clinic end generated code: output=deadbeef input=cafef00d]*/\n"
+        "{\n"
+        "    PyObject *res = NULL;\n"
+        "    if (pos == NULL) {\n"
+        "        PyErr_Clear();\n"
+        "    }\n"
+        "    return res;\n"
+        "}\n"
+    )
+
+    def test_clinic_impl_is_found(self):
+        funcs = mod.find_functions(self.CLINIC)
+        names = [f["name"] for f in funcs]
+        self.assertIn("_io__Buffered_truncate_impl", names)
+
+    def test_clinic_impl_body_is_complete(self):
+        funcs = mod.find_functions(self.CLINIC)
+        fn = next(f for f in funcs if f["name"] == "_io__Buffered_truncate_impl")
+        self.assertIn("PyErr_Clear", fn["body"])
+        self.assertIn("return res", fn["body"])
+
+    def test_clinic_impl_return_type_still_classified(self):
+        funcs = mod.find_functions(self.CLINIC)
+        fn = next(f for f in funcs if f["name"] == "_io__Buffered_truncate_impl")
+        self.assertIn("PyObject", fn["return_type"])
+
+    def test_multiline_signature_is_found(self):
+        source = (
+            "static int\n"
+            "wide_signature(PyObject *a,\n"
+            "               PyObject *b,\n"
+            "               PyObject *c)\n"
+            "{\n"
+            "    return 0;\n"
+            "}\n"
+        )
+        funcs = mod.find_functions(source)
+        self.assertEqual([f["name"] for f in funcs], ["wide_signature"])
+
+    def test_a_plain_block_is_not_a_function(self):
+        source = "static int x = 1;\n\n{\n    int y;\n}\n"
+        self.assertEqual(mod.find_functions(source), [])
+
+    def test_clinic_impl_findings_carry_the_right_line(self):
+        with TempProject({"Modules/m.c": self.CLINIC}) as root:
+            result = mod.analyze(str(root))
+        hits = _types(result, "unconditional_pyerr_clear")
+        self.assertEqual(len(hits), 1)
+        self.assertEqual(hits[0]["function"], "_io__Buffered_truncate_impl")
+        self.assertEqual(hits[0]["line"], 11)
+
+
+class TestErrnoNarrowedClearIsSuppressed(unittest.TestCase):
+    """A clear narrowed by a saved errno is as narrow as an ExceptionMatches.
+
+    CPython copies errno before any call that could clobber it, then branches on
+    the copy. Modules/_io/fileio.c:944-947 is the exemplar. Surfaced as a false
+    positive only after the clinic fix above made fileio.c visible.
+    """
+
+    def test_errno_narrowed_clear_is_not_reported(self):
+        source = (
+            "static PyObject *\n"
+            "io_write(fileio *self, Py_buffer *b)\n"
+            "{\n"
+            "    Py_ssize_t n = _Py_write(self->fd, b->buf, b->len);\n"
+            "    int err = errno;\n"
+            "    if (n < 0) {\n"
+            "        if (err == EAGAIN) {\n"
+            "            PyErr_Clear();\n"
+            "            Py_RETURN_NONE;\n"
+            "        }\n"
+            "        return NULL;\n"
+            "    }\n"
+            "    return PyLong_FromSsize_t(n);\n"
+            "}\n"
+        )
+        with TempProject({"Modules/m.c": source}) as root:
+            result = mod.analyze(str(root))
+        self.assertEqual(_types(result, "unconditional_pyerr_clear"), [])
+
+    def test_unnarrowed_clear_in_the_same_shape_still_fires(self):
+        source = (
+            "static PyObject *\n"
+            "io_seekable(fileio *self)\n"
+            "{\n"
+            "    PyObject *pos = portable_lseek(self, NULL, SEEK_CUR, false);\n"
+            "    if (pos == NULL) {\n"
+            "        PyErr_Clear();\n"
+            "    }\n"
+            "    return PyBool_FromLong(1);\n"
+            "}\n"
+        )
+        with TempProject({"Modules/m.c": source}) as root:
+            result = mod.analyze(str(root))
+        self.assertEqual(len(_types(result, "unconditional_pyerr_clear")), 1)
+
+    def test_errno_compared_to_a_lowercase_name_is_not_narrowing(self):
+        """`err == other` is not an errno constant test; do not suppress."""
+        source = (
+            "static PyObject *\n"
+            "f(PyObject *o)\n"
+            "{\n"
+            "    PyObject *r = PyObject_Str(o);\n"
+            "    int err = errno;\n"
+            "    if (r == NULL) {\n"
+            "        if (err == other) {\n"
+            "            PyErr_Clear();\n"
+            "        }\n"
+            "        return NULL;\n"
+            "    }\n"
+            "    return r;\n"
+            "}\n"
+        )
+        with TempProject({"Modules/m.c": source}) as root:
+            result = mod.analyze(str(root))
+        self.assertEqual(len(_types(result, "unconditional_pyerr_clear")), 1)

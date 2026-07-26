@@ -1096,6 +1096,21 @@ def analyze(target: str, *, max_files: int = 0) -> dict:
 
         functions = extract_functions(tree, source_bytes)
         if not functions:
+            # A file the parser yielded nothing for vanishes from BOTH the
+            # numerator and the denominator unless it is recorded. tree-sitter-c
+            # cannot model a brace straddling #ifdef/#else, so a single such
+            # construct can swallow most of a file (Modules/_io/fileio.c yields
+            # 6 of 32 functions) or all of it -- and a silent drop then reads as
+            # "clean" when it means "never looked".
+            #
+            # Only .c files are recorded: a header holding nothing but
+            # declarations is the normal case and would bury the signal (104 of
+            # them in Modules/ alone), whereas a .c file with zero extracted
+            # functions is always worth a look.
+            if filepath.suffix == ".c":
+                skipped.append(
+                    {"file": str(filepath), "reason": "no functions extracted"}
+                )
             continue
 
         files_analyzed += 1

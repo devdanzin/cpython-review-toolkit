@@ -1081,3 +1081,130 @@ class TestInteriorPointerAlias(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class TestLocalLockMacroDiscovery(unittest.TestCase):
+    """Lock wrappers must be recognised by expansion, not by spelling.
+
+    The per-span `_lock_coverage` shipped in the obj-mappings slice only narrowed
+    the suppression for Py_BEGIN/END_CRITICAL_SECTION. Everything else fell back
+    to whole-function suppression gated on `_LOCK_MACRO_RE`, i.e. on whether the
+    macro's NAME contains the substring LOCK. The identical body was therefore
+    not suppressed as ENTER_BUFFERED and fully suppressed when renamed
+    ACQUIRE_BUFFERED_LOCK -- one rename from reinstating the very defect the
+    per-span coverage removed, on a live catalogued race.
+    """
+
+    def setUp(self):
+        self.mod = import_script("scan_ft_races")
+
+    DEFINES = (
+        "#define ENTER_BUFFERED(self) \\\n"
+        "    ( (PyThread_acquire_lock(self->lock, 0) ? \\\n"
+        "       1 : _enter_buffered_busy(self)) \\\n"
+        "     && (self->owner = PyThread_get_thread_ident(), 1) )\n"
+        "\n"
+        "#define LEAVE_BUFFERED(self) \\\n"
+        "    do { \\\n"
+        "        self->owner = 0; \\\n"
+        "        PyThread_release_lock(self->lock); \\\n"
+        "    } while(0);\n"
+    )
+
+    BODY = (
+        "\n"
+        "    if (!ENTER_BUFFERED(self)) { return NULL; }\n"
+        "    Py_DECREF(item);\n"
+        "    LEAVE_BUFFERED(self)\n"
+        "    return res;\n"
+    )
+
+    def test_multiline_define_is_discovered(self):
+        """A backslash-continued #define body must be spliced before matching."""
+        macros = self.mod.discover_local_lock_macros(self.DEFINES)
+        self.assertEqual(sorted(macros.acquire), ["ENTER_BUFFERED"])
+        self.assertEqual(sorted(macros.release), ["LEAVE_BUFFERED"])
+
+    def test_paired_local_macro_yields_a_span_not_opacity(self):
+        macros = self.mod.discover_local_lock_macros(self.DEFINES)
+        spans, opaque = self.mod._lock_coverage(self.BODY, macros)
+        self.assertFalse(opaque)
+        self.assertEqual(len(spans), 1)
+        self.assertTrue(
+            self.mod._offset_in_spans(self.BODY.index("Py_DECREF"), spans)
+        )
+
+    def test_renaming_the_macro_does_not_change_the_verdict(self):
+        """The regression this fix exists to prevent."""
+        plain = self.mod._lock_coverage(
+            self.BODY, self.mod.discover_local_lock_macros(self.DEFINES)
+        )
+        renamed_body = self.BODY.replace(
+            "ENTER_BUFFERED", "ACQUIRE_BUFFERED_LOCK"
+        ).replace("LEAVE_BUFFERED", "RELEASE_BUFFERED_LOCK")
+        renamed_defs = self.DEFINES.replace(
+            "ENTER_BUFFERED", "ACQUIRE_BUFFERED_LOCK"
+        ).replace("LEAVE_BUFFERED", "RELEASE_BUFFERED_LOCK")
+        renamed = self.mod._lock_coverage(
+            renamed_body, self.mod.discover_local_lock_macros(renamed_defs)
+        )
+        self.assertEqual(plain[1], renamed[1])
+        self.assertEqual(len(plain[0]), len(renamed[0]))
+
+    def test_unresolvable_header_macro_stays_opaque(self):
+        """A wrapper defined in a header we did not read must stay conservative."""
+        body = "\n    LOCK_WEAKREFS(obj);\n    Py_DECREF(x);\n    UNLOCK_WEAKREFS(obj);\n"
+        spans, opaque = self.mod._lock_coverage(body, self.mod.discover_local_lock_macros(""))
+        self.assertTrue(opaque)
+        self.assertEqual(spans, [])
+
+    def test_lone_acquire_with_no_release_stays_opaque(self):
+        defines = (
+            "#define TAKE_IT(x) PyThread_acquire_lock((x)->lock, 1)\n"
+        )
+        body = "\n    TAKE_IT(self);\n    Py_DECREF(self->it);\n"
+        spans, opaque = self.mod._lock_coverage(body, self.mod.discover_local_lock_macros(defines))
+        self.assertTrue(opaque)
+        self.assertEqual(spans, [])
+
+    def test_setiter_shape_still_reports_the_outside_drop(self):
+        """The case per-span coverage was written for must keep working."""
+        body = (
+            "\n"
+            "    Py_BEGIN_CRITICAL_SECTION(so);\n"
+            "    entry = set_next(so, &si->si_pos);\n"
+            "    Py_END_CRITICAL_SECTION();\n"
+            "    Py_DECREF(si->si_set);\n"
+        )
+        spans, opaque = self.mod._lock_coverage(body, self.mod.discover_local_lock_macros(""))
+        self.assertFalse(opaque)
+        self.assertEqual(len(spans), 1)
+        self.assertFalse(self.mod._offset_in_spans(body.index("Py_DECREF"), spans))
+
+    def test_release_is_classified_before_acquire(self):
+        """A release wrapper naming the acquire primitive in a comment is still a release."""
+        defines = (
+            "#define REL(x) do { /* pairs with PyThread_acquire_lock */ "
+            "PyThread_release_lock((x)->lock); } while (0)\n"
+        )
+        macros = self.mod.discover_local_lock_macros(defines)
+        self.assertEqual(sorted(macros.release), ["REL"])
+        self.assertEqual(sorted(macros.acquire), [])
+
+    def test_envelope_reports_the_wrappers_and_the_suppression(self):
+        source = self.DEFINES + (
+            "\nstatic PyObject *\n"
+            "thing_iternext(thing *self)\n"
+            "{\n"
+            "    if (!ENTER_BUFFERED(self)) { return NULL; }\n"
+            "    Py_CLEAR(self->it);\n"
+            "    LEAVE_BUFFERED(self)\n"
+            "    return NULL;\n"
+            "}\n"
+        )
+        with TempProject({"Objects/t.c": source}) as root:
+            result = self.mod.analyze(str(root))
+        den = result["denominators"]
+        self.assertEqual(den["local_lock_wrappers"], 2)
+        self.assertIn("suppressed_opaque_lock_functions", den)
+        self.assertIn("ENTER_BUFFERED", result["local_lock_macro_names"])

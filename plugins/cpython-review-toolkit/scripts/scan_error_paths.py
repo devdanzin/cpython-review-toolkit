@@ -192,7 +192,32 @@ EXCEPTION_SETTING_ALLOCATORS = frozenset({
 # Function detection
 # ---------------------------------------------------------------------------
 
+_NOT_A_FUNCTION_NAME = frozenset(
+    {'if', 'for', 'while', 'switch', 'do', 'else', 'sizeof', 'return',
+     'typedef', 'struct', 'union', 'enum', 'defined', 'case', 'goto'}
+)
+
+# How many lines above the opening brace a signature may span.
+_MAX_SIGNATURE_LINES = 12
+
+
 def find_functions(source: str) -> list[dict]:
+    """Find C function definitions and extract their bodies.
+
+    The signature may span several lines, and may be separated from the opening
+    brace by an Argument Clinic ``/*[clinic end generated code: ...]*/`` block.
+    The previous implementation matched only the single line directly above the
+    brace, so **every clinic ``_impl`` function was invisible** -- which on
+    ``Modules/_io/bufferedio.c`` meant 38 of 78 functions found and
+    ``_io__Buffered_close_impl``, ``_io__Buffered_detach_impl`` and
+    ``_io__Buffered_seek_impl`` all missed, i.e. precisely the functions holding
+    the crashes the mod-io slice was looking for.
+
+    ``scan_refcounts.find_functions`` already solved this and says so in its
+    docstring; ``measure_c_complexity.find_functions`` fixed the sibling
+    multi-line case and measured it at 22.4% of functions. Neither fix had
+    reached this scanner.
+    """
     lines = source.split('\n')
     functions: list[dict] = []
     for i, line in enumerate(lines):
@@ -200,16 +225,29 @@ def find_functions(source: str) -> list[dict]:
             continue
         if i < 1:
             continue
-        prev = lines[i - 1].strip()
-        m = re.match(r'^(\w+)\s*\(([^)]*)\)\s*$', prev)
-        if not m:
-            m = re.match(r'^(?:\w[\w\s\*]*?)\s+(\w+)\s*\(([^)]*)\)\s*$', prev)
-        if not m:
-            continue
-        func_name = m.group(1)
-        if func_name in ('if', 'for', 'while', 'switch', 'do', 'else',
-                         'sizeof', 'return', 'typedef', 'struct', 'union',
-                         'enum', 'defined'):
+
+        # Walk backwards accumulating signature lines until the parentheses
+        # balance, skipping blank and comment-only lines (the clinic marker).
+        chunk: list[str] = []
+        sig_start = i - 1
+        func_name = None
+        for k in range(i - 1, max(i - 1 - _MAX_SIGNATURE_LINES, -1), -1):
+            stripped = lines[k].strip()
+            if not stripped or stripped.startswith(('/*', '*', '//')):
+                continue
+            if chunk and (stripped.endswith((';', '}')) or stripped.startswith('#')):
+                break
+            chunk.insert(0, stripped)
+            joined = ' '.join(chunk)
+            if '(' in joined and joined.count('(') == joined.count(')'):
+                m = re.match(r'^(?:.*?\b)?(\w+)\s*\((.*)\)\s*$', joined, re.DOTALL)
+                if m:
+                    func_name = m.group(1)
+                    sig_start = k
+                break
+            if stripped.endswith((';', '}')) or stripped.startswith('#'):
+                break
+        if func_name is None or func_name in _NOT_A_FUNCTION_NAME:
             continue
 
         depth = 1
@@ -228,7 +266,7 @@ def find_functions(source: str) -> list[dict]:
                 break
 
         body = '\n'.join(lines[body_start:body_end])
-        sig_start = i - 1
+        # A return type alone on the line above the accumulated signature.
         if sig_start > 0 and re.match(
             r'^[\w\s\*]+$', lines[sig_start - 1].strip()
         ):
@@ -307,6 +345,21 @@ _PYERR_CLEAR_GUARD_RE = re.compile(
 # A test whose failure branch the clear sits in — the shape the rule is about.
 _FAILURE_TEST_RE = re.compile(
     r'(?:==\s*NULL|!=\s*NULL|==\s*-1|<\s*0|!=\s*0|==\s*0|\bif\s*\(\s*!)'
+)
+# Narrowing by a saved `errno` rather than by PyErr_ExceptionMatches. CPython
+# copies errno before any call that could clobber it and then branches on the
+# copy, so the clear is as narrow as an ExceptionMatches would be — it just
+# does not look like one. Modules/_io/fileio.c:944-947 is the exemplar:
+#
+#     err = errno;              /* copied because PyBuffer_Release can modify it */
+#     if (n < 0) {
+#         if (err == EAGAIN) {
+#             PyErr_Clear();
+#
+# Found by the mod-io slice after the clinic-signature fix made fileio.c
+# visible for the first time; 1 of the 4 newly surfaced fileio.c clears.
+_ERRNO_NARROWING_RE = re.compile(
+    r'\b(?:errno|err|_?saved_errno|myerrno)\s*==\s*[A-Z][A-Z0-9_]{2,}\b'
 )
 # Destructor family — owned by scan_pyerr_clear.py, skipped here on purpose.
 _DESTRUCTOR_RE = re.compile(
@@ -684,6 +737,9 @@ def _check_unconditional_pyerr_clear(func: dict, clean: str) -> list[dict]:
             continue
         window = "\n".join(lines[max(0, idx - 3):idx + 1])
         if _PYERR_CLEAR_GUARD_RE.search(window):
+            continue
+        # Narrowed by a saved errno instead of by PyErr_ExceptionMatches.
+        if _ERRNO_NARROWING_RE.search(window):
             continue
         # Only report clears that sit inside a failure branch: that is the
         # shape where a user-supplied exception can be the thing discarded.

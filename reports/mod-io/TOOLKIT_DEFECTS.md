@@ -108,7 +108,7 @@ are **dead data** — 0 occurrences across `Modules/` and `Objects/` — and the
 
 ---
 
-## D-3 — CONFIRMED, NOT FIXED — `scan_error_paths.find_functions` is blind to Argument Clinic
+## D-3 — FIXED — `scan_error_paths.find_functions` was blind to Argument Clinic
 
 Verified by me directly:
 
@@ -139,7 +139,7 @@ Deferred for the same live-run reason as D-2. Unlike D-2 this one is local to
 
 ---
 
-## D-7 — CONFIRMED, NOT FIXED — my own `_lock_coverage()` fix is one rename from regressing
+## D-7 — FIXED — my own `_lock_coverage()` fix was one rename from regressing
 
 The `scan_ft_races._lock_coverage()` change I shipped in the obj-mappings slice replaced a
 blanket "this function mentions a lock, suppress all of it" with per-span coverage — because that
@@ -175,7 +175,7 @@ envelope, so a suppression this broad can never again be invisible in the denomi
 
 ---
 
-## D-4 — REPORTED — `scan_gil_usage`'s `rule_not_applicable` poisons a merged run
+## D-4 — DISPROVEN — `scan_gil_usage`'s `rule_not_applicable` is correct
 
 Per the gil-discipline agent: the flag merges across files with policy `"or"`, so five
 zero-vocabulary files make the whole slice report "recognised NONE of its vocabulary" while
@@ -187,7 +187,7 @@ Same agent reports the true GIL-released count for the slice is 12, not 8, becau
 
 ---
 
-## D-5 — REPORTED — `scan_pyerr_clear` misses file-local static wrappers and drops empty files
+## D-5 — PARTLY FIXED, PARTLY DISPROVEN — silent file drops
 
 Per the pyerr-clear agent: no depth-1 intra-file closure over static wrappers, costing four
 sibling sites (`bufferedio.c:578`, `:870`, `:1490`, `textio.c:3250`); and `if not functions:
@@ -213,3 +213,96 @@ clean `seek` from its crashing `truncate`); and put `PyLong_As*` / `PyNumber_As*
 `PyObject_GetAttr` in the Python-reaching set.
 
 Design and cost this after the slice's findings are recorded, not before.
+
+
+---
+
+# Resolution — 2026-07-26
+
+## Fixed
+
+**D-1** (`a33752b`) — the `#ifdef` shared-brace collapse in `measure_c_complexity`.
+
+**D-3** — `scan_error_paths.find_functions` now walks backwards over blank and
+comment-only lines to assemble a multi-line signature, so Argument Clinic `_impl`
+functions are visible. `bufferedio.c`: **38 → 78** functions found; tree-wide
+`Modules/`: **71 → 114** findings. It now reports `bufferedio.c:1490`, the
+character-identical sibling the error-path agent could not report.
+
+Surfacing `fileio.c` for the first time exposed a new false-positive class, fixed
+in the same pass: a `PyErr_Clear()` narrowed by a **saved `errno`** rather than by
+`PyErr_ExceptionMatches`. `Modules/_io/fileio.c:944-947` is the exemplar. That
+suppression removed 3 of the 4 newly surfaced `fileio.c` clears, leaving
+`:664` — which is a genuine unnarrowed clear. Slice count 6 → 3, `Modules/`
+117 → 114. **9 new tests.**
+
+**D-7** — `scan_ft_races` now discovers lock wrapper macros by **expansion**
+(`discover_local_lock_macros`) rather than by name, and consults that discovery
+*before* the `_LOCK_MACRO_RE` naming heuristic so the better evidence wins. A
+paired local wrapper now yields real spans instead of whole-function opacity.
+
+Verified directly: the same body spelled `ENTER_BUFFERED`/`LEAVE_BUFFERED` and
+renamed `ACQUIRE_BUFFERED_LOCK`/`RELEASE_BUFFERED_LOCK` now produce **identical**
+verdicts. A header-defined wrapper that cannot be resolved still falls back to
+conservative suppression, and the `setiter_iternext` shape the per-span fix
+exists for still correctly reports its outside-the-span drop.
+
+One trap inside the fix, worth recording because it silently produced nothing:
+`#define` bodies use backslash continuations, and `(.*(?:\\\n.*)*)` looks like
+it handles them but cannot — the leading `.*` eats the backslash. It captured
+`ENTER_BUFFERED`'s body as `" \\"`. Continuations are now spliced before
+matching. Tree-wide wrappers discovered: `Objects/` 4, `Modules/` 7, `Python/` 9.
+
+New envelope denominators, named to match `scan_common`'s suffix convention so
+they land in `denominators` automatically: `local_lock_wrappers` and
+**`suppressed_opaque_lock_functions`** — the widest silencer in the rule is now
+auditable rather than invisible. Findings unchanged tree-wide (60/102/60), so
+this is a preventive fix, not a yield increase. **8 new tests.**
+
+**D-5, second half** — eight tree-sitter scanners dropped a file whose function
+extraction came back empty with **no trace at all**: not in `files_analyzed`, not
+in `skipped`. They now record it. Restricted to `.c` files, because 104 headers
+in `Modules/` legitimately hold no definitions and would bury the signal.
+
+The result is the D-2/D-2b canary made concrete: **10 `.c` files in `Modules/`
+yield zero functions to every tree-sitter scanner** — `faulthandler.c` (which
+confirms the error-path agent's 43/43 claim), `winconsoleio.c`, five `_codecs_*`
+files, `config.c`, and two HACL files. All of them were silently invisible.
+
+## Disproven
+
+**D-4** — I could not reproduce it. `rule_not_applicable` is computed once per
+run in `build_report` from the *summed* `vocabulary_counts`; there is no per-file
+`"or"` merge to poison it. Measured on this slice's scope: `scan_gil_usage`
+reports `rule_not_applicable: False` with `vocabulary_counts
+{Py_BEGIN_ALLOW_THREADS: 15, Py_END_ALLOW_THREADS: 15, PyGILState_*: 0}`, which is
+correct. This is the second agent claim in the slice that did not survive
+checking, after the parity agent's inverted precision/recall figures.
+
+**D-5, first half (partly)** — the agent said the silent drop is "how
+`winconsoleio.c` contributes 0 to a run whose envelope still says
+`files_analyzed: 16`". The count is not inflated: the `continue` precedes
+`files_analyzed += 1`, so the file is absent from the denominator too. The real
+defect is worse than described — total invisibility rather than a wrong ratio —
+and is what got fixed.
+
+`measure_c_complexity` was deliberately **reverted** out of that change: it counts
+the file *before* the check and its `coverage` block already reports
+`brace_blocks_seen` / `signatures_unparsed` / `extents_unresolved`, so the
+information was already there. Its own tests caught my over-application.
+
+## Still open
+
+**D-2 / D-2b** — the shared tree-sitter chassis. `tree_sitter_utils.py` is
+upstream in `cext-review-toolkit`; the rule is never to fork a shared file, so the
+fix belongs there and syncs forward to cpython / ft / the Rust-side toolkits. The
+canary above makes the damage visible in the meantime, which was the point of
+shipping it first.
+
+**D-6** — the missing `stale_field_guard` rule for this slice's dominant bug
+shape. Three agents proposed it independently. It is a design task, not a patch,
+and wants its own pass: it needs macro-body expansion, `clinic/*.c.h` reading to
+learn whether a parameter converts before or inside the guard, and an extended
+Python-reaching set.
+
+Test suite: **853 → 877**, all passing.
