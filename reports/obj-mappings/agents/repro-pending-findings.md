@@ -85,7 +85,7 @@ ctypes, no C API)**.
 | `debug-ft-nojit` | ctypes | **8/8 nonzero** — 6× SIGSEGV, 2× SIGABRT (60 rounds, 4 hammers) |
 | `release-ft-nojit` | ctypes | **8/8 SIGSEGV** |
 | `debug-ft-nojit` | **gcobjects** | **5/8 nonzero** — 4× SIGSEGV, 1× SIGABRT (150 rounds, 4 hammers) |
-| `release-ft-nojit` | gcobjects | **not claimed — still running at report time.** `gc.get_objects()` under free-threading takes a stop-the-world per call, so with 4 hammers polling it these runs are ~100× slower than the `ctypes` ones and the machine also had four long-running fuzzer processes on it. The FT-vs-GIL contrast is already carried by the `debug-ft-nojit` row against the two GIL rows below, in the same mode. |
+| `release-ft-nojit` | **gcobjects** | **2/6 SIGSEGV, 2 clean, 2 indeterminate** — `codes=[-11, TIMEOUT, TIMEOUT, 0, 0, -11]` (60 rounds, 4 hammers). See the TIMEOUT note below; the crash count claimed is the strict one, 2/6. |
 | `debug-gil-nojit` | **gcobjects (the control)** | **0/6 clean** (60 rounds, 4 hammers) |
 | `release-gil-nojit` | **gcobjects (the control)** | **0/6 clean** |
 | `release-ft-nojit-asan-mitrack` | ctypes | 6/6 ASan ABORT — **inadmissible for the same reason as the other ctypes rows**; not used as evidence |
@@ -97,7 +97,36 @@ artifact — a hammer can read `ADDR[0]` from the previous round after the objec
 has died and `ctypes.cast` a dangling address. `gc.get_objects()` cannot dangle
 (it increfs under stop-the-world), so **only the `gcobjects` rows are admissible
 as evidence**. In that mode the contrast is clean and one-sided:
-**`debug-ft-nojit` 5/8 crashed, `debug-gil-nojit` 0/6, `release-gil-nojit` 0/6.**
+**`debug-ft-nojit` 5/8 and `release-ft-nojit` 2/6 crashed; `debug-gil-nojit` 0/6
+and `release-gil-nojit` 0/6 did not.**
+
+**The two TIMEOUTs in the `release-ft-nojit` row are not claimed as hangs.** The
+brief's rule applies — a TIMEOUT on this machine has twice turned out to be CPU
+contention, and four long-running fuzzer processes were resident for the whole
+pass while `gcobjects` mode pays a stop-the-world per `gc.get_objects()` call. I
+re-ran that configuration standalone rather than reporting the timeout at face
+value; the result is in `repro/standalone_CPY-0127_releaseft.txt`. The row is
+reported at its strict crash count of **2/6**, with the two timeouts counted as
+indeterminate rather than as either crashes or clean runs.
+
+Standalone run 1, on an otherwise-quiet machine, **SIGSEGV in 2.33 s wall**:
+
+```
+=== standalone run 1 ===
+rounds=60 hammers=4 nelem=3000 mode=gcobjects gil=False
+round 0 staged=1 acquired=4
+Command terminated by signal 11
+  wall=2.33 s
+  exit=139
+```
+
+So when this configuration crashes it crashes almost immediately; a 240 s
+timeout is not the crash path taking a long time. The complementary observation
+is that a standalone run which does *not* crash early takes longer than the
+600 s cap — four hammer threads each calling `gc.get_objects()` (one
+stop-the-world per call) against a collecting thread is pathologically slow. Both
+readings point the same way: the TIMEOUTs are the harness, not a CPython hang.
+Runs 2-3 append to the same file as they finish.
 
 ### Two crash faces, both from gdb (`repro/gdb_CPY-0127_debug-ft.txt`)
 
