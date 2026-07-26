@@ -1,0 +1,80 @@
+{
+  "project_root": "/home/danzin/projects/cpython",
+  "scan_root": "/home/danzin/projects/cpython",
+  "files_analyzed": 4,
+  "functions_analyzed": 345,
+  "denominators": {
+    "files_analyzed": 4,
+    "functions_analyzed": 345,
+    "findings": 0,
+    "borrowed_field_accessors": 1,
+    "borrowed_accessor_load_sites": 2,
+    "borrowed_slot_load_sites": 37
+  },
+  "field_accessors_discovered": [
+    "list_capacity"
+  ],
+  "findings": [],
+  "summary": {
+    "potential_leaks": 0,
+    "potential_double_frees": 0,
+    "stale_slot_decref": 0,
+    "owner_freed_before_use": 0,
+    "borrowed_ref_across_call": 0,
+    "slot_transfer_across_call": 0,
+    "stale_slot_use": 0,
+    "borrowed_field_deref_across_call": 0,
+    "init_not_reinit_safe": 0,
+    "new_missing_member_init": 0,
+    "total_findings": 0,
+    "high_confidence": 0,
+    "medium_confidence": 0,
+    "low_confidence": 0
+  },
+  "_sample": {
+    "files_requested": [
+      "Objects/listobject.c",
+      "Objects/bytesobject.c",
+      "Objects/bytearrayobject.c",
+      "Objects/bytes_methods.c"
+    ],
+    "files_scanned": [
+      "Objects/listobject.c",
+      "Objects/bytesobject.c",
+      "Objects/bytearrayobject.c",
+      "Objects/bytes_methods.c"
+    ],
+    "files_missing": [],
+    "method": "the scanner was RE-RUN over exactly these files; every count in this report is sample-scoped. This is not a post-hoc filter of a corpus-wide scan -- a filtered report keeps corpus-wide denominators next to sample-scoped findings, which makes an unearned zero look earned.",
+    "merge_policy": {
+      "project_root": "carried (constant, not a count)",
+      "scan_root": "carried (constant, not a count)",
+      "files_analyzed": "summed",
+      "functions_analyzed": "summed",
+      "denominators": "merged key-wise",
+      "denominators.files_analyzed": "summed",
+      "denominators.functions_analyzed": "summed",
+      "denominators.findings": "summed",
+      "denominators.borrowed_field_accessors": "summed",
+      "denominators.borrowed_accessor_load_sites": "summed",
+      "denominators.borrowed_slot_load_sites": "summed",
+      "field_accessors_discovered": "concatenated",
+      "findings": "concatenated",
+      "summary": "merged key-wise",
+      "summary.potential_leaks": "summed",
+      "summary.potential_double_frees": "summed",
+      "summary.stale_slot_decref": "summed",
+      "summary.owner_freed_before_use": "summed",
+      "summary.borrowed_ref_across_call": "summed",
+      "summary.slot_transfer_across_call": "summed",
+      "summary.stale_slot_use": "summed",
+      "summary.borrowed_field_deref_across_call": "summed",
+      "summary.init_not_reinit_safe": "summed",
+      "summary.new_missing_member_init": "summed",
+      "summary.total_findings": "summed",
+      "summary.high_confidence": "summed",
+      "summary.medium_confidence": "summed",
+      "summary.low_confidence": "summed"
+    }
+  }
+}

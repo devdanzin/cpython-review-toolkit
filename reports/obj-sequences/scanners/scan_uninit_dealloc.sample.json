@@ -1,0 +1,132 @@
+{
+  "project_root": "/home/danzin/projects/cpython",
+  "scan_root": "/home/danzin/projects/cpython",
+  "files_analyzed": 4,
+  "functions_analyzed": 331,
+  "findings": [
+    {
+      "type": "dealloc_of_uninitialized_object",
+      "function": "PyList_New",
+      "variable": "op",
+      "allocator": "PyObject_GC_New",
+      "line": 250,
+      "free_line": 262,
+      "free_call": "Py_DECREF",
+      "unset_members": [
+        "ob_item"
+      ],
+      "unset_members_all": [
+        "allocated",
+        "ob_item"
+      ],
+      "receiver_aliases": [],
+      "destructor_evidence": {
+        "ob_item": {
+          "kind": "pointer",
+          "line": 567
+        }
+      },
+      "confidence": "medium",
+      "detail": "'op' is allocated via the non-zeroing PyObject_GC_New() and freed with Py_DECREF(op) at line 262 while op->ob_item still hold allocator garbage \u2014 those members are written only *after* the free (or only on a branch that does not dominate it), and the file's destructor decrefs/visits them (see line 567). tp_dealloc/tp_clear then acts on an uninitialized value (crash, dominant under OOM). Fix: NULL/initialize these members immediately after the allocation, before the first fallible call.",
+      "file": "Objects/listobject.c"
+    }
+  ],
+  "summary": {
+    "total_findings": 1,
+    "by_allocator": {
+      "PyObject_GC_New": 1
+    },
+    "allocation_sites": 5
+  },
+  "nonzeroing_tp_allocs": {},
+  "allocator_model": {
+    "non_zeroing": [
+      "PyObject_GC_New",
+      "PyObject_GC_NewVar",
+      "PyObject_GC_NewWithExtra",
+      "PyObject_New",
+      "PyObject_NewVar",
+      "_PyObject_GC_New",
+      "_PyObject_GC_NewVar",
+      "_PyObject_New",
+      "_PyObject_NewVar",
+      "PyObject_GC_New",
+      "PyObject_GC_NewVar",
+      "PyObject_GC_NewWithExtra",
+      "PyObject_New",
+      "PyObject_NewVar",
+      "_PyObject_GC_New",
+      "_PyObject_GC_NewVar",
+      "_PyObject_New",
+      "_PyObject_NewVar",
+      "PyObject_GC_New",
+      "PyObject_GC_NewVar",
+      "PyObject_GC_NewWithExtra",
+      "PyObject_New",
+      "PyObject_NewVar",
+      "_PyObject_GC_New",
+      "_PyObject_GC_NewVar",
+      "_PyObject_New",
+      "_PyObject_NewVar",
+      "PyObject_GC_New",
+      "PyObject_GC_NewVar",
+      "PyObject_GC_NewWithExtra",
+      "PyObject_New",
+      "PyObject_NewVar",
+      "_PyObject_GC_New",
+      "_PyObject_GC_NewVar",
+      "_PyObject_New",
+      "_PyObject_NewVar"
+    ],
+    "zeroing_by_evidence": {
+      "PyType_GenericAlloc": "forwards to _PyType_AllocNoTrack, which memsets the object after the PyObject header (Objects/typeobject.c:2542)"
+    },
+    "tp_alloc_rule": "a `->tp_alloc(...)` call counts as non-zeroing only in a file that registers its own allocfunc returning raw storage; the two in-tree instances are Modules/_datetimemodule.c time_alloc / datetime_alloc"
+  },
+  "skipped_files": [],
+  "denominators": {
+    "files_analyzed": 4,
+    "functions_analyzed": 331,
+    "findings": 1,
+    "allocation_sites": 5
+  },
+  "_sample": {
+    "files_requested": [
+      "Objects/listobject.c",
+      "Objects/bytesobject.c",
+      "Objects/bytearrayobject.c",
+      "Objects/bytes_methods.c"
+    ],
+    "files_scanned": [
+      "Objects/listobject.c",
+      "Objects/bytesobject.c",
+      "Objects/bytearrayobject.c",
+      "Objects/bytes_methods.c"
+    ],
+    "files_missing": [],
+    "method": "the scanner was RE-RUN over exactly these files; every count in this report is sample-scoped. This is not a post-hoc filter of a corpus-wide scan -- a filtered report keeps corpus-wide denominators next to sample-scoped findings, which makes an unearned zero look earned.",
+    "merge_policy": {
+      "project_root": "carried (constant, not a count)",
+      "scan_root": "carried (constant, not a count)",
+      "files_analyzed": "summed",
+      "functions_analyzed": "summed",
+      "findings": "concatenated",
+      "summary": "merged key-wise",
+      "summary.total_findings": "summed",
+      "summary.by_allocator": "merged key-wise",
+      "summary.allocation_sites": "summed",
+      "nonzeroing_tp_allocs": "merged key-wise",
+      "allocator_model": "merged key-wise",
+      "allocator_model.non_zeroing": "concatenated",
+      "allocator_model.zeroing_by_evidence": "merged key-wise",
+      "allocator_model.zeroing_by_evidence.PyType_GenericAlloc": "carried (first)",
+      "allocator_model.tp_alloc_rule": "carried (first)",
+      "skipped_files": "concatenated",
+      "denominators": "merged key-wise",
+      "denominators.files_analyzed": "summed",
+      "denominators.functions_analyzed": "summed",
+      "denominators.findings": "summed",
+      "denominators.allocation_sites": "summed"
+    }
+  }
+}

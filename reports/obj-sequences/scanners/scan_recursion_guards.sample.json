@@ -1,0 +1,139 @@
+{
+  "project_root": "/home/danzin/projects/cpython",
+  "scan_root": "/home/danzin/projects/cpython",
+  "files_analyzed": 4,
+  "functions_analyzed": 331,
+  "findings": [
+    {
+      "type": "recursion_descent_guarded_by_dispatcher",
+      "function": "list_richcompare_impl",
+      "slot": "tp_richcompare",
+      "shape": "guarded_dispatcher_descent",
+      "element_op": "PyObject_RichCompare, PyObject_RichCompareBool",
+      "guarded_by": [
+        "Objects/object.c:1099",
+        "Objects/object.c:1099 (via PyObject_RichCompare)"
+      ],
+      "line": 3467,
+      "confidence": "low",
+      "detail": "'list_richcompare_impl' (tp_richcompare) descends into elements via PyObject_RichCompare, PyObject_RichCompareBool, which wrap _Py_EnterRecursiveCallTstate at Objects/object.c:1099, Objects/object.c:1099 (via PyObject_RichCompare). The descent is therefore bounded by the interpreter recursion limit and raises RecursionError, not SIGSEGV. Reported for auditability only \u2014 promote to a real finding only if you can show the slot is reached by a route that bypasses its dispatcher.",
+      "file": "Objects/listobject.c"
+    }
+  ],
+  "summary": {
+    "total_findings": 1,
+    "missing_recursion_guard": 0,
+    "guarded_by_dispatcher": 1,
+    "by_confidence": {
+      "low": 1
+    },
+    "by_shape": {
+      "guarded_dispatcher_descent": 1
+    },
+    "by_type": {
+      "recursion_descent_guarded_by_dispatcher": 1
+    }
+  },
+  "recursion_prone_slot_functions": 1,
+  "slot_classification": {
+    "classified_total": 13,
+    "from_slot_map": 0,
+    "from_name_suffix": 13,
+    "recursion_prone": 1,
+    "note": "from_name_suffix is a naming-convention guess, not evidence from a PyTypeObject slot table: a positional slot table makes from_slot_map 0 while from_name_suffix still fires. Quote recursion_prone as the denominator for this rule's coverage; quote classified_total only as 'functions the slot classifier recognised at all'."
+  },
+  "dispatcher_guard_model": {
+    "unguarded": {
+      "PyObject_Hash": "Objects/object.c:1158 \u2014 NO guard",
+      "_PyObject_HashDictKey": "Include/internal/pycore_object.h:840 \u2014 Py_ALWAYS_INLINE alias, tail-calls PyObject_Hash, so equally unguarded"
+    },
+    "guarded": {
+      "PyObject_Repr": "Objects/object.c:759",
+      "PyObject_Str": "Objects/object.c:800",
+      "PyObject_ASCII": "Objects/object.c:759 (via PyObject_Repr)",
+      "PyObject_RichCompare": "Objects/object.c:1099",
+      "PyObject_RichCompareBool": "Objects/object.c:1099 (via PyObject_RichCompare)"
+    },
+    "bound_zero_excluded": [
+      "PyObject_GenericHash",
+      "Py_HashBuffer",
+      "Py_HashPointer",
+      "PyObject_GenericHash",
+      "Py_HashBuffer",
+      "Py_HashPointer",
+      "PyObject_GenericHash",
+      "Py_HashBuffer",
+      "Py_HashPointer",
+      "PyObject_GenericHash",
+      "Py_HashBuffer",
+      "Py_HashPointer"
+    ],
+    "note": "Verified against CPython main @ 3.16.0a0. Only the hash dispatchers lack _Py_EnterRecursiveCallTstate, so only hash descents are unguarded at every level. Self-recursion is unguarded regardless of dispatcher. bound_zero_excluded lists hash spellings deliberately kept out of the vocabulary because they never descend into the object graph (identity, raw pointer, flat byte range)."
+  },
+  "large_cycles_not_reported": [],
+  "cycle_reporting_cap": 12,
+  "skipped_files": [],
+  "denominators": {
+    "files_analyzed": 4,
+    "functions_analyzed": 331,
+    "findings": 1,
+    "recursion_prone_slot_functions": 1
+  },
+  "_sample": {
+    "files_requested": [
+      "Objects/listobject.c",
+      "Objects/bytesobject.c",
+      "Objects/bytearrayobject.c",
+      "Objects/bytes_methods.c"
+    ],
+    "files_scanned": [
+      "Objects/listobject.c",
+      "Objects/bytesobject.c",
+      "Objects/bytearrayobject.c",
+      "Objects/bytes_methods.c"
+    ],
+    "files_missing": [],
+    "method": "the scanner was RE-RUN over exactly these files; every count in this report is sample-scoped. This is not a post-hoc filter of a corpus-wide scan -- a filtered report keeps corpus-wide denominators next to sample-scoped findings, which makes an unearned zero look earned.",
+    "merge_policy": {
+      "project_root": "carried (constant, not a count)",
+      "scan_root": "carried (constant, not a count)",
+      "files_analyzed": "summed",
+      "functions_analyzed": "summed",
+      "findings": "concatenated",
+      "summary": "merged key-wise",
+      "summary.total_findings": "summed",
+      "summary.missing_recursion_guard": "summed",
+      "summary.guarded_by_dispatcher": "summed",
+      "summary.by_confidence": "merged key-wise",
+      "summary.by_shape": "merged key-wise",
+      "summary.by_type": "merged key-wise",
+      "recursion_prone_slot_functions": "summed",
+      "slot_classification": "merged key-wise",
+      "slot_classification.classified_total": "summed",
+      "slot_classification.from_slot_map": "summed",
+      "slot_classification.from_name_suffix": "summed",
+      "slot_classification.recursion_prone": "summed",
+      "slot_classification.note": "carried (first)",
+      "dispatcher_guard_model": "merged key-wise",
+      "dispatcher_guard_model.unguarded": "merged key-wise",
+      "dispatcher_guard_model.unguarded.PyObject_Hash": "carried (first)",
+      "dispatcher_guard_model.unguarded._PyObject_HashDictKey": "carried (first)",
+      "dispatcher_guard_model.guarded": "merged key-wise",
+      "dispatcher_guard_model.guarded.PyObject_Repr": "carried (first)",
+      "dispatcher_guard_model.guarded.PyObject_Str": "carried (first)",
+      "dispatcher_guard_model.guarded.PyObject_ASCII": "carried (first)",
+      "dispatcher_guard_model.guarded.PyObject_RichCompare": "carried (first)",
+      "dispatcher_guard_model.guarded.PyObject_RichCompareBool": "carried (first)",
+      "dispatcher_guard_model.bound_zero_excluded": "concatenated",
+      "dispatcher_guard_model.note": "carried (first)",
+      "large_cycles_not_reported": "concatenated",
+      "cycle_reporting_cap": "summed",
+      "skipped_files": "concatenated",
+      "denominators": "merged key-wise",
+      "denominators.files_analyzed": "summed",
+      "denominators.functions_analyzed": "summed",
+      "denominators.findings": "summed",
+      "denominators.recursion_prone_slot_functions": "summed"
+    }
+  }
+}

@@ -1,0 +1,4 @@
+Objects/listobject.c
+Objects/bytesobject.c
+Objects/bytearrayobject.c
+Objects/bytes_methods.c

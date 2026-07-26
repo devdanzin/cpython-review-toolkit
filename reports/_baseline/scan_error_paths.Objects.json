@@ -2,7 +2,15 @@
   "project_root": "/home/danzin/projects/cpython",
   "scan_root": "/home/danzin/projects/cpython/Objects",
   "files_analyzed": 123,
-  "functions_analyzed": 3073,
+  "functions_analyzed": 4212,
+  "denominators": {
+    "files_analyzed": 123,
+    "functions_analyzed": 4212,
+    "findings": 56,
+    "fallible_assignment_sites": 562,
+    "int_status_callees_resolved": 584,
+    "int_status_callees_discovered": 554
+  },
   "findings": [
     {
       "type": "unconditional_pyerr_clear",
@@ -108,15 +116,6 @@
       "line": 335
     },
     {
-      "type": "unconditional_pyerr_clear",
-      "api_call": "PyErr_Clear",
-      "detail": "PyErr_Clear() with no PyErr_ExceptionMatches within the preceding 3 lines \u2014 swallows any live exception, including KeyboardInterrupt and MemoryError raised by user code",
-      "confidence": "medium",
-      "file": "Objects/fileobject.c",
-      "function": "stdprinter_write",
-      "line": 351
-    },
-    {
       "type": "alloc_null_no_memerror",
       "api_call": "PyMem_New",
       "variable": "linestarts",
@@ -180,6 +179,15 @@
       "file": "Objects/object.c",
       "function": "_PyObject_GetDictPtr",
       "line": 1617
+    },
+    {
+      "type": "unconditional_pyerr_clear",
+      "api_call": "PyErr_Clear",
+      "detail": "PyErr_Clear() with no PyErr_ExceptionMatches within the preceding 3 lines \u2014 swallows any live exception, including KeyboardInterrupt and MemoryError raised by user code",
+      "confidence": "medium",
+      "file": "Objects/object.c",
+      "function": "_Py_PrintReference",
+      "line": 2943
     },
     {
       "type": "alloc_null_no_memerror",
@@ -286,6 +294,54 @@
       "line": 1250
     },
     {
+      "type": "unchecked_return",
+      "api_call": "PyNumber_Add",
+      "variable": "sum",
+      "detail": "Return value of PyNumber_Add assigned to 'sum' is neither checked for NULL nor returned unmodified",
+      "confidence": "medium",
+      "file": "Objects/rangeobject.c",
+      "function": "range_reverse",
+      "line": 1369
+    },
+    {
+      "type": "unconditional_pyerr_clear",
+      "api_call": "PyErr_Clear",
+      "detail": "PyErr_Clear() with no PyErr_ExceptionMatches within the preceding 3 lines \u2014 swallows any live exception, including KeyboardInterrupt and MemoryError raised by user code",
+      "confidence": "medium",
+      "file": "Objects/rangeobject.c",
+      "function": "range_reverse",
+      "line": 1304
+    },
+    {
+      "type": "unconditional_pyerr_clear",
+      "api_call": "PyErr_Clear",
+      "detail": "PyErr_Clear() with no PyErr_ExceptionMatches within the preceding 3 lines \u2014 swallows any live exception, including KeyboardInterrupt and MemoryError raised by user code",
+      "confidence": "medium",
+      "file": "Objects/rangeobject.c",
+      "function": "range_reverse",
+      "line": 1309
+    },
+    {
+      "type": "unconditional_pyerr_clear",
+      "api_call": "PyErr_Clear",
+      "detail": "PyErr_Clear() with no PyErr_ExceptionMatches within the preceding 3 lines \u2014 swallows any live exception, including KeyboardInterrupt and MemoryError raised by user code",
+      "confidence": "medium",
+      "file": "Objects/rangeobject.c",
+      "function": "range_reverse",
+      "line": 1314
+    },
+    {
+      "type": "int_status_never_tested",
+      "api_call": "add_all_subclasses",
+      "variable": "res",
+      "detail": "'res' takes add_all_subclasses's int status and is never tested. Unlike a NULL pointer returned straight back to the caller, a `return res` at the end of the function stops nothing in between: the code below runs with a live exception, and anything it commits or skips (a rollback, a slot update) happens anyway. Test res at the assignment and take the error path there.",
+      "confidence": "high",
+      "file": "Objects/typeobject.c",
+      "function": "type_set_bases_unlocked",
+      "line": 1966,
+      "use_line": 1982
+    },
+    {
       "type": "unconditional_pyerr_clear",
       "api_call": "PyErr_Clear",
       "detail": "PyErr_Clear() with no PyErr_ExceptionMatches within the preceding 3 lines \u2014 swallows any live exception, including KeyboardInterrupt and MemoryError raised by user code",
@@ -340,6 +396,17 @@
       "line": 402
     },
     {
+      "type": "int_status_never_tested",
+      "api_call": "format_float_internal",
+      "variable": "result",
+      "detail": "'result' takes format_float_internal's int status and is never tested. Unlike a NULL pointer returned straight back to the caller, a `return result` at the end of the function stops nothing in between: the code below runs with a live exception, and anything it commits or skips (a rollback, a slot update) happens anyway. Test result at the assignment and take the error path there.",
+      "confidence": "high",
+      "file": "Objects/unicode_formatter.c",
+      "function": "_PyLong_FormatAdvancedWriter",
+      "line": 1872,
+      "use_line": 1883
+    },
+    {
       "type": "unconditional_pyerr_clear",
       "api_call": "PyErr_Clear",
       "detail": "PyErr_Clear() with no PyErr_ExceptionMatches within the preceding 3 lines \u2014 swallows any live exception, including KeyboardInterrupt and MemoryError raised by user code",
@@ -347,6 +414,143 @@
       "file": "Objects/unicodeobject.c",
       "function": "init_global_interned_strings",
       "line": 342
+    },
+    {
+      "type": "int_status_never_tested",
+      "api_call": "PyUnicode_KIND",
+      "variable": "kind",
+      "detail": "'kind' takes PyUnicode_KIND's int status and is never tested. Unlike a NULL pointer returned straight back to the caller, a `return kind` at the end of the function stops nothing in between: the code below runs with a live exception, and anything it commits or skips (a rollback, a slot update) happens anyway. Test kind at the assignment and take the error path there.",
+      "confidence": "high",
+      "file": "Objects/unicodeobject.c",
+      "function": "_PyUnicode_EncodeUTF7",
+      "line": 4774,
+      "use_line": 4791
+    },
+    {
+      "type": "alloc_null_no_memerror",
+      "api_call": "PyMem_RawMalloc",
+      "variable": "unicode",
+      "detail": "PyMem_RawMalloc does not set MemoryError; the failure branch for 'unicode' returns an error sentinel without PyErr_NoMemory()",
+      "confidence": "high",
+      "file": "Objects/unicodeobject.c",
+      "function": "_Py_DecodeUTF8Ex",
+      "line": 5442,
+      "guard_line": 5443
+    },
+    {
+      "type": "alloc_null_no_memerror",
+      "api_call": "PyMem_RawMalloc",
+      "variable": "bytes",
+      "detail": "PyMem_RawMalloc does not set MemoryError; the failure branch for 'bytes' returns an error sentinel without PyErr_NoMemory()",
+      "confidence": "high",
+      "file": "Objects/unicodeobject.c",
+      "function": "_Py_EncodeUTF8Ex",
+      "line": 5580,
+      "guard_line": 5585
+    },
+    {
+      "type": "alloc_null_no_memerror",
+      "api_call": "PyMem_Malloc",
+      "variable": "bytes",
+      "detail": "PyMem_Malloc does not set MemoryError; the failure branch for 'bytes' returns an error sentinel without PyErr_NoMemory()",
+      "confidence": "high",
+      "file": "Objects/unicodeobject.c",
+      "function": "_Py_EncodeUTF8Ex",
+      "line": 5583,
+      "guard_line": 5585
+    },
+    {
+      "type": "alloc_null_no_memerror",
+      "api_call": "PyMem_RawRealloc",
+      "variable": "bytes2",
+      "detail": "PyMem_RawRealloc does not set MemoryError; the failure branch for 'bytes2' returns an error sentinel without PyErr_NoMemory()",
+      "confidence": "high",
+      "file": "Objects/unicodeobject.c",
+      "function": "_Py_EncodeUTF8Ex",
+      "line": 5652,
+      "guard_line": 5657
+    },
+    {
+      "type": "alloc_null_no_memerror",
+      "api_call": "PyMem_Realloc",
+      "variable": "bytes2",
+      "detail": "PyMem_Realloc does not set MemoryError; the failure branch for 'bytes2' returns an error sentinel without PyErr_NoMemory()",
+      "confidence": "high",
+      "file": "Objects/unicodeobject.c",
+      "function": "_Py_EncodeUTF8Ex",
+      "line": 5655,
+      "guard_line": 5657
+    },
+    {
+      "type": "int_status_never_tested",
+      "api_call": "PyUnicode_KIND",
+      "variable": "kind",
+      "detail": "'kind' takes PyUnicode_KIND's int status and is never tested. Unlike a NULL pointer returned straight back to the caller, a `return kind` at the end of the function stops nothing in between: the code below runs with a live exception, and anything it commits or skips (a rollback, a slot update) happens anyway. Test kind at the assignment and take the error path there.",
+      "confidence": "high",
+      "file": "Objects/unicodeobject.c",
+      "function": "_PyUnicode_EncodeCharmap",
+      "line": 9308,
+      "use_line": 9333
+    },
+    {
+      "type": "int_status_never_tested",
+      "api_call": "PyUnicode_KIND",
+      "variable": "kind",
+      "detail": "'kind' takes PyUnicode_KIND's int status and is never tested. Unlike a NULL pointer returned straight back to the caller, a `return kind` at the end of the function stops nothing in between: the code below runs with a live exception, and anything it commits or skips (a rollback, a slot update) happens anyway. Test kind at the assignment and take the error path there.",
+      "confidence": "high",
+      "file": "Objects/unicodeobject.c",
+      "function": "_PyUnicode_TranslateCharmap",
+      "line": 9728,
+      "use_line": 9765
+    },
+    {
+      "type": "int_status_never_tested",
+      "api_call": "PyUnicode_KIND",
+      "variable": "kind",
+      "detail": "'kind' takes PyUnicode_KIND's int status and is never tested. Unlike a NULL pointer returned straight back to the caller, a `return kind` at the end of the function stops nothing in between: the code below runs with a live exception, and anything it commits or skips (a rollback, a slot update) happens anyway. Test kind at the assignment and take the error path there.",
+      "confidence": "high",
+      "file": "Objects/unicodeobject.c",
+      "function": "case_operation",
+      "line": 10301,
+      "use_line": 10311
+    },
+    {
+      "type": "int_status_never_tested",
+      "api_call": "PyUnicode_KIND",
+      "variable": "y_kind",
+      "detail": "'y_kind' takes PyUnicode_KIND's int status and is never tested. Unlike a NULL pointer returned straight back to the caller, a `return y_kind` at the end of the function stops nothing in between: the code below runs with a live exception, and anything it commits or skips (a rollback, a slot update) happens anyway. Test y_kind at the assignment and take the error path there.",
+      "confidence": "high",
+      "file": "Objects/unicodeobject.c",
+      "function": "unicode_maketrans_impl",
+      "line": 13543,
+      "use_line": 13550
+    },
+    {
+      "type": "unconditional_pyerr_clear",
+      "api_call": "PyErr_Clear",
+      "detail": "PyErr_Clear() with no PyErr_ExceptionMatches within the preceding 3 lines \u2014 swallows any live exception, including KeyboardInterrupt and MemoryError raised by user code",
+      "confidence": "medium",
+      "file": "Objects/unicodeobject.c",
+      "function": "intern_common",
+      "line": 14695
+    },
+    {
+      "type": "unconditional_pyerr_clear",
+      "api_call": "PyErr_Clear",
+      "detail": "PyErr_Clear() with no PyErr_ExceptionMatches within the preceding 3 lines \u2014 swallows any live exception, including KeyboardInterrupt and MemoryError raised by user code",
+      "confidence": "medium",
+      "file": "Objects/unicodeobject.c",
+      "function": "intern_common",
+      "line": 14717
+    },
+    {
+      "type": "unconditional_pyerr_clear",
+      "api_call": "PyErr_Clear",
+      "detail": "PyErr_Clear() with no PyErr_ExceptionMatches within the preceding 3 lines \u2014 swallows any live exception, including KeyboardInterrupt and MemoryError raised by user code",
+      "confidence": "medium",
+      "file": "Objects/unicodeobject.c",
+      "function": "intern_common",
+      "line": 14730
     },
     {
       "type": "unconditional_pyerr_clear",
@@ -360,11 +564,12 @@
   ],
   "summary": {
     "missing_null_checks": 0,
-    "unchecked_returns": 0,
-    "alloc_null_no_memerror": 10,
-    "unconditional_pyerr_clear": 27,
+    "unchecked_returns": 1,
+    "alloc_null_no_memerror": 15,
+    "unconditional_pyerr_clear": 33,
     "pylong_sentinel_no_errcheck": 0,
     "unchecked_parse_calls": 0,
-    "total_findings": 37
+    "int_status_never_tested": 7,
+    "total_findings": 56
   }
 }

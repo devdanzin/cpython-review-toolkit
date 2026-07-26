@@ -2,7 +2,7 @@
   "project_root": "/home/danzin/projects/cpython",
   "scan_root": "/home/danzin/projects/cpython/Objects",
   "files_analyzed": 113,
-  "functions_analyzed": 4819,
+  "functions_analyzed": 4861,
   "findings": [
     {
       "type": "atomic_plain_asymmetry",
@@ -289,6 +289,16 @@
       "detail": "'dictiterobject.di_used' (`di->di_used`) is accessed under a critical section at dictiter_iternextitem_lock_held:5971 but is read plainly here, with nothing synchronising it. A lock held by only some accessors of a field serialises nothing: the guarded and unguarded accessors race each other. This is the shape of gh-153298 (ga_parameters / CPY-0025), gh-128714 (func.__annotations__ / CPY-0029) and gh-153908 (itertools count_repr). Py_ssize_t does not tear on LP64, so the visible effect is a stale value rather than memory unsafety \u2014 one FT_ATOMIC_* on each access is the fix. Guarded twin: dictiter_iternextitem_lock_held:5971."
     },
     {
+      "type": "iternext_double_decref",
+      "ft_class": "T3",
+      "function": "dictiter_iternext_threadsafe",
+      "member": "di_dict",
+      "line": 6158,
+      "confidence": "high",
+      "detail": "dictiter_iternext_threadsafe is a tp_iternext that drops an owning reference to the shared self-member 'di_dict' (Py_CLEAR / member=NULL + Py_DECREF) with no Py_BEGIN_CRITICAL_SECTION. Under the free-threaded build two concurrent next() calls read the same borrowed sequence and both DECREF it -> double-free (cf. gh-154130 dict, gh-144357 set, gh-153296 StringIO). Wrap the iternext body in Py_BEGIN_CRITICAL_SECTION(self), or elide the drop under #ifndef Py_GIL_DISABLED the way tupleiter_next / listiter_next / reversed_next do.",
+      "file": "Objects/dictobject.c"
+    },
+    {
       "type": "atomic_plain_asymmetry",
       "ft_class": "T1",
       "file": "Objects/enumobject.c",
@@ -547,6 +557,31 @@
       "detail": "'longrangeiterobject.start' (`it->start`) is accessed under a critical section at longrange_iterator___setstate___impl:1138 but is read plainly here, with nothing synchronising it. A lock held by only some accessors of a field serialises nothing: the guarded and unguarded accessors race each other. This is the shape of gh-153298 (ga_parameters / CPY-0025), gh-128714 (func.__annotations__ / CPY-0029) and gh-153908 (itertools count_repr). The field is a pointer and the guarded twin can free it, so the unguarded reader can hand a freed object to arbitrary Python \u2014 a use-after-free, which an atomic load cannot fix; take the same critical section. Guarded twin: longrange_iterator___setstate___impl:1138."
     },
     {
+      "type": "iternext_double_decref",
+      "ft_class": "T3",
+      "function": "setiter_iternext",
+      "member": "si_set",
+      "line": 1130,
+      "confidence": "high",
+      "detail": "setiter_iternext is a tp_iternext that drops an owning reference to the shared self-member 'si_set' (Py_CLEAR / member=NULL + Py_DECREF) with no Py_BEGIN_CRITICAL_SECTION. Under the free-threaded build two concurrent next() calls read the same borrowed sequence and both DECREF it -> double-free (cf. gh-154130 dict, gh-144357 set, gh-153296 StringIO). Wrap the iternext body in Py_BEGIN_CRITICAL_SECTION(self), or elide the drop under #ifndef Py_GIL_DISABLED the way tupleiter_next / listiter_next / reversed_next do.",
+      "file": "Objects/setobject.c"
+    },
+    {
+      "type": "publish_before_init_complete",
+      "ft_class": "T4",
+      "function": "set_intersection",
+      "member": "result.fill",
+      "access": "result->fill",
+      "line": 1780,
+      "publish_line": 1762,
+      "publish_api": "_PyObject_GC_TRACK",
+      "written_in": "set_add_entry():342",
+      "call_hops": 3,
+      "confidence": "low",
+      "detail": "'result' becomes reachable from other threads at _PyObject_GC_TRACK() (line 1762), and 'fill' is still written afterwards, in set_add_entry():342, with a plain non-atomic store and no critical section. On a free-threaded build another thread can observe the object between the two \u2014 half-initialised, and torn if the store is wider than a word. Finish initialising before publishing, or make the tail stores atomic. This is the fixup_slot_dispatchers shape (gh-151377).",
+      "file": "Objects/setobject.c"
+    },
+    {
       "type": "guarded_writer_unguarded_reader",
       "ft_class": "T1",
       "file": "Objects/typeobject.c",
@@ -556,6 +591,51 @@
       "guarded_twin": "start_readying:489",
       "confidence": "low",
       "detail": "'managed_static_type_state.readying' (`state->readying`) is accessed under a critical section at start_readying:489 but is read plainly here, with nothing synchronising it. A lock held by only some accessors of a field serialises nothing: the guarded and unguarded accessors race each other. This is the shape of gh-153298 (ga_parameters / CPY-0025), gh-128714 (func.__annotations__ / CPY-0029) and gh-153908 (itertools count_repr). Py_ssize_t does not tear on LP64, so the visible effect is a stale value rather than memory unsafety \u2014 one FT_ATOMIC_* on each access is the fix. Guarded twin: start_readying:489."
+    },
+    {
+      "type": "publish_before_init_complete",
+      "ft_class": "T4",
+      "function": "type_set_bases_unlocked",
+      "member": "type.tp_base",
+      "access": "type->tp_base",
+      "line": 2007,
+      "publish_line": 1966,
+      "publish_api": "add_all_subclasses",
+      "written_in": "this function",
+      "call_hops": 0,
+      "confidence": "medium",
+      "detail": "'type' becomes reachable from other threads at add_all_subclasses() (line 1966), and 'tp_base' is still written afterwards, in this function, with a plain non-atomic store and no critical section. On a free-threaded build another thread can observe the object between the two \u2014 half-initialised, and torn if the store is wider than a word. Finish initialising before publishing, or make the tail stores atomic. This is the fixup_slot_dispatchers shape (gh-151377).",
+      "file": "Objects/typeobject.c"
+    },
+    {
+      "type": "publish_before_init_complete",
+      "ft_class": "T4",
+      "function": "type_new_impl",
+      "member": "type.*ptr (computed from type)",
+      "access": "type->*ptr (computed from type)",
+      "line": 4958,
+      "publish_line": 4953,
+      "publish_api": "PyType_Ready",
+      "written_in": "fixup_slot_dispatchers():12136",
+      "call_hops": 2,
+      "confidence": "low",
+      "detail": "'type' becomes reachable from other threads at PyType_Ready() (line 4953), and '*ptr (computed from type)' is still written afterwards, in fixup_slot_dispatchers():12136, with a plain non-atomic store and no critical section. On a free-threaded build another thread can observe the object between the two \u2014 half-initialised, and torn if the store is wider than a word. Finish initialising before publishing, or make the tail stores atomic. This is the fixup_slot_dispatchers shape (gh-151377).",
+      "file": "Objects/typeobject.c"
+    },
+    {
+      "type": "publish_before_init_complete",
+      "ft_class": "T4",
+      "function": "_Py_type_getattro_stackref",
+      "member": "type.*slot (computed from tp)",
+      "access": "type->*slot (computed from tp)",
+      "line": 6620,
+      "publish_line": 6586,
+      "publish_api": "PyType_Ready",
+      "written_in": "_PyType_LookupStackRefAndVersion():6359",
+      "call_hops": 3,
+      "confidence": "low",
+      "detail": "'type' becomes reachable from other threads at PyType_Ready() (line 6586), and '*slot (computed from tp)' is still written afterwards, in _PyType_LookupStackRefAndVersion():6359, with a plain non-atomic store and no critical section. On a free-threaded build another thread can observe the object between the two \u2014 half-initialised, and torn if the store is wider than a word. Finish initialising before publishing, or make the tail stores atomic. This is the fixup_slot_dispatchers shape (gh-151377).",
+      "file": "Objects/typeobject.c"
     },
     {
       "type": "lazy_init_no_critical_section",
@@ -589,28 +669,65 @@
     }
   ],
   "summary": {
-    "total_findings": 54,
+    "total_findings": 60,
     "by_class": {
       "T1": 42,
       "T2": 6,
-      "T3": 6
+      "T3": 8,
+      "T4": 4
     },
     "by_type": {
       "atomic_plain_asymmetry": 31,
       "guarded_writer_unguarded_reader": 11,
       "lazy_init_no_critical_section": 5,
+      "iternext_double_decref": 7,
       "iternext_setref_null_decref": 1,
       "lazy_init_partial_guard": 1,
-      "iternext_double_decref": 5
+      "publish_before_init_complete": 4
     },
     "by_confidence": {
-      "low": 37,
-      "medium": 10,
-      "high": 7
+      "low": 40,
+      "medium": 11,
+      "high": 9
     }
   },
   "iternext_functions": 37,
+  "local_lock_wrappers": 4,
+  "suppressed_opaque_lock_functions": 0,
+  "local_lock_macro_names": [
+    "END_TYPE_DICT_LOCK",
+    "END_TYPE_LOCK",
+    "MEMERRORS_UNLOCK",
+    "UNLOCK_KEYS"
+  ],
+  "files_with_local_lock_macros": 3,
   "lock_held_functions": 67,
   "files_with_ft_regions": 18,
-  "skipped_files": []
+  "skipped_files": [
+    {
+      "file": "/home/danzin/projects/cpython/Objects/mimalloc/prim/osx/alloc-override-zone.c",
+      "reason": "no functions extracted"
+    },
+    {
+      "file": "/home/danzin/projects/cpython/Objects/mimalloc/prim/osx/prim.c",
+      "reason": "no functions extracted"
+    },
+    {
+      "file": "/home/danzin/projects/cpython/Objects/mimalloc/prim/prim.c",
+      "reason": "no functions extracted"
+    },
+    {
+      "file": "/home/danzin/projects/cpython/Objects/mimalloc/static.c",
+      "reason": "no functions extracted"
+    }
+  ],
+  "denominators": {
+    "files_analyzed": 113,
+    "functions_analyzed": 4861,
+    "findings": 60,
+    "iternext_functions": 37,
+    "local_lock_wrappers": 4,
+    "suppressed_opaque_lock_functions": 0,
+    "lock_held_functions": 67
+  }
 }

@@ -2,7 +2,7 @@
   "project_root": "/home/danzin/projects/cpython",
   "scan_root": "/home/danzin/projects/cpython/Objects",
   "files_analyzed": 113,
-  "functions_analyzed": 4819,
+  "functions_analyzed": 4861,
   "findings": [
     {
       "type": "stw_unknown_call",
@@ -120,17 +120,94 @@
       "detail": "Unclassified call HEAD_UNLOCK() inside a _PyEval_StopTheWorld region in 'get_num_global_allocated_blocks'. Cannot statically determine whether it may invoke Python code \u2014 it is not in the STW API vocabulary and (if local) its body reaches an unclassified callee. Manual review needed. Intra-file analysis only.",
       "api_call": "HEAD_UNLOCK",
       "file": "Objects/obmalloc.c"
+    },
+    {
+      "type": "stw_unknown_call",
+      "function": "type_set_abstractmethods",
+      "line": 1747,
+      "confidence": "medium",
+      "detail": "Unclassified call type_add_flags() inside a _PyEval_StopTheWorld region in 'type_set_abstractmethods'. Cannot statically determine whether it may invoke Python code \u2014 it is not in the STW API vocabulary and (if local) its body reaches an unclassified callee. Manual review needed. Intra-file analysis only.",
+      "api_call": "type_add_flags",
+      "file": "Objects/typeobject.c"
+    },
+    {
+      "type": "stw_unknown_call",
+      "function": "type_set_abstractmethods",
+      "line": 1749,
+      "confidence": "medium",
+      "detail": "Unclassified call type_clear_flags() inside a _PyEval_StopTheWorld region in 'type_set_abstractmethods'. Cannot statically determine whether it may invoke Python code \u2014 it is not in the STW API vocabulary and (if local) its body reaches an unclassified callee. Manual review needed. Intra-file analysis only.",
+      "api_call": "type_clear_flags",
+      "file": "Objects/typeobject.c"
+    },
+    {
+      "type": "stw_unknown_call",
+      "function": "type_set_bases_unlocked",
+      "line": 1940,
+      "confidence": "medium",
+      "detail": "Unclassified call set_tp_bases() inside a _PyEval_StopTheWorld region in 'type_set_bases_unlocked'. Cannot statically determine whether it may invoke Python code \u2014 it is not in the STW API vocabulary and (if local) its body reaches an unclassified callee. Manual review needed. Intra-file analysis only.",
+      "api_call": "set_tp_bases",
+      "file": "Objects/typeobject.c"
+    },
+    {
+      "type": "stw_unknown_call",
+      "function": "type_set_bases_unlocked",
+      "line": 2006,
+      "confidence": "medium",
+      "detail": "Unclassified call set_tp_bases() inside a _PyEval_StopTheWorld region in 'type_set_bases_unlocked'. Cannot statically determine whether it may invoke Python code \u2014 it is not in the STW API vocabulary and (if local) its body reaches an unclassified callee. Manual review needed. Intra-file analysis only.",
+      "api_call": "set_tp_bases",
+      "file": "Objects/typeobject.c"
+    },
+    {
+      "type": "stw_unknown_call",
+      "function": "apply_type_slot_updates",
+      "line": 3924,
+      "confidence": "medium",
+      "detail": "Unclassified call apply_slot_updates() inside a _PyEval_StopTheWorld region in 'apply_type_slot_updates'. Cannot statically determine whether it may invoke Python code \u2014 it is not in the STW API vocabulary and (if local) its body reaches an unclassified callee. Manual review needed. Intra-file analysis only.",
+      "api_call": "apply_slot_updates",
+      "file": "Objects/typeobject.c"
+    },
+    {
+      "type": "stw_unsafe_call",
+      "function": "_PyType_SetFlagsRecursive",
+      "line": 6523,
+      "confidence": "high",
+      "detail": "Unsafe call set_flags_recursive() inside a _PyEval_StopTheWorld region in '_PyType_SetFlagsRecursive'. During STW every other thread is suspended; this call may invoke Python code, set an exception via the format machinery, or take a lock a stopped thread holds \u2014 which can deadlock the world or corrupt interpreter state on the free-threaded build. Category: transitively_invokes_python. Call _PyEval_StartTheWorld before it (cf. Python/gc_free_threading.c:2223). Intra-file analysis: transitive callees in other files are not followed.",
+      "api_call": "set_flags_recursive",
+      "unsafe_reason": "transitively_invokes_python",
+      "file": "Objects/typeobject.c"
+    },
+    {
+      "type": "stw_unsafe_call",
+      "function": "object_set_class",
+      "line": 7826,
+      "confidence": "high",
+      "detail": "Unsafe call object_set_class_world_stopped() inside a _PyEval_StopTheWorld region in 'object_set_class'. During STW every other thread is suspended; this call may invoke Python code, set an exception via the format machinery, or take a lock a stopped thread holds \u2014 which can deadlock the world or corrupt interpreter state on the free-threaded build. Category: transitively_invokes_python. Call _PyEval_StartTheWorld before it (cf. Python/gc_free_threading.c:2223). Intra-file analysis: transitive callees in other files are not followed.",
+      "api_call": "object_set_class_world_stopped",
+      "unsafe_reason": "transitively_invokes_python",
+      "file": "Objects/typeobject.c"
+    },
+    {
+      "type": "stw_unknown_call",
+      "function": "PyType_Freeze",
+      "line": 12524,
+      "confidence": "medium",
+      "detail": "Unclassified call type_add_flags() inside a _PyEval_StopTheWorld region in 'PyType_Freeze'. Cannot statically determine whether it may invoke Python code \u2014 it is not in the STW API vocabulary and (if local) its body reaches an unclassified callee. Manual review needed. Intra-file analysis only.",
+      "api_call": "type_add_flags",
+      "file": "Objects/typeobject.c"
     }
   ],
   "summary": {
-    "total_findings": 13,
+    "total_findings": 21,
     "by_type": {
-      "stw_unknown_call": 13
+      "stw_unknown_call": 19,
+      "stw_unsafe_call": 2
     },
     "by_confidence": {
-      "medium": 13
+      "medium": 19,
+      "high": 2
     },
-    "stw_function_count": 8
+    "stw_function_count": 16,
+    "stw_wrapper_count": 2
   },
   "stw_functions": [
     {
@@ -155,7 +232,7 @@
       "file": "Objects/obmalloc.c",
       "function": "free_delayed",
       "line": 1430,
-      "classification": "unknown"
+      "classification": "unsafe"
     },
     {
       "file": "Objects/obmalloc.c",
@@ -171,6 +248,12 @@
     },
     {
       "file": "Objects/typeobject.c",
+      "function": "set_tp_mro",
+      "line": 650,
+      "classification": "unknown"
+    },
+    {
+      "file": "Objects/typeobject.c",
       "function": "type_set_name",
       "line": 1546,
       "classification": "unsafe"
@@ -180,6 +263,60 @@
       "function": "type_set_qualname",
       "line": 1581,
       "classification": "unsafe"
+    },
+    {
+      "file": "Objects/typeobject.c",
+      "function": "type_set_abstractmethods",
+      "line": 1715,
+      "classification": "unsafe"
+    },
+    {
+      "file": "Objects/typeobject.c",
+      "function": "type_set_bases_unlocked",
+      "line": 1928,
+      "classification": "unsafe"
+    },
+    {
+      "file": "Objects/typeobject.c",
+      "function": "apply_type_slot_updates",
+      "line": 3901,
+      "classification": "unknown"
+    },
+    {
+      "file": "Objects/typeobject.c",
+      "function": "_PyType_SetFlags",
+      "line": 6452,
+      "classification": "unknown"
+    },
+    {
+      "file": "Objects/typeobject.c",
+      "function": "_PyType_SetFlagsRecursive",
+      "line": 6505,
+      "classification": "unsafe"
+    },
+    {
+      "file": "Objects/typeobject.c",
+      "function": "object_set_class",
+      "line": 7799,
+      "classification": "unsafe"
+    },
+    {
+      "file": "Objects/typeobject.c",
+      "function": "PyType_Freeze",
+      "line": 12505,
+      "classification": "unsafe"
+    }
+  ],
+  "stw_wrappers": [
+    {
+      "file": "Objects/typeobject.c",
+      "function": "types_start_world",
+      "kind": "start"
+    },
+    {
+      "file": "Objects/typeobject.c",
+      "function": "types_stop_world",
+      "kind": "stop"
     }
   ],
   "function_classifications": {
@@ -1079,21 +1216,20 @@
       "_PyMem_GetAllocatorName": "safe",
       "set_up_debug_hooks_unlocked": "safe",
       "set_up_allocators_unlocked": "safe",
-      "PyMutex_Lock": "unknown",
-      "PyMutex_Unlock": "unknown",
-      "_PyMem_SetupAllocators": "unknown",
+      "PyMutex_Lock": "unsafe",
+      "_PyMem_SetupAllocators": "unsafe",
       "memcmp": "safe",
       "pymemallocator_eq": "safe",
       "get_current_allocator_name_unlocked": "safe",
-      "_PyMem_GetCurrentAllocatorName": "unknown",
+      "_PyMem_GetCurrentAllocatorName": "unsafe",
       "_PyMem_DebugEnabled": "safe",
       "_PyMem_PymallocEnabled": "safe",
       "_PyMem_MimallocEnabled": "safe",
-      "PyMem_SetupDebugHooks": "unknown",
-      "PyMem_GetAllocator": "unknown",
-      "PyMem_SetAllocator": "unknown",
-      "PyObject_GetArenaAllocator": "unknown",
-      "PyObject_SetArenaAllocator": "unknown",
+      "PyMem_SetupDebugHooks": "unsafe",
+      "PyMem_GetAllocator": "unsafe",
+      "PyMem_SetAllocator": "unsafe",
+      "PyObject_GetArenaAllocator": "unsafe",
+      "PyObject_SetArenaAllocator": "unsafe",
       "_PyObject_Arena.alloc": "unknown",
       "_PyObject_VirtualAlloc": "unknown",
       "_PyObject_Arena.free": "unknown",
@@ -1134,21 +1270,20 @@
       "work_queue_first": "unknown",
       "process_queue": "unknown",
       "_Py_atomic_load_int_relaxed": "safe",
-      "_PyMutex_LockTimed": "unknown",
+      "_PyMutex_LockTimed": "unsafe",
+      "maybe_process_interp_queue": "unsafe",
+      "_PyMem_ProcessDelayed": "unsafe",
+      "free_delayed": "unsafe",
+      "_PyMem_FreeDelayed": "unsafe",
+      "_PyObject_XDecRefDelayed": "unsafe",
+      "FT_ATOMIC_STORE_PTR_RELEASE": "unknown",
+      "_Py_IsImmortal": "unknown",
+      "_PyObject_XSetRefDelayed": "unsafe",
       "PyMutex_IsLocked": "unknown",
       "_Py_atomic_store_int_relaxed": "safe",
       "process_interp_queue": "unknown",
-      "maybe_process_interp_queue": "unknown",
-      "_PyMem_ProcessDelayed": "unknown",
-      "free_delayed": "unknown",
-      "_PyMem_FreeDelayed": "unknown",
-      "_PyObject_XDecRefDelayed": "unknown",
-      "FT_ATOMIC_STORE_PTR_RELEASE": "unknown",
-      "_Py_IsImmortal": "unknown",
-      "_PyObject_XSetRefDelayed": "unknown",
-      "_PyMem_ProcessDelayedNoDealloc": "unknown",
-      "llist_concat": "unknown",
-      "_PyMem_AbandonDelayed": "unknown",
+      "_PyMem_ProcessDelayedNoDealloc": "unsafe",
+      "_PyMem_AbandonDelayed": "unsafe",
       "_PyMem_FiniDelayed": "unknown",
       "_PyObject.malloc": "unknown",
       "PyObject_Malloc": "unknown",
@@ -1251,11 +1386,10 @@
       "static_ext_type_lookup": "unknown",
       "managed_static_type_state_get": "safe",
       "_PyStaticType_GetState": "safe",
-      "PyMutex_Lock": "unknown",
-      "PyMutex_Unlock": "unknown",
+      "PyMutex_Lock": "unsafe",
+      "managed_static_type_state_init": "unsafe",
       "_Py_atomic_add_int64": "unknown",
-      "managed_static_type_state_init": "unknown",
-      "managed_static_type_state_clear": "unknown",
+      "managed_static_type_state_clear": "unsafe",
       "PyList_New": "safe",
       "PyList_SET_ITEM": "safe",
       "Py_NewRef": "safe",
@@ -1555,10 +1689,7 @@
       "type_new_set_doc": "unsafe",
       "type_new_staticmethod": "unsafe",
       "type_new_classmethod": "unsafe",
-      "PyDescr_NewGetSet": "unknown",
-      "PyDict_SetDefaultRef": "unknown",
-      "PyDescr_NAME": "unknown",
-      "type_add_common_descriptor": "unknown",
+      "type_add_common_descriptor": "unsafe",
       "type_new_descriptors": "unsafe",
       "type_new_set_slots": "safe",
       "type_new_set_classcell": "unsafe",
@@ -1727,7 +1858,10 @@
       "_PyType_AddMethod": "unsafe",
       "type_add_methods": "unsafe",
       "PyDescr_NewMember": "unknown",
+      "PyDict_SetDefaultRef": "unknown",
+      "PyDescr_NAME": "unknown",
       "type_add_members": "unknown",
+      "PyDescr_NewGetSet": "unknown",
       "type_add_getset": "unknown",
       "COPYVAL": "unknown",
       "inherit_special": "unknown",
@@ -1819,10 +1953,52 @@
       "slot_sq_item": "unsafe",
       "slot_sq_ass_item": "unsafe",
       "slot_sq_contains": "unsafe",
-      "slot_nb_power_binary": "unknown",
+      "slot_mp_subscript": "safe",
+      "slot_mp_ass_subscript": "unsafe",
+      "slot_nb_add": "safe",
+      "slot_nb_subtract": "safe",
+      "slot_nb_multiply": "safe",
+      "slot_nb_matrix_multiply": "safe",
+      "slot_nb_remainder": "safe",
+      "slot_nb_divmod": "safe",
+      "slot_nb_power_binary": "safe",
       "slot_nb_power": "unsafe",
+      "slot_nb_negative": "safe",
+      "slot_nb_positive": "safe",
+      "slot_nb_absolute": "safe",
       "slot_nb_bool": "unsafe",
       "slot_nb_index": "unsafe",
+      "slot_nb_invert": "safe",
+      "slot_nb_lshift": "safe",
+      "slot_nb_rshift": "safe",
+      "slot_nb_and": "safe",
+      "slot_nb_xor": "safe",
+      "slot_nb_or": "safe",
+      "slot_nb_int": "safe",
+      "slot_nb_float": "safe",
+      "slot_nb_inplace_add": "safe",
+      "slot_nb_inplace_subtract": "safe",
+      "slot_nb_inplace_multiply": "safe",
+      "slot_nb_inplace_matrix_multiply": "safe",
+      "slot_nb_inplace_remainder": "safe",
+      "slot_nb_inplace_power": "unsafe",
+      "slot_nb_inplace_lshift": "safe",
+      "slot_nb_inplace_rshift": "safe",
+      "slot_nb_inplace_and": "safe",
+      "slot_nb_inplace_xor": "safe",
+      "slot_nb_inplace_or": "safe",
+      "slot_nb_floor_divide": "safe",
+      "slot_nb_true_divide": "safe",
+      "slot_nb_inplace_floor_divide": "safe",
+      "slot_nb_inplace_true_divide": "safe",
+      "slot_tp_repr": "unsafe",
+      "slot_tp_str": "safe",
+      "slot_tp_hash": "unsafe",
+      "slot_tp_call": "unsafe",
+      "_Py_slot_tp_getattro": "unsafe",
+      "PyObject_Vectorcall": "unsafe",
+      "call_attribute": "unsafe",
+      "_Py_slot_tp_getattr_hook": "unsafe",
       "slot_tp_setattro": "unsafe",
       "slot_tp_richcompare": "unsafe",
       "has_dunder_getitem": "unsafe",
@@ -1867,7 +2043,6 @@
       "_PyType_GetSlotWrapperNames": "unknown",
       "PyDict_Copy": "safe",
       "type_new_set_names": "unsafe",
-      "PyObject_Vectorcall": "unsafe",
       "type_new_init_subclass": "unsafe",
       "PyType_Freeze": "unsafe",
       "superobject_CAST": "unknown",
@@ -1901,5 +2076,29 @@
       "super_vectorcall": "unsafe"
     }
   },
-  "skipped_files": []
+  "skipped_files": [
+    {
+      "file": "/home/danzin/projects/cpython/Objects/mimalloc/prim/osx/alloc-override-zone.c",
+      "reason": "no functions extracted"
+    },
+    {
+      "file": "/home/danzin/projects/cpython/Objects/mimalloc/prim/osx/prim.c",
+      "reason": "no functions extracted"
+    },
+    {
+      "file": "/home/danzin/projects/cpython/Objects/mimalloc/prim/prim.c",
+      "reason": "no functions extracted"
+    },
+    {
+      "file": "/home/danzin/projects/cpython/Objects/mimalloc/static.c",
+      "reason": "no functions extracted"
+    }
+  ],
+  "denominators": {
+    "files_analyzed": 113,
+    "functions_analyzed": 4861,
+    "findings": 21,
+    "stw_functions": 16,
+    "stw_wrappers": 2
+  }
 }

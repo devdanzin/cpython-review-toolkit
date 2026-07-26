@@ -1,0 +1,97 @@
+{
+  "project_root": "/home/danzin/projects/cpython",
+  "scan_root": "/home/danzin/projects/cpython",
+  "files_analyzed": 4,
+  "functions_analyzed": 331,
+  "findings": [
+    {
+      "type": "init_bypass_null_deref",
+      "function": "bytearray_resize_lock_held",
+      "field": "ob_bytes_object",
+      "sink": "_PyBytes_Resize",
+      "sink_kind": "addr_deref",
+      "reason": "new_bypass",
+      "line": 280,
+      "confidence": "medium",
+      "detail": "'ob_bytes_object' is passed by address to _PyBytes_Resize(), which derefs *pv, with no NULL guard, but it can be NULL via a __new__/subclass bypass of tp_init (T.__new__(T) leaves it NULL). A guard such as 'ob_bytes_object != Py_None' or 'Py_IsNone(ob_bytes_object)' does NOT protect this \u2014 after the bypass the field is NULL. Add 'if (ob_bytes_object == NULL)' (or initialize it in tp_new) before the deref.",
+      "file": "Objects/bytearrayobject.c"
+    },
+    {
+      "type": "init_bypass_null_deref",
+      "function": "bytearray_take_bytes_impl",
+      "field": "ob_bytes_object",
+      "sink": "_PyBytes_Resize",
+      "sink_kind": "addr_deref",
+      "reason": "new_bypass",
+      "line": 1609,
+      "confidence": "medium",
+      "detail": "'ob_bytes_object' is passed by address to _PyBytes_Resize(), which derefs *pv, with no NULL guard, but it can be NULL via a __new__/subclass bypass of tp_init (T.__new__(T) leaves it NULL). A guard such as 'ob_bytes_object != Py_None' or 'Py_IsNone(ob_bytes_object)' does NOT protect this \u2014 after the bypass the field is NULL. Add 'if (ob_bytes_object == NULL)' (or initialize it in tp_new) before the deref.",
+      "file": "Objects/bytearrayobject.c"
+    }
+  ],
+  "summary": {
+    "total_findings": 2,
+    "by_confidence": {
+      "medium": 2
+    },
+    "by_reason": {
+      "new_bypass": 2
+    },
+    "by_type": {
+      "init_bypass_null_deref": 2
+    },
+    "dominated_sinks": 0
+  },
+  "files_with_nullable_fields": 1,
+  "total_nullable_fields": 2,
+  "nullable_fields_by_reason": {
+    "new_bypass": 2
+  },
+  "skipped_files": [],
+  "denominators": {
+    "files_analyzed": 4,
+    "functions_analyzed": 331,
+    "findings": 2,
+    "files_with_nullable_fields": 1,
+    "total_nullable_fields": 2
+  },
+  "_sample": {
+    "files_requested": [
+      "Objects/listobject.c",
+      "Objects/bytesobject.c",
+      "Objects/bytearrayobject.c",
+      "Objects/bytes_methods.c"
+    ],
+    "files_scanned": [
+      "Objects/listobject.c",
+      "Objects/bytesobject.c",
+      "Objects/bytearrayobject.c",
+      "Objects/bytes_methods.c"
+    ],
+    "files_missing": [],
+    "method": "the scanner was RE-RUN over exactly these files; every count in this report is sample-scoped. This is not a post-hoc filter of a corpus-wide scan -- a filtered report keeps corpus-wide denominators next to sample-scoped findings, which makes an unearned zero look earned.",
+    "merge_policy": {
+      "project_root": "carried (constant, not a count)",
+      "scan_root": "carried (constant, not a count)",
+      "files_analyzed": "summed",
+      "functions_analyzed": "summed",
+      "findings": "concatenated",
+      "summary": "merged key-wise",
+      "summary.total_findings": "summed",
+      "summary.by_confidence": "merged key-wise",
+      "summary.by_reason": "merged key-wise",
+      "summary.by_type": "merged key-wise",
+      "summary.dominated_sinks": "summed",
+      "files_with_nullable_fields": "summed",
+      "total_nullable_fields": "summed",
+      "nullable_fields_by_reason": "merged key-wise",
+      "skipped_files": "concatenated",
+      "denominators": "merged key-wise",
+      "denominators.files_analyzed": "summed",
+      "denominators.functions_analyzed": "summed",
+      "denominators.findings": "summed",
+      "denominators.files_with_nullable_fields": "summed",
+      "denominators.total_nullable_fields": "summed"
+    }
+  }
+}

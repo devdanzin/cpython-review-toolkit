@@ -2,13 +2,14 @@
   "project_root": "/home/danzin/projects/cpython",
   "scan_root": "/home/danzin/projects/cpython/Objects",
   "files_analyzed": 113,
-  "functions_analyzed": 4819,
+  "functions_analyzed": 4861,
   "findings": [
     {
       "type": "init_bypass_null_deref",
       "function": "bytearray_resize_lock_held",
       "field": "ob_bytes_object",
       "sink": "_PyBytes_Resize",
+      "sink_kind": "addr_deref",
       "reason": "new_bypass",
       "line": 280,
       "confidence": "medium",
@@ -20,6 +21,7 @@
       "function": "bytearray_take_bytes_impl",
       "field": "ob_bytes_object",
       "sink": "_PyBytes_Resize",
+      "sink_kind": "addr_deref",
       "reason": "new_bypass",
       "line": 1609,
       "confidence": "medium",
@@ -28,24 +30,80 @@
     },
     {
       "type": "init_bypass_null_deref",
+      "function": "apply_slot_updates",
+      "field": "type",
+      "sink": "type_clear_flags",
+      "sink_kind": "one_hop_param_deref",
+      "callee": "type_clear_flags",
+      "callee_param_index": 0,
+      "callee_deref_line": 478,
+      "reason": "new_bypass",
+      "line": 3894,
+      "confidence": "medium",
+      "detail": "'type' can be NULL, and it is passed as argument 0 to type_clear_flags(), which dereferences that parameter at line 478 with no NULL guard of its own. **Control dies here**, not at any later sink in this function -- a rule that only looks at sinks written in this body reports a line the crash never reaches. Guard 'type' before the call, or add the guard to type_clear_flags().",
+      "file": "Objects/typeobject.c"
+    },
+    {
+      "type": "vararg_null_truncation",
+      "field": "type",
+      "sink": "PyObject_CallFunctionObjArgs",
+      "sink_kind": "vararg_sentinel",
+      "argument_index": 1,
+      "arguments_dropped": [
+        "obj"
+      ],
+      "reason": "new_bypass",
+      "line": 12793,
+      "confidence": "medium",
+      "detail": "'type' can be NULL and sits at argument 1 of PyObject_CallFunctionObjArgs(), whose argument list is terminated by the first NULL. A NULL here does not crash and does not raise: the call silently becomes a 0-argument call and obj is dropped. A different function is invoked than the one written, so this is a wrong-behaviour (CONSIDER) finding rather than a crash. Guard the field, or pass it positionally through a non-sentinel API.",
+      "file": "Objects/typeobject.c",
+      "function": "super_descr_get"
+    },
+    {
+      "type": "init_bypass_null_deref",
+      "function": "super_descr_get",
+      "field": "type",
+      "sink": "supercheck",
+      "sink_kind": "one_hop_param_deref",
+      "callee": "supercheck",
+      "callee_param_index": 0,
+      "callee_deref_line": 12763,
+      "reason": "new_bypass",
+      "line": 12797,
+      "confidence": "medium",
+      "detail": "'type' can be NULL, and it is passed as argument 0 to supercheck(), which dereferences that parameter at line 12763 with no NULL guard of its own. **Control dies here**, not at any later sink in this function -- a rule that only looks at sinks written in this body reports a line the crash never reaches. Guard 'type' before the call, or add the guard to supercheck(). Control dies here: the sink(s) at :12806 are downstream on the same path and are never reached.",
+      "dominates": [
+        12806
+      ],
+      "file": "Objects/typeobject.c"
+    },
+    {
+      "type": "init_bypass_null_deref",
       "function": "super_descr_get",
       "field": "type",
       "sink": "Py_NewRef",
+      "sink_kind": "incref",
       "reason": "new_bypass",
       "line": 12806,
       "confidence": "medium",
-      "detail": "'type' is Py_INCREF'd via Py_NewRef() with no NULL guard, but it can be NULL via a __new__/subclass bypass of tp_init (T.__new__(T) leaves it NULL). A guard such as 'type != Py_None' or 'Py_IsNone(type)' does NOT protect this \u2014 after the bypass the field is NULL. Add 'if (type == NULL)' (or initialize it in tp_new) before the deref.",
+      "detail": "'type' is Py_INCREF'd via Py_NewRef() with no NULL guard, but it can be NULL via a __new__/subclass bypass of tp_init (T.__new__(T) leaves it NULL). A guard such as 'type != Py_None' or 'Py_IsNone(type)' does NOT protect this \u2014 after the bypass the field is NULL. Add 'if (type == NULL)' (or initialize it in tp_new) before the deref. NOTE: unreachable when the field is NULL -- the sink at :12797 on the same path already crashes. Cite that line, not this one.",
+      "dominated_by": 12797,
       "file": "Objects/typeobject.c"
     }
   ],
   "summary": {
-    "total_findings": 3,
+    "total_findings": 6,
     "by_confidence": {
-      "medium": 3
+      "medium": 6
     },
     "by_reason": {
-      "new_bypass": 3
-    }
+      "new_bypass": 6
+    },
+    "by_type": {
+      "init_bypass_null_deref": 5,
+      "vararg_null_truncation": 1
+    },
+    "dominated_sinks": 1
   },
   "files_with_nullable_fields": 8,
   "total_nullable_fields": 38,
@@ -54,5 +112,29 @@
     "deletable_member": 27,
     "deletable_getset": 2
   },
-  "skipped_files": []
+  "skipped_files": [
+    {
+      "file": "/home/danzin/projects/cpython/Objects/mimalloc/prim/osx/alloc-override-zone.c",
+      "reason": "no functions extracted"
+    },
+    {
+      "file": "/home/danzin/projects/cpython/Objects/mimalloc/prim/osx/prim.c",
+      "reason": "no functions extracted"
+    },
+    {
+      "file": "/home/danzin/projects/cpython/Objects/mimalloc/prim/prim.c",
+      "reason": "no functions extracted"
+    },
+    {
+      "file": "/home/danzin/projects/cpython/Objects/mimalloc/static.c",
+      "reason": "no functions extracted"
+    }
+  ],
+  "denominators": {
+    "files_analyzed": 113,
+    "functions_analyzed": 4861,
+    "findings": 6,
+    "files_with_nullable_fields": 8,
+    "total_nullable_fields": 38
+  }
 }

@@ -2,7 +2,7 @@
   "project_root": "/home/danzin/projects/cpython",
   "scan_root": "/home/danzin/projects/cpython/Objects",
   "files_analyzed": 123,
-  "functions_analyzed": 4819,
+  "functions_analyzed": 4861,
   "findings": [
     {
       "type": "blocking_with_gil",
@@ -167,5 +167,13 @@
     "PyGILState_Ensure": 1,
     "PyGILState_Release": 1
   },
-  "skipped_files": []
+  "skipped_files": [],
+  "rule_not_applicable": false,
+  "denominators": {
+    "files_analyzed": 123,
+    "functions_analyzed": 4861,
+    "findings": 16,
+    "vocabulary_resolved": 8,
+    "vocabulary_tokens_seen": 4
+  }
 }

@@ -2,7 +2,7 @@
   "project_root": "/home/danzin/projects/cpython",
   "scan_root": "/home/danzin/projects/cpython/Objects",
   "files_analyzed": 123,
-  "functions_analyzed": 0,
+  "functions_analyzed": -1,
   "findings": [
     {
       "type": "deprecated-api",
@@ -354,12 +354,12 @@
       "deprecated_in": "3.13",
       "removed_in": "",
       "replacement": "PyEval_GetFrameBuiltins",
-      "drop_in": true,
-      "caveat": "",
+      "drop_in": false,
+      "caveat": "NOT a drop-in rename: the replacement returns a STRONG reference (Py_XNewRef) where this returns a BORROWED one, so a bare rename leaks the referent at every call site. Correct migration is rename + a matching Py_DECREF once the value is no longer needed. No-frame behaviour is identical (both return NULL without setting an exception), so the NULL guard needs no change.",
       "severity": "CONSIDER",
       "confidence": "high",
       "code": "return Py_NewRef(PyEval_GetBuiltins());",
-      "detail": "PyEval_GetBuiltins is deprecated since 3.13. Use PyEval_GetFrameBuiltins instead (drop-in). (Doc/c-api/reflection.rst:10 (PEP 667). Returns a borrowed reference.)"
+      "detail": "PyEval_GetBuiltins is deprecated since 3.13. The named replacement is PyEval_GetFrameBuiltins, but it is NOT a drop-in. CAVEAT: NOT a drop-in rename: the replacement returns a STRONG reference (Py_XNewRef) where this returns a BORROWED one, so a bare rename leaks the referent at every call site. Correct migration is rename + a matching Py_DECREF once the value is no longer needed. No-frame behaviour is identical (both return NULL without setting an exception), so the NULL guard needs no change. (Doc/c-api/reflection.rst:10 (PEP 667). Returns a borrowed reference.)"
     },
     {
       "type": "gc-untrack-macro-form",
@@ -786,12 +786,12 @@
       "deprecated_in": "3.13",
       "removed_in": "",
       "replacement": "PyEval_GetFrameGlobals",
-      "drop_in": true,
-      "caveat": "",
+      "drop_in": false,
+      "caveat": "NOT a drop-in rename: the replacement returns a STRONG reference (Py_XNewRef) where this returns a BORROWED one, so a bare rename leaks the referent at every call site. Correct migration is rename + a matching Py_DECREF once the value is no longer needed. No-frame behaviour is identical (both return NULL without setting an exception), so the NULL guard needs no change.",
       "severity": "CONSIDER",
       "confidence": "high",
       "code": "PyObject *globals = PyEval_GetGlobals();",
-      "detail": "PyEval_GetGlobals is deprecated since 3.13. Use PyEval_GetFrameGlobals instead (drop-in). (Doc/c-api/reflection.rst:48 (PEP 667).)"
+      "detail": "PyEval_GetGlobals is deprecated since 3.13. The named replacement is PyEval_GetFrameGlobals, but it is NOT a drop-in. CAVEAT: NOT a drop-in rename: the replacement returns a STRONG reference (Py_XNewRef) where this returns a BORROWED one, so a bare rename leaks the referent at every call site. Correct migration is rename + a matching Py_DECREF once the value is no longer needed. No-frame behaviour is identical (both return NULL without setting an exception), so the NULL guard needs no change. (Doc/c-api/reflection.rst:48 (PEP 667).)"
     },
     {
       "type": "deprecated-api",
@@ -2394,6 +2394,7 @@
   ],
   "summary": {
     "total_findings": 141,
+    "denominator_note": "line-based rule: functions_analyzed is -1 (N/A). The denominator is files_analyzed x apis_in_vocabulary.",
     "by_api": {
       "_PyUnicodeWriter_Prepare": 26,
       "_PyUnicodeWriter_Dealloc": 20,
@@ -2432,10 +2433,15 @@
       "3.20": 2,
       "none": 25
     },
-    "findings_needing_a_caveat": 57,
+    "findings_needing_a_caveat": 59,
     "suppressed_compat_shim": 0,
     "apis_in_vocabulary": 93,
     "apis_with_hits": 21
   },
-  "vocabulary_source": "data/deprecated_c_apis.json"
+  "vocabulary_source": "data/deprecated_c_apis.json",
+  "denominators": {
+    "files_analyzed": 123,
+    "functions_analyzed": -1,
+    "findings": 141
+  }
 }

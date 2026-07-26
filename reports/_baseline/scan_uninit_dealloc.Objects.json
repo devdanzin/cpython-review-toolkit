@@ -2,7 +2,7 @@
   "project_root": "/home/danzin/projects/cpython",
   "scan_root": "/home/danzin/projects/cpython/Objects",
   "files_analyzed": 113,
-  "functions_analyzed": 4819,
+  "functions_analyzed": 4861,
   "findings": [
     {
       "type": "dealloc_of_uninitialized_object",
@@ -19,6 +19,7 @@
         "allocated",
         "ob_item"
       ],
+      "receiver_aliases": [],
       "destructor_evidence": {
         "ob_item": {
           "kind": "pointer",
@@ -49,6 +50,7 @@
         "di_state",
         "kind"
       ],
+      "receiver_aliases": [],
       "destructor_evidence": {
         "di_current": {
           "kind": "pointer",
@@ -84,6 +86,7 @@
         "interpolationsiter",
         "stringsiter"
       ],
+      "receiver_aliases": [],
       "destructor_evidence": {
         "interpolationsiter": {
           "kind": "pointer",
@@ -103,7 +106,49 @@
     "total_findings": 3,
     "by_allocator": {
       "PyObject_GC_New": 3
-    }
+    },
+    "allocation_sites": 67
   },
-  "skipped_files": []
+  "nonzeroing_tp_allocs": {},
+  "allocator_model": {
+    "non_zeroing": [
+      "PyObject_GC_New",
+      "PyObject_GC_NewVar",
+      "PyObject_GC_NewWithExtra",
+      "PyObject_New",
+      "PyObject_NewVar",
+      "_PyObject_GC_New",
+      "_PyObject_GC_NewVar",
+      "_PyObject_New",
+      "_PyObject_NewVar"
+    ],
+    "zeroing_by_evidence": {
+      "PyType_GenericAlloc": "forwards to _PyType_AllocNoTrack, which memsets the object after the PyObject header (Objects/typeobject.c:2542)"
+    },
+    "tp_alloc_rule": "a `->tp_alloc(...)` call counts as non-zeroing only in a file that registers its own allocfunc returning raw storage; the two in-tree instances are Modules/_datetimemodule.c time_alloc / datetime_alloc"
+  },
+  "skipped_files": [
+    {
+      "file": "/home/danzin/projects/cpython/Objects/mimalloc/prim/osx/alloc-override-zone.c",
+      "reason": "no functions extracted"
+    },
+    {
+      "file": "/home/danzin/projects/cpython/Objects/mimalloc/prim/osx/prim.c",
+      "reason": "no functions extracted"
+    },
+    {
+      "file": "/home/danzin/projects/cpython/Objects/mimalloc/prim/prim.c",
+      "reason": "no functions extracted"
+    },
+    {
+      "file": "/home/danzin/projects/cpython/Objects/mimalloc/static.c",
+      "reason": "no functions extracted"
+    }
+  ],
+  "denominators": {
+    "files_analyzed": 113,
+    "functions_analyzed": 4861,
+    "findings": 3,
+    "allocation_sites": 67
+  }
 }
