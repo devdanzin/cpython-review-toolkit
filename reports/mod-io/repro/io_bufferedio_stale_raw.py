@@ -1,6 +1,7 @@
 """Modules/_io/bufferedio.c never re-validates self->raw after user Python runs.
 
-FIVE reproduced NULL-receiver dispatch sites.  All have the same shape:
+SIX reproduced NULL-receiver dispatch sites (:591 :788 :1485 :1640 :1748 :1996),
+plus one that degrades to SystemError (:818).  All have the same shape:
 
     <read/validate self->raw or CHECK_INITIALIZED>
     ... a call that runs ARBITRARY user Python (self.flush(), raw.write(),

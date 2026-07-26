@@ -139,7 +139,7 @@
       "family": "Modules: _io package",
       "tier": "A",
       "scope": "Modules/_io",
-      "status": "pending",
+      "status": "done",
       "passes": 1,
       "oracle": "Lib/_pyio.py",
       "notes": "Shipped pure-Python twin is a free differential oracle. Buffer-protocol dense; detach/close re-entrancy and raw-buffer resize are the shapes to hunt.",
